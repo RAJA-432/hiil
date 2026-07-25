@@ -10,7 +10,6 @@ from prompt_toolkit.formatted_text import ANSI
 from prompt_toolkit.history import FileHistory
 
 from mcp_cli.commands.router import route_command
-from mcp_cli.locales import available_labels
 from mcp_cli.locales import get as get_locale
 from mcp_cli.ui.codeblock import CodeBlockAccumulator
 from mcp_cli.ui.completers import HiilCompleter
@@ -78,7 +77,6 @@ class CliApp:
         T = self.T
         prompt = ANSI(f"{T.ansi('primary')}> {RS}")
 
-        loc = self._locale
         print(f"{T.style_box('primary', 'MCP Chat')}{RS}")
 
         while True:
@@ -119,7 +117,7 @@ class CliApp:
                     self._spinner.start("thinking")
                     header = self._msg.assistant_header()
                     started = False
-                    
+
                     def on_chunk(c: str) -> None:
                         nonlocal started
                         if not started:
@@ -127,19 +125,19 @@ class CliApp:
                             self._spinner.clear()
                             print(f"{header}\n  ", end="", flush=True)
                         buf.append(c)
-                        
+
                         # Use the CodeBlockAccumulator to handle streaming code
                         # and the renderer for inline formatting.
                         # Since we are streaming, we feed it to the accumulator.
                         self._codeblocks.feed(c, on_text=lambda t: print(self._msg._renderer.render_inline(t), end="", flush=True))
-                        
+
                     usage_before = self.chat.usage.session_summary()
                     reply = await self.chat.send(user_input, on_chunk=on_chunk)
                     self._spinner.stop()
-                    
+
                     # Finalize any unclosed code blocks
                     self._codeblocks.flush(on_text=lambda t: print(self._msg._renderer.render_inline(t), end="", flush=True))
-                    
+
                     printed = "".join(buf)
                     final = reply or printed
                     if final:
@@ -233,11 +231,11 @@ class CliApp:
         T = self.T
         # Use the HistoryManager via the chat service for a global search
         results = self.chat.history.search(query)
-        
+
         if not results:
             print(f"{T.ansi('muted')}No matches found for '{query}'.{RS}")
             return
-            
+
         print(f"{T.ansi('secondary')}--- Search: '{query}' ({len(results)} results) ---{RS}")
         for r in results:
             # Use the polished role badges for search results
@@ -245,7 +243,7 @@ class CliApp:
             content = r.get("content", "")
             preview = content[:120].replace("\n", " ")
             ts = self._format_timestamp(r.get("timestamp", ""))
-            
+
             color = T.ansi('primary') if role == 'assistant' else T.ansi('muted')
             print(f"  {color}{role}:{RS}{ts} {preview}")
 

@@ -3,12 +3,11 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 
 from mcp_cli.services.notification_bus import NotificationBus
-from tests.harness import load_cases, assert_api_response
+from tests.harness import assert_api_response, load_cases
 
 
 @pytest.fixture
@@ -72,9 +71,10 @@ def real_app():
     manager, and vector store. Only ``AsyncOpenAI`` and ``create_servers``
     are mocked — everything else is the real production code.
     """
+    from unittest.mock import MagicMock, patch
+
     from mcp_cli.services.chat import CliChat
     from mcp_cli.services.claude import Claude
-    from unittest.mock import MagicMock, patch
 
     with patch("mcp_cli.services.claude.AsyncOpenAI") as mock_oa:
         oa_client = MagicMock()

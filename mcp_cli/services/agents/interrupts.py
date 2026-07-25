@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 DecisionType = Literal["approve", "edit", "reject", "respond"]
 
 
@@ -24,7 +23,7 @@ class ResumeDecision(BaseModel):
     message: str | None = None
 
 
-class AgentInterrupt(Exception):
+class AgentInterruptError(Exception):
     def __init__(
         self,
         action_requests: list[ActionRequest],

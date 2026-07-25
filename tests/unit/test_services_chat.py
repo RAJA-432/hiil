@@ -2,12 +2,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tests.conftest import FakeCallToolResult, FakeContentBlock, FakeTool
-
 from mcp_cli.services.chat import CliChat
 from mcp_cli.services.claude import Claude
 from mcp_cli.services.tool_runner import _extract_text, _mcp_tool_to_openai
 from mcp_cli.services.vector_store import VectorStore
+from tests.conftest import FakeCallToolResult, FakeTool
 
 
 def test_mcp_tool_to_openai():

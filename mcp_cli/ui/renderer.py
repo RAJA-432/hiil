@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 RS = "\033[0m"
 
@@ -140,22 +139,22 @@ class MarkdownRenderer:
         lines = code.rstrip("\n").split("\n")
         width = max((len(l) for l in lines), default=0)
         width = min(width + 4, 80)
-        
+
         sep = p["border"] + "─" * width + RS
         badge = f" {p['fg_muted']}[{lang}]{RS} " if lang else ""
-        
+
         header = f"{sep}\n{badge}"
-        
+
         body_lines = []
         for line in lines:
             content = line if line else " "
             # Fill the remaining width with background color
             padding = " " * (width - len(content))
             body_lines.append(f"{p['bg_code_block']}{p['fg_code']}│ {content}{padding}{RS}")
-            
+
         body = "\n".join(body_lines)
         footer = f"\n{sep}"
-        
+
         return f"\n{header}\n{body}{footer}\n"
 
     # ── Inline replacements ────────────────────────────────────────────
@@ -167,7 +166,6 @@ class MarkdownRenderer:
     def _replace_link(self, m: re.Match) -> str:
         p = self._palette
         text = m.group(1)
-        url = m.group(2)
         return f"{UNDERLINE_ON}{p['fg_link']}{text}{RS}{UNDERLINE_OFF}"
 
     def _replace_bold(self, m: re.Match) -> str:

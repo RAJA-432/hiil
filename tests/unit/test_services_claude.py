@@ -134,9 +134,9 @@ async def test_chat_dict_no_tool_calls(mock_openai):
 
 @pytest.mark.asyncio
 async def test_chat_tenacity_retry(mock_openai):
+    import httpx
     from openai import APIError
     from openai.types.chat import ChatCompletionMessage
-    import httpx
 
     service = Claude(provider="openrouter", model="gpt-4", api_key="test-key")
     mock_openai.chat.completions.create.side_effect = [

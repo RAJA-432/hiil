@@ -40,10 +40,10 @@ def _setup() -> None:
     # Silence the Python root logger and all 'hiil' child loggers from the console
     # during normal operation to keep the UI clean.
     logging.getLogger().setLevel(logging.ERROR)
-    
-    # We will let the file handler capture everything, but the console handler 
+
+    # We will let the file handler capture everything, but the console handler
     # for the 'hiil' logger should only show errors by default.
-    
+
     _ROOT = logging.getLogger("hiil")
     _ROOT.setLevel(logging.DEBUG)
     _ROOT.handlers.clear()

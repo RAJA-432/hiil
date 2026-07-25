@@ -7,7 +7,7 @@ from mcp_cli.services.logging import get_logger
 from mcp_cli.services.usage import count_tokens
 
 if TYPE_CHECKING:
-    from mcp_cli.services.vector_store import VectorStore
+    pass
 
 logger = get_logger("context_manager")
 

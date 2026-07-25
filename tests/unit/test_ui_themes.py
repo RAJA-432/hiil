@@ -1,4 +1,4 @@
-from mcp_cli.ui.themes import RS, DEEP_BLACK, DEEP_CURSOR, THEMES, Theme, get_theme
+from mcp_cli.ui.themes import DEEP_BLACK, DEEP_CURSOR, RS, THEMES, Theme, get_theme
 
 OPENCODE = DEEP_BLACK
 CURSOR = DEEP_CURSOR

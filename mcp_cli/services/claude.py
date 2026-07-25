@@ -10,7 +10,8 @@ from __future__ import annotations
 from typing import Any
 
 import httpx
-from openai import APIError as OpenAIError, AsyncOpenAI
+from openai import APIError as OpenAIError
+from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessage
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 

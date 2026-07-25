@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from mcp import types
 
 from mcp_client import MCPClient
-from tests.harness import load_cases, assert_mcp_result, run_mcp_setup, run_mcp_teardown
+from tests.harness import assert_mcp_result, load_cases, run_mcp_setup, run_mcp_teardown
 
 CASES = load_cases("mcp_server_tests.json")
 

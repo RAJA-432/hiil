@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException, Request, UploadFile, File
+
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
-from typing import Any, Optional
 
 from mcp_cli.services.agents import AgentConfig
 from mcp_cli.services.agents.interrupts import ResumeDecision

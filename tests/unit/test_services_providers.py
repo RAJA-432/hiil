@@ -1,7 +1,5 @@
 from unittest.mock import patch
 
-import pytest
-
 from mcp_cli.services.providers import get_available_providers, pick_provider
 
 

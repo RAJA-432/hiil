@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Callable
+from collections.abc import Callable
 
 from mcp_cli.ui.renderer import MarkdownRenderer, get_renderer
 
@@ -106,20 +106,20 @@ class CodeBlockAccumulator:
         # The MarkdownRenderer already handles the box-drawing and palette
         # logic for fenced blocks. We just need to pass it the raw code.
         code = "".join(lines).rstrip("\n")
-        
+
         # We mimic a markdown fence so MarkdownRenderer._render_fenced_blocks can handle it,
         # or we call _render_code_block directly.
         # Since _render_code_block is "private" in renderer.py, we'll use the render method
         # by wrapping it in fences, or we can make _render_code_block public.
         # Given the current architecture, wrapping in fences is the cleanest way to
         # reuse the Renderer's polished logic.
-        
+
         fence = "```"
         lang_part = lang if lang else ""
         wrapped = f"{fence}{lang_part}\n{code}\n{fence}"
-        
+
         rendered = self._renderer.render(wrapped)
-        
+
         # Add the [copy] shortcut at the end as requested in the design
         pd = self._renderer.palette_dict
         footer = f"\n  {pd['fg_muted']}shortcut: [copy]{RS}"

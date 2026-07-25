@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-
 from typing import Any
 
 import vajram.state as _state
@@ -17,6 +16,7 @@ async def _init_chat():
     if _state._chat is not None:
         return _state._chat
     from contextlib import AsyncExitStack
+
     from mcp_cli.services.factory import create_chat
     _state._chat_stack = AsyncExitStack()
     _state._chat = await create_chat(_state._chat_stack, logging_callback=_mcp_logging_callback)
@@ -53,8 +53,9 @@ async def _stream_chat(chat, message: str):
 
 
 async def _log_events(bus):
-    from vajram.config import VAJRAM_CHAT_LOG
     import aiofiles  # type: ignore[import-untyped]
+
+    from vajram.config import VAJRAM_CHAT_LOG
 
     if not VAJRAM_CHAT_LOG:
         try:

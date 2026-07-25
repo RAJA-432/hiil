@@ -2,9 +2,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from tests.conftest import FakeTool, FakeToolCall
-
 from mcp_cli.services.tool_runner import ToolRunner, _extract_text, _mcp_tool_to_openai
+from tests.conftest import FakeTool, FakeToolCall
 
 
 def test_mcp_tool_to_openai():

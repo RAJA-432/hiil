@@ -173,7 +173,7 @@ class CodeInterpreterMiddleware(AgentMiddleware):
                     stdout, stderr = await asyncio.wait_for(
                         proc.communicate(), timeout=timeout + 5
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     proc.kill()
                     await proc.wait()
                     return f"[timeout] Code execution exceeded {timeout}s"

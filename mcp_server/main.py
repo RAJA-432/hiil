@@ -51,10 +51,10 @@ def main():
     args = parser.parse_args()
     if args.transport == "sse":
         import uvicorn
-        uvicorn.run(mcp.sse_app(), host="0.0.0.0", port=args.port)
+        uvicorn.run(mcp.sse_app(), host="127.0.0.1", port=args.port)
     elif args.transport == "streamable-http":
         import uvicorn
-        uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=args.port)
+        uvicorn.run(mcp.streamable_http_app(), host="127.0.0.1", port=args.port)
     else:
         mcp.run(transport="stdio")
 

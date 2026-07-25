@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import shutil
 import sys
-import time
 from datetime import datetime
-from typing import Any, Callable
+from typing import Any
 
 from mcp_cli.ui.renderer import MarkdownRenderer, get_renderer
 
@@ -102,23 +100,23 @@ class MessageManager:
 
     def format_tool_call(self, name: str, args: dict[str, Any], result: str) -> str:
         """Inline tool call display with improved styling and result truncation.
-        
+
         Returns a formatted string for the tool call, highlighting errors and
         truncating results to 4 lines.
         """
         pd = self._renderer.palette_dict
         args_str = ", ".join(f"{k}={v!r}" for k, v in args.items())
-        
+
         # Truncate result to 4 lines
         result_lines = result.splitlines()
         if len(result_lines) > 4:
             truncated_result = "\n".join(result_lines[:4]) + f"\n  {pd['fg_muted']}... (use /expand to see more){RS}"
         else:
             truncated_result = result
-            
+
         is_error = "error" in result.lower() or "exception" in result.lower()
         icon = f"{pd['fg_error']}⚠ ERROR{RS}" if is_error else f"{pd['fg_success']}✔{RS}"
-        
+
         # Tool call layout
         return (
             f"\n  {icon} {pd['fg_code']}{name}({args_str}){RS}\n"

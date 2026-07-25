@@ -1,11 +1,11 @@
 import asyncio
 import logging
+from urllib.parse import urljoin
 
 import httpx
 import websockets
 from fastapi import APIRouter, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
-from urllib.parse import urljoin
 
 logger = logging.getLogger("vajram")
 

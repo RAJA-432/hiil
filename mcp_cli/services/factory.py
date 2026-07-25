@@ -5,13 +5,12 @@ from collections.abc import Callable
 from contextlib import AsyncExitStack
 from typing import Any
 
+from mcp.shared.context import RequestContext
 from mcp.types import (
     CreateMessageRequestParams,
     CreateMessageResult,
-    SamplingMessage,
     TextContent,
 )
-from mcp.shared.context import RequestContext
 
 from mcp_cli.config import load_settings
 from mcp_cli.services.chat import CliChat

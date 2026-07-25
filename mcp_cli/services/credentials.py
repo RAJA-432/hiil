@@ -10,7 +10,8 @@ if sys.platform == "win32":
     import win32crypt
 
 try:
-    from cryptography.fernet import Fernet, InvalidToken as FernetInvalidToken
+    from cryptography.fernet import Fernet
+    from cryptography.fernet import InvalidToken as FernetInvalidToken
 except ImportError:
     Fernet = None  # type: ignore[assignment]
     FernetInvalidToken = None  # type: ignore[assignment]

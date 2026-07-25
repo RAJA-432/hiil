@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional
+
 RS = "\033[0m"  # ANSI reset sequence
 
 
@@ -93,7 +93,7 @@ class Theme:
         bold: bool = False,
         italic: bool = False,
         underline: bool = False,
-        bg_key: Optional[str] = None,
+        bg_key: str | None = None,
     ) -> str:
         """
         Return a Rich style string.

@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import vajram.state as _state
-from vajram.config import VAJRAM_LOG_LEVEL, STREAMLIT_URL, VAJRAM_NO_STREAMLIT
+from vajram.config import STREAMLIT_URL, VAJRAM_LOG_LEVEL, VAJRAM_NO_STREAMLIT
 from vajram.streamlit import _start_streamlit
 
 logging.basicConfig(level=VAJRAM_LOG_LEVEL)
@@ -54,8 +54,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from vajram.routes import router as api_router
 from vajram.proxy import router as proxy_router
+from vajram.routes import router as api_router
 
 app.include_router(api_router)
 app.include_router(proxy_router)

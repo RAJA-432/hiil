@@ -4,12 +4,12 @@ from collections.abc import Callable
 from typing import Any
 
 from mcp import types
+from mcp.shared.context import RequestContext
 from mcp.types import (
     CreateMessageRequestParams,
     CreateMessageResult,
     LoggingMessageNotificationParams,
 )
-from mcp.shared.context import RequestContext
 
 from mcp_client import prompts, resources, tools
 from mcp_client.connection import ManagedConnection

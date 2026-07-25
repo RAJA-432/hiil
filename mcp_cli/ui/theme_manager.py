@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import os
-import shutil
-from typing import Any
 
-from mcp_cli.ui.themes import THEMES, RS, Theme, get_theme
+from mcp_cli.ui.themes import THEMES, Theme
 
 # ── Accessibility presets ────────────────────────────────────────────────
 

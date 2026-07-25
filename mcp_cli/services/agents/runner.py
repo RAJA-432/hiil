@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 import uuid
-import re
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from mcp_cli.services.agents.backend import VirtualBackend
@@ -68,8 +68,8 @@ class AgentRunner:
             agent_id=self.agent_id,
             config=config,
             status="idle",
-            created_at=datetime.now(timezone.utc),
-            last_active=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
+            last_active=datetime.now(UTC),
         )
 
         self._messages: list[dict[str, Any]] = []
@@ -120,7 +120,7 @@ class AgentRunner:
 
     async def run(self, task_input: str) -> AgentResult:
         self._state.status = "running"
-        self._state.last_active = datetime.now(timezone.utc)
+        self._state.last_active = datetime.now(UTC)
         self._state.current_task_id = uuid.uuid4().hex[:8]
         self._tool_calls_made = 0
         self._state.pending_interrupt = None
@@ -141,7 +141,7 @@ class AgentRunner:
             final_status = "waiting"
             error = str(exc)
             output = ""
-        except asyncio.TimeoutError:
+        except TimeoutError:
             error = f"Agent timed out after {self.config.timeout_seconds}s"
             final_status = "failed"
             logger.warning("Agent %s: %s", self.agent_id, error)
@@ -151,7 +151,7 @@ class AgentRunner:
             logger.exception("Agent %s failed: %s", self.agent_id, error)
 
         elapsed = time.monotonic() - start
-        self._state.last_active = datetime.now(timezone.utc)
+        self._state.last_active = datetime.now(UTC)
         self._state.current_task_id = None
         self._state.result = {"output": output}
         self._state.status = final_status
@@ -205,7 +205,7 @@ class AgentRunner:
             final_status = "waiting"
             error = str(exc)
             output = ""
-        except asyncio.TimeoutError:
+        except TimeoutError:
             error = f"Agent timed out after {self.config.timeout_seconds}s"
             final_status = "failed"
         except Exception as exc:
@@ -213,7 +213,7 @@ class AgentRunner:
             final_status = "failed"
 
         elapsed = time.monotonic() - start
-        self._state.last_active = datetime.now(timezone.utc)
+        self._state.last_active = datetime.now(UTC)
         self._state.result = {"output": output}
         self._state.status = final_status
 
@@ -338,7 +338,7 @@ class AgentRunner:
             try:
                 args = json.loads(call.function.arguments or "{}")
             except json.JSONDecodeError:
-                # If the AI produces malformed JSON, try to recover by stripping 
+                # If the AI produces malformed JSON, try to recover by stripping
                 # potential markdown formatting or trailing characters.
                 raw_args = call.function.arguments or "{}"
                 try:
@@ -347,7 +347,7 @@ class AgentRunner:
                         raw_args = re.sub(r"```(?:json)?\s*([\s\S]*?)\s*```", r"\1", raw_args).strip()
                     args = json.loads(raw_args)
                 except Exception:
-                    logger.warning("Agent %s: Malformed tool arguments for %s. Using empty args. Raw: %s", 
+                    logger.warning("Agent %s: Malformed tool arguments for %s. Using empty args. Raw: %s",
                                    self.agent_id, name, raw_args)
                     args = {}
 

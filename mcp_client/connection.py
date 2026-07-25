@@ -9,6 +9,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared.context import RequestContext
 from mcp.types import (
     CreateMessageRequestParams,
     CreateMessageResult,
@@ -16,7 +17,6 @@ from mcp.types import (
     LoggingMessageNotificationParams,
     Root,
 )
-from mcp.shared.context import RequestContext
 from pydantic import FileUrl
 
 

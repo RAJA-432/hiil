@@ -1,6 +1,7 @@
 import pytest
-from mcp_server.tools.documents import read_document, edit_document, format_document
+
 from mcp_server.storage.store import get_document
+from mcp_server.tools.documents import edit_document, format_document, read_document
 
 
 @pytest.mark.asyncio

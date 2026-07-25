@@ -9,7 +9,6 @@ from mcp_cli.services.agents.interrupts import ActionRequest, DecisionType
 from mcp_cli.services.agents.middleware import AgentMiddleware
 from mcp_cli.services.agents.permissions import FilesystemPermission
 
-
 _MIDDLEWARE_REGISTRY: dict[str, type[AgentMiddleware]] = {}
 
 

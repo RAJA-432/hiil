@@ -1,4 +1,4 @@
-from mcp_server.resources.documents import list_docs, fetch_doc
+from mcp_server.resources.documents import fetch_doc, list_docs
 
 
 def test_list_docs():

@@ -1,5 +1,6 @@
 import pytest
-from mcp_server.storage.store import get_document, edit_document, list_document_ids
+
+from mcp_server.storage.store import edit_document, get_document, list_document_ids
 
 
 def test_get_document_exists():

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -191,7 +191,6 @@ async def test_cli_undo_messages():
 
 @pytest.mark.asyncio
 async def test_cli_notification_bus_in_send():
-    from mcp_cli.services.notification_bus import NotificationBus
 
     bus = NotificationBus()
     events = []
