@@ -4,7 +4,7 @@ MCP server demonstrating sampling: requests LLM text generation from the client.
 The client must provide a sampling_callback that fulfills these requests.
 """
 
-from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import SamplingMessage, TextContent
 
 mcp = FastMCP("sampling-demo")
