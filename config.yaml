@@ -1,0 +1,45 @@
+# Application Configuration
+settings:
+
+# Approved root directories for MCP filesystem access.
+# Tools like read_file, write_file, list_directory etc. will only operate
+# on paths that fall within these roots.  Paths are resolved at startup.
+roots:
+  - "."          # project root (default)
+
+settings:
+  provider: "ollama"
+  model: "gemma4:31b-cloud"
+  api_key: ""
+  base_url: "http://localhost:11434/v1"
+  max_context_tokens: 200000  # auto-trim history when exceeded
+
+# Default MCP Servers to load
+servers:
+  - id: "doc_server"
+    script: "mcp_server"
+    args: []
+    env: {}
+
+  - id: "filesystem"
+    script: "@modelcontextprotocol/server-filesystem"
+    args: ["."]
+    env: {}
+
+  - id: "memory"
+    script: "@modelcontextprotocol/server-memory"
+    args: []
+    env: {}
+
+  - id: "everything"
+    script: "@modelcontextprotocol/server-everything"
+    args: []
+    env: {}
+
+  # Web UI authentication: set HIIL_WEBUI_USERNAME and HIIL_WEBUI_PASSWORD env vars
+  # API keys: use `hiil key set <provider> <key>` or MODEL_API_KEY env var instead of plaintext below
+  # pdf-server uses HTTP/SSE transport (not stdio) — skipped for now
+  # - id: "pdf"
+  #   script: "@modelcontextprotocol/server-pdf"
+  #   args: []
+  #   env: {}

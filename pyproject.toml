@@ -1,0 +1,70 @@
+[project]
+name = "hiil"
+version = "0.2.0"
+description = "CLI + Web chat backed by MCP tool servers"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp[cli]>=1.8.0",
+    "openai>=1.30.0",
+    "python-dotenv>=1.0.0",
+    "prompt-toolkit>=3.0.0",
+    "tenacity>=9.0.0",
+    "pyyaml>=6.0",
+    "httpx>=0.27.0",
+    "cryptography>=42.0",
+    "streamlit>=1.40.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+    "mypy>=1.8",
+    "types-setuptools>=70.0",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["main", "webui"]
+packages = [
+    "mcp_cli", "mcp_cli.ui", "mcp_cli.commands", "mcp_cli.services",
+    "mcp_client",
+    "mcp_server", "mcp_server.storage", "mcp_server.tools", "mcp_server.resources",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["asyncio: async test"]
+filterwarnings = [
+    "ignore:::fastapi.testclient:",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "S"]
+ignore = ["S101", "S311", "E402", "E501", "E701", "E741", "S110", "N802", "N806"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "N802", "N803", "N806", "F841"]
+"mcp_cli/locales/*" = ["N999"]
+"mcp_server/*" = ["N999"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
+disallow_untyped_defs = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false

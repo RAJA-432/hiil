@@ -1,0 +1,16 @@
+services:
+  hiil:
+    build: .
+    ports:
+      - "7860:7860"
+    environment:
+      - HIIL_WEBUI_USERNAME=${HIIL_WEBUI_USERNAME:-}
+      - HIIL_WEBUI_PASSWORD=${HIIL_WEBUI_PASSWORD:-}
+      - MODEL_API_KEY=${MODEL_API_KEY:-}
+      - HIIL_LOG_LEVEL=${HIIL_LOG_LEVEL:-info}
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - hiil_data:/root/.hiil
+
+volumes:
+  hiil_data:
