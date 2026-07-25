@@ -15,7 +15,7 @@ def _consume_pipe(pipe):
 
 def _start_streamlit() -> subprocess.Popen:
     python = sys.executable or "python"
-    proc = subprocess.Popen(
+    proc = subprocess.Popen(  # noqa: S603
         [python, "-m", "streamlit", "run", "my_streamlit_app.py",
          "--server.port", "8501",
          "--server.headless", "true",
