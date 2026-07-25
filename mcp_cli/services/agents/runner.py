@@ -260,7 +260,7 @@ class AgentRunner:
         tools = list(self.tool_router.openai_tools or [])
         if self._middleware:
             tools.extend(self._middleware.get_extra_tools())
-        tools = tools or None
+        tools: list[dict[str, Any]] | None = tools or None
 
         for iteration in range(1, self.config.max_iterations + 1):
             if self.bus:

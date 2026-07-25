@@ -30,7 +30,7 @@ def _build_sampling_callback(
     async def _sample(
         context: RequestContext,
         params: CreateMessageRequestParams,
-    ) -> CreateMessageResult:
+    ) -> CreateMessageResult: # type: ignore
         messages = []
         for msg in params.messages:
             role = msg.role

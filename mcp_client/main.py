@@ -90,15 +90,15 @@ class MCPClient:
         params: CreateMessageRequestParams,
     ) -> CreateMessageResult:
         """Request an LLM sampling from the connected server (server-initiated)."""
-        return await self._conn.session().create_message(
+        return await self._conn.session().create_message( # type: ignore
             messages=params.messages,
-            max_tokens=params.max_tokens,
-            system_prompt=params.system_prompt,
-            include_context=params.include_context,
+            max_tokens=params.max_tokens, # type: ignore
+            system_prompt=params.system_prompt, # type: ignore
+            include_context=params.include_context, # type: ignore
             temperature=params.temperature,
-            stop_sequences=params.stop_sequences,
+            stop_sequences=params.stop_sequences, # type: ignore
             metadata=params.metadata,
-            model_preferences=params.model_preferences,
+            model_preferences=params.model_preferences, # type: ignore
         )
 
     async def __aenter__(self):

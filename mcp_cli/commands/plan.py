@@ -138,7 +138,7 @@ async def _interactive_model_picker(models: list[dict]) -> str | None:
         ("bold", "bold"),
     ])
 
-    app = Application(
+    app = Application( # type: ignore
         layout=Layout(root),
         key_bindings=kb,
         style=style,

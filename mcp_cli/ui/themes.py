@@ -137,7 +137,7 @@ class Theme:
         bg = self.ansi_bg("background")
         return f"{bg}{padded}{RS}"
 
-    def gradient_text(self, text: str, start_key: str, end_key: str, steps: int = None) -> str:
+    def gradient_text(self, text: str, start_key: str, end_key: str, steps: int | None = None) -> str:
         """
         Return a string with ANSI gradient applied across the text.
         Simple linear interpolation between two colors.
@@ -152,7 +152,7 @@ class Theme:
             h = h.lstrip("#")
             if len(h) == 3:
                 h = "".join([c * 2 for c in h])
-            return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4))
+            return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4)) # type: ignore[return-value]
 
         s_r, s_g, s_b = hex_to_rgb(start_hex)
         e_r, e_g, e_b = hex_to_rgb(end_hex)

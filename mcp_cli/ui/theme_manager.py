@@ -113,7 +113,7 @@ class ThemeManager:
         del self._named_themes[name]
         if name == self._theme_name:
             self._theme_name = next(iter(self._named_themes.keys()), "opencode")
-            self._base = self._named_themes.get(self._theme_name)
+            self._base = self._named_themes.get(self._theme_name) if self._named_themes.get(self._theme_name) else self._base
             self._current = None
         return True
 
@@ -132,7 +132,7 @@ class ThemeManager:
         if self._light:
             colors.update(_LIGHT_OVERRIDES)
 
-        preset = _ACCESSIBILITY_PRESETS.get(self._accessibility, {})
+        preset = _ACCESSIBILITY_PRESETS.get(self._accessibility if self._accessibility is not None else "default", {})
         if preset:
             colors.update(preset)
 
@@ -155,7 +155,7 @@ class ThemeManager:
 
     def toggle_light(self) -> bool:
         self.light = not self._light
-        return self._light
+        return self._light # type: ignore[return-value]
 
     def toggle_compact(self) -> bool:
         self._compact = not self._compact

@@ -265,13 +265,17 @@ class CliChat:
                 "name": a.config.name,
                 "role": a.config.role,
                 "capabilities": a.config.capabilities,
-                "status": a.state.status.value if hasattr(a.state.status, 'value') else a.state.status,
-                "created_at": a.state.created_at.isoformat(),
-                "last_active": a.state.last_active.isoformat(),
-                "total_tokens": a.state.total_tokens,
-            }
-            for a in self.agents.values()
-        ]
+S = a.state.status
+S_VAL = S.value if hasattr(S, 'value') else S
+return {
+    "session": self.session_id,
+    "messages": len(self.messages),
+    "servers": list(self.clients.keys()),
+    "model": info.get("model", self.claude.model),
+    "provider": info.get("provider", self.claude.provider),
+    "tools": len(self.tools_by_name),
+    "status": S_VAL,
+}
 
     async def send(
         self,

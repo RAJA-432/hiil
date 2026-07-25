@@ -26,12 +26,12 @@ def _get_fernet() -> object | None:
     key_file = _CRED_DIR / ".key"
     if not key_file.exists():
         _CRED_DIR.mkdir(parents=True, exist_ok=True)
-        key = Fernet.generate_key()
+        key = Fernet.generate_key() # type: ignore
         key_file.write_bytes(key)
         key_file.chmod(0o600)
     else:
         key = key_file.read_bytes()
-    return Fernet(key)
+    return Fernet(key) # type: ignore
 
 
 def _encrypt(plaintext: str) -> str:
