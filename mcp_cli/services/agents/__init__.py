@@ -1,6 +1,6 @@
 from mcp_cli.services.agents.backend import VirtualBackend
 from mcp_cli.services.agents.code_interpreter import CodeInterpreterMiddleware
-from mcp_cli.services.agents.interrupts import ActionRequest, AgentInterrupt, ResumeDecision
+from mcp_cli.services.agents.interrupts import ActionRequest, AgentInterruptError, ResumeDecision
 from mcp_cli.services.agents.memory import AgentMemoryStore
 from mcp_cli.services.agents.middleware import AgentMiddleware, MiddlewarePipeline
 from mcp_cli.services.agents.models import AgentConfig, AgentResult, AgentState
@@ -19,7 +19,7 @@ __all__ = [
     "SummarizationMiddleware",
     "ActionRequest",
     "ResumeDecision",
-    "AgentInterrupt",
+    "AgentInterruptError",
     "FilesystemPermission",
     "PermissionEnforcer",
     "AgentMemoryStore",

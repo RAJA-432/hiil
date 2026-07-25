@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from mcp_cli.services.agents.backend import VirtualBackend
 from mcp_cli.services.agents.interrupts import (
     ActionRequest,
-    AgentInterrupt,
+    AgentInterruptError,
     ResumeDecision,
 )
 from mcp_cli.services.agents.memory import AgentMemoryStore
@@ -135,7 +135,7 @@ class AgentRunner:
                 self._execute_loop(task_input),
                 timeout=self.config.timeout_seconds,
             )
-        except AgentInterrupt as exc:
+        except AgentInterruptError as exc:
             self._state.pending_interrupt = exc.action_requests
             self._state.status = "waiting"
             final_status = "waiting"
@@ -199,7 +199,7 @@ class AgentRunner:
                 self._execute_loop(),
                 timeout=self.config.timeout_seconds,
             )
-        except AgentInterrupt as exc:
+        except AgentInterruptError as exc:
             self._state.pending_interrupt = exc.action_requests
             self._state.status = "waiting"
             final_status = "waiting"
@@ -372,7 +372,7 @@ class AgentRunner:
                         allowed_decisions=interrupt_cfg.get("allowed_decisions", ["approve", "edit", "reject"]),
                     )
                 ]
-                raise AgentInterrupt(action_requests)
+                raise AgentInterruptError(action_requests)
 
             # Middleware tool intercept
             if self._middleware:
