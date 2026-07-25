@@ -96,7 +96,7 @@ async def grep(pattern: str, glob_pattern: str = "*", ctx: Context = None) -> li
                     if len(results) >= 200:
                         await c.info("Found 200+ matches, truncating")
                         return results
-        except Exception as exc:
+        except Exception:
             # Log the exception to avoid S112 (try-except-continue)
             # In a real app we'd use a logger, here we just pass but acknowledge the error
             pass
