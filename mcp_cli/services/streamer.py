@@ -60,7 +60,7 @@ class Streamer:
                         )
                     )
         except Exception:
-            logger.warning("streaming failed, falling back to non-streaming")
+            logger.exception("streaming failed, falling back to non-streaming")
             message = await self.claude.chat(messages, tools=tools)
             output_text = message.content or ""
             output_tokens = count_tokens(output_text, self.claude.model)

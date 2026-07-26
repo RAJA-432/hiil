@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from urllib.parse import urlparse
 
 import httpx
 from pydantic import Field
@@ -41,11 +42,29 @@ async def web_search(
     return f"Web search results for '{query}':\n\n" + "\n\n".join(snippets)
 
 
+_ALLOWED_SCHEMES = frozenset({"http", "https"})
+_BLOCKED_HOSTS = frozenset({
+    "169.254.169.254", "metadata.google.internal", "100.100.100.200",
+    "localhost", "127.0.0.1", "::1", "0.0.0.0",
+})
+
+
+def _validate_url(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise ValueError(f"URL scheme '{parsed.scheme}' not allowed (only http/https)")
+    host = parsed.hostname or ""
+    if host in _BLOCKED_HOSTS or host.endswith(".internal"):
+        raise ValueError(f"URL host '{host}' is blocked for security")
+    return url
+
+
 async def web_fetch(
     url: str = Field(description="URL to fetch"),
     max_chars: int = Field(default=8000, description="Max characters to return", ge=500, le=50000),
 ) -> str:
     """Fetch a web page and extract its readable text content."""
+    url = _validate_url(url)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
     }

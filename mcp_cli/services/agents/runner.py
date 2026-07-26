@@ -347,8 +347,8 @@ class AgentRunner:
                         raw_args = re.sub(r"```(?:json)?\s*([\s\S]*?)\s*```", r"\1", raw_args).strip()
                     args = json.loads(raw_args)
                 except Exception:
-                    logger.warning("Agent %s: Malformed tool arguments for %s. Using empty args. Raw: %s",
-                                   self.agent_id, name, raw_args)
+                    logger.exception("Agent %s: Malformed tool arguments for %s. Using empty args. Raw: %s",
+                                     self.agent_id, name, raw_args)
                     args = {}
 
             # Check filesystem permissions before executing

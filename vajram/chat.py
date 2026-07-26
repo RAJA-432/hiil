@@ -62,6 +62,7 @@ async def _log_events(bus):
             async for _ in bus.events():
                 pass
         except Exception:
+            logger.warning("Failed to consume bus events (logging disabled)")
             pass
         return
     try:
@@ -69,10 +70,12 @@ async def _log_events(bus):
             async for event in bus.events():
                 await f.write(json.dumps(event) + "\n")
     except Exception:
+        logger.exception("Failed to log events to file")
         try:
             async for _ in bus.events():
                 pass
         except Exception:
+            logger.warning("Failed to consume bus events (after file log failure)")
             pass
 
 
@@ -83,6 +86,7 @@ async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
         except asyncio.CancelledError:
             raise
         except Exception:
+            logger.exception("Chat send failed")
             pass
         finally:
             await bus.push_done()

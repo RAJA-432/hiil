@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 STORE_FILE = Path(__file__).parent / "documents_store.json"
 
@@ -20,7 +23,7 @@ def _load_store():
         try:
             docs.update(json.loads(STORE_FILE.read_text("utf-8")))
         except Exception:
-            pass
+            logger.warning("Failed to load store from %s", STORE_FILE)
 
 def _save_store():
     STORE_FILE.write_text(json.dumps(docs, indent=2), encoding="utf-8")

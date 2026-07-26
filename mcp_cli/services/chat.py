@@ -121,7 +121,7 @@ class CliChat:
                         "client": client,
                         "openai": _mcp_tool_to_openai(tool),
                     }
-            except BaseException as exc:
+            except Exception as exc:
                 logger.warning("could not refresh tools from %s: %s", client_id, exc)
 
         await asyncio.gather(*(
@@ -334,11 +334,6 @@ class CliChat:
 
             if bus:
                 await bus.push_log("info", f"Executing {len(tool_calls)} tool(s)...")
-
-            async def _tool_call_with_progress(name, args):
-                if bus:
-                    await bus.push_tool_call(name, args, "running")
-                    await bus.push_log("info", f"Running tool: {name}")
 
             tool_results = await self.tool_runner.execute_tool_calls(
                 tool_calls,

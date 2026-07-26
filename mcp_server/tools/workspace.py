@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import fnmatch
+import logging
 import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from mcp.server.fastmcp import Context
 
@@ -97,9 +100,7 @@ async def grep(pattern: str, glob_pattern: str = "*", ctx: Context = None) -> li
                         await c.info("Found 200+ matches, truncating")
                         return results
         except Exception:
-            # Log the exception to avoid S112 (try-except-continue)
-            # In a real app we'd use a logger, here we just pass but acknowledge the error
-            pass
+            logger.exception("Failed to read %s", rel)
         if i % 20 == 0:
             await c.report_progress(min(i + 1, total), total)
     await c.info(f"Grep found {len(results)} matches")

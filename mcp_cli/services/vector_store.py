@@ -9,6 +9,10 @@ import weakref
 from pathlib import Path
 from typing import Any
 
+from mcp_cli.services.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class VectorStore:
     def __init__(self, db_path: str | None = None):
@@ -115,7 +119,7 @@ class VectorStore:
             try:
                 conn.close()
             except Exception:
-                pass
+                logger.warning("Failed to close vector store database connection")
 
     def close(self):
         """Close the database connection."""

@@ -122,6 +122,7 @@ class ContextManager:
                             if ctx:
                                 return int(ctx)
         except Exception:
+            logger.warning("Failed to fetch model context")
             pass
         return None
 

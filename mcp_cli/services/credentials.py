@@ -10,6 +10,10 @@ from typing import Any
 if sys.platform == "win32":
     import win32crypt
 
+from mcp_cli.services.logging import get_logger
+
+logger = get_logger(__name__)
+
 try:
     from cryptography.fernet import Fernet
     from cryptography.fernet import InvalidToken as FernetInvalidToken
@@ -74,6 +78,7 @@ def load_api_key(provider: str) -> str | None:
         store: dict = json.loads(raw) if raw.startswith("{") else {}
         return _decrypt(store.get(provider, "")) if store.get(provider) else None
     except Exception:
+        logger.exception("Failed to load API key")
         return None
 
 
@@ -86,6 +91,7 @@ def save_api_key(provider: str, key: str) -> None:
             raw = _CRED_FILE.read_text("utf-8").strip()
             store = json.loads(raw) if raw.startswith("{") else {}
         except Exception:
+            logger.exception("Failed to parse credentials file")
             store = {}
     store[provider] = _encrypt(key)
     _CRED_FILE.write_text(json.dumps(store, indent=2), "utf-8")
@@ -105,6 +111,7 @@ def delete_api_key(provider: str) -> bool:
             _CRED_FILE.write_text(json.dumps(store, indent=2), "utf-8")
         return removed is not None
     except Exception:
+        logger.exception("Failed to delete API key")
         return False
 
 

@@ -74,11 +74,6 @@ async def test_async_load_empty(history):
     assert msgs == []
 
 
-def test_delete_nonexistent_session(history):
-    history.delete_session("ghost")
-    assert "ghost" not in history.list_sessions()
-
-
 def test_save_message_with_no_content(history):
     history.save_message("empty", "user", "")
     msgs = history.load_session("empty")
@@ -115,10 +110,9 @@ async def test_async_methods_fall_back_to_sync(history):
     assert len(msgs) == 1
 
 
-def test_list_sessions_empty(history):
-    sessions = history.list_sessions()
-    assert sessions == []
-
+def test_delete_nonexistent_session(history):
+    history.delete_session("ghost")
+    assert "ghost" not in history.list_sessions()
 
 def test_search_messages(history):
     history.save_message("search_sess", "user", "find this keyword")
@@ -126,12 +120,10 @@ def test_search_messages(history):
     results = history.search_messages("search_sess", "keyword")
     assert len(results) == 2
 
-
 def test_search_messages_no_match(history):
     history.save_message("s", "user", "content")
     results = history.search_messages("s", "nonexistent")
     assert results == []
-
 
 def test_rename_session(history):
     history.save_message("old", "user", "data")
@@ -139,10 +131,8 @@ def test_rename_session(history):
     assert "old" not in history.list_sessions()
     assert "new" in history.list_sessions()
 
-
 def test_rename_nonexistent(history):
     assert history.rename_session("ghost", "new") is False
-
 
 def test_fork_session(history):
     history.save_message("src", "user", "hello")
@@ -151,7 +141,6 @@ def test_fork_session(history):
     assert count == 2
     assert len(history.load_session("dst")) == 2
 
-
 def test_undo_last_messages(history):
     history.save_message("undo_sess", "user", "msg1")
     history.save_message("undo_sess", "assistant", "msg2")
@@ -159,3 +148,7 @@ def test_undo_last_messages(history):
     removed = history.undo_last_messages("undo_sess", 2)
     assert removed == 2
     assert len(history.load_session("undo_sess")) == 1
+
+def test_list_sessions_empty(history):
+    sessions = history.list_sessions()
+    assert sessions == []

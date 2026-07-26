@@ -59,6 +59,8 @@ async def streamlit_ws_proxy(ws: WebSocket):
     methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"],
 )
 async def proxy(request: Request, path: str):
+    if ".." in path:
+        return HTMLResponse("Forbidden", status_code=403)
     target = urljoin(str(request.app.state.streamlit_url).rstrip("/") + "/", path)
     qs = request.url.query
     if qs:

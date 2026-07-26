@@ -1,6 +1,9 @@
+import logging
 import subprocess
 import sys
 import threading
+
+logger = logging.getLogger(__name__)
 
 
 def _consume_pipe(pipe):
@@ -10,6 +13,7 @@ def _consume_pipe(pipe):
             if not chunk:
                 break
     except Exception:
+        logger.exception("Pipe consumption failed")
         pass
 
 
@@ -20,7 +24,7 @@ def _start_streamlit() -> subprocess.Popen:
          "--server.port", "8501",
          "--server.headless", "true",
          "--server.enableCORS", "false",
-         "--server.enableXsrfProtection", "false",
+         "--server.enableXsrfProtection", "true",
           "--server.address", "127.0.0.1"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

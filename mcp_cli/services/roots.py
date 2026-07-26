@@ -42,15 +42,6 @@ class RootsManager:
         self._roots.append(resolved)
         logger.debug("Added root: %s", resolved)
 
-    def remove_root(self, path: str | Path) -> bool:
-        """Remove a root directory.  Returns ``True`` if it was found."""
-        resolved = Path(path).expanduser().resolve()
-        if resolved in self._roots:
-            self._roots.remove(resolved)
-            logger.debug("Removed root: %s", resolved)
-            return True
-        return False
-
     @property
     def roots(self) -> list[Path]:
         return list(self._roots)
@@ -136,8 +127,4 @@ class RootsManager:
                             candidates.append((key, item.strip()))
         return candidates
 
-    def inspect_mcp_result(self, result_text: str) -> str:
-        """Post-process an MCP result to strip or annotate root violations."""
-        if not result_text.startswith("[denied] Path"):
-            return result_text
-        return f"[root-restricted] {result_text}"
+

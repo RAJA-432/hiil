@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 
 import httpx
@@ -29,11 +30,13 @@ async def lifespan(app: FastAPI):
         try:
             await _state._chat.close()
         except Exception:
+            logger.warning("Failed to close chat")
             pass
     if _state._chat_stack is not None:
         try:
             await _state._chat_stack.aclose()
         except Exception:
+            logger.warning("Failed to close chat stack")
             pass
         _state._chat_stack = None
     if _chat_process is not None:
@@ -46,9 +49,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="hiil API Gateway", version="0.2.0", lifespan=lifespan)
 
+origins = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

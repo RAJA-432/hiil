@@ -7,6 +7,10 @@ import weakref
 from dataclasses import dataclass
 from datetime import datetime
 
+from mcp_cli.services.logging import get_logger
+
+logger = get_logger(__name__)
+
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     "gpt-4": (30.0, 60.0),
     "gpt-4-32k": (60.0, 120.0),
@@ -184,7 +188,7 @@ class UsageTracker:
             try:
                 conn.close()
             except Exception:
-                pass
+                logger.warning("Failed to close usage database connection")
 
     def close(self):
         """Close the database connection."""

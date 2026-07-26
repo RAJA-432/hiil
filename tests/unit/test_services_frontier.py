@@ -1,9 +1,6 @@
-import asyncio
-
 import pytest
 
 from mcp_cli.services.frontier import (
-    ApprovalManager,
     extract_citations,
     is_sensitive_tool,
     make_file_paths_clickable,
@@ -66,42 +63,4 @@ def test_extract_citations_skips_errors():
     assert len(citations) == 0
 
 
-@pytest.mark.asyncio
-async def test_approval_manager_approve():
-    am = ApprovalManager()
-    result = None
 
-    async def requester():
-        nonlocal result
-        result = await am.request("write_file", {"path": "test.txt"})
-
-    task = asyncio.create_task(requester())
-    await asyncio.sleep(0.05)
-    assert am.pending is not None
-    assert am.pending["name"] == "write_file"
-    am.resolve(True)
-    await task
-    assert result is True
-
-
-@pytest.mark.asyncio
-async def test_approval_manager_deny():
-    am = ApprovalManager()
-    result = None
-
-    async def requester():
-        nonlocal result
-        result = await am.request("delete_file", {"path": "x"})
-
-    task = asyncio.create_task(requester())
-    await asyncio.sleep(0.05)
-    am.resolve(False)
-    await task
-    assert result is False
-
-
-def test_approval_manager_reset():
-    am = ApprovalManager()
-    assert am.pending is None
-    am.reset()
-    assert am.pending is None

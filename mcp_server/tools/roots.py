@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -28,6 +31,7 @@ async def is_path_allowed(requested_path: Path, ctx: Context) -> bool:
     try:
         roots_result = await ctx.session.list_roots()
     except Exception:
+        logger.warning("list_roots failed, allowing access")
         return True  # If roots aren't supported, allow access
 
     for root in roots_result.roots:
@@ -50,6 +54,7 @@ async def list_roots(ctx: Context) -> list[str]:
         roots_result = await ctx.session.list_roots()
         return [str(_file_url_to_path(str(r.uri))) for r in roots_result.roots]
     except Exception:
+        logger.warning("list_roots failed, returning empty list")
         return []
 
 
