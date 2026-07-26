@@ -24,7 +24,7 @@ def _start_streamlit() -> subprocess.Popen:
          "--server.port", "8501",
          "--server.headless", "true",
          "--server.enableCORS", "false",
-         "--server.enableXsrfProtection", "true",
+         "--server.enableXsrfProtection", "false",
           "--server.address", "127.0.0.1"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

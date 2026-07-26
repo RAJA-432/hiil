@@ -46,7 +46,12 @@ pip install -e .
 python -m vajram
 ```
 
-Open **http://127.0.0.1:8000/chat** in your browser.
+Two UIs are available:
+
+| URL | UI | Features |
+|-----|----|----------|
+| **http://127.0.0.1:8000/** | **Streamlit** (auto-launched) | Live tool call visualization, model selector, session rename/delete, usage tracker, per-file remove |
+| **http://127.0.0.1:8000/chat** | **Vanilla HTML/JS** | Lightweight, no tool viz |
 
 The gateway auto-launches Streamlit on port 8501 as a subprocess. All API endpoints are open (no auth).
 
@@ -76,6 +81,11 @@ Set environment variables in `.env` (create if missing):
 MODEL_PROVIDER=ollama
 MODEL_NAME=gemma4:31b-cloud
 MODEL_API_KEY=                 # only needed for OpenRouter/OpenCode
+
+# Web gateway
+CORS_ORIGINS=http://localhost:8000,http://127.0.0.1:8000
+VAJRAM_PORT=8000
+VAJRAM_NO_STREAMLIT=false      # set "true" to skip launching Streamlit
 ```
 
 ## Transport Modes
@@ -324,6 +334,9 @@ Available middleware:
 | GET | `/api/sessions` | List sessions |
 | POST | `/api/session/new` | Create new session |
 | POST | `/api/session/switch` | Switch active session |
+| POST | `/api/session/rename` | Rename a session |
+| POST | `/api/session/delete` | Delete a session |
+| GET | `/api/usage` | Session + total token/cost summary |
 | GET | `/api/history/{id}` | Load session history |
 | GET | `/api/tools` | List available tools |
 | POST | `/api/tools/call` | Invoke a tool by name |
@@ -362,41 +375,60 @@ The built-in MCP server (`mcp_server`) exposes:
 ```
 hiil/
 ├── main.py                 # CLI entry point
+├── my_streamlit_app.py     # Streamlit web UI
 ├── vajram/                 # FastAPI web gateway
+│   ├── __init__.py         # App factory, CORS, lifespan
+│   ├── __main__.py         # uvicorn entry point
+│   ├── routes.py           # All API endpoints
+│   ├── chat.py             # Chat orchestration (SSE streaming)
+│   ├── proxy.py            # Streamlit HTTP + WebSocket proxy
+│   ├── streamlit.py        # Streamlit subprocess launcher
+│   ├── config.py           # Env-based config + inline HTML UI
+│   ├── models.py           # Pydantic request models
+│   ├── state.py            # Global singleton state
+│   └── storage.py          # HspStorage file upload backend
 ├── mcp_cli/                # CLI core library
 │   ├── services/
 │   │   ├── agents/         # Agent spawning + bridge features
 │   │   │   ├── models.py           # AgentConfig, AgentState, AgentResult
 │   │   │   ├── runner.py           # AgentRunner: execute loop, HITL, memory inject
-│   │   │   ├── interrupts.py       # HITL vocabulary (ActionRequest, ResumeDecision, AgentInterrupt)
+│   │   │   ├── interrupts.py       # HITL vocabulary
 │   │   │   ├── permissions.py      # FilesystemPermission, PermissionEnforcer
-│   │   │   ├── memory.py           # AgentMemoryStore (per-agent file namespace)
-│   │   │   ├── backend.py          # VirtualBackend (in-memory filesystem with route-to-disk)
-│   │   │   ├── middleware.py       # AgentMiddleware ABC + MiddlewarePipeline
-│   │   │   ├── code_interpreter.py # Subprocess-isolated Python eval middleware
+│   │   │   ├── memory.py           # AgentMemoryStore
+│   │   │   ├── backend.py          # VirtualBackend
+│   │   │   ├── middleware.py       # Middleware pipeline
+│   │   │   ├── code_interpreter.py # Subprocess Python eval middleware
 │   │   │   └── summarization.py    # Auto-compress conversation middleware
 │   │   ├── roots.py        # RootsManager for filesystem access control
 │   │   ├── chat.py         # CliChat session manager
 │   │   ├── factory.py      # Chat creation with roots + sampling wiring
 │   │   ├── tool_router.py  # Capability-based tool filtering
 │   │   ├── tool_runner.py  # Tool execution with root enforcement
+│   │   ├── credentials.py  # Encrypted API key storage (DPAPI/Fernet)
+│   │   ├── notification_bus.py  # Async event pub-sub for SSE streaming
+│   │   ├── usage.py        # Token/cost tracking
+│   │   ├── history.py      # SQLite-backed session persistence
 │   │   └── ...
 │   ├── commands/           # CLI command implementations
 │   └── ui/                 # prompt_toolkit-based CLI UI
 ├── mcp_client/             # MCP client wrapper (stdio, sse, streamable-http)
-│   ├── connection.py       # ManagedConnection with roots + sampling callbacks
 │   └── main.py             # MCPClient high-level API
 ├── mcp_server/             # MCP server with workspace + document tools
 │   ├── tools/
 │   │   ├── workspace.py    # search_resources, glob, grep, read_text_resource
 │   │   ├── documents.py    # read_document, edit_document, format_document
 │   │   ├── roots.py        # list_roots, read_dir, is_path_allowed
+│   │   └── web.py          # web_search, web_fetch (with SSRF validation)
 │   │   └── summarize.py    # summarize (uses client sampling)
 │   └── main.py             # Server entry (stdio/sse/streamable-http)
 ├── config.yaml             # Provider, servers, roots config
 ├── .env                    # Environment variables
+├── pyproject.toml          # Project metadata + dependencies
+├── pre-commit-config.yaml  # ruff + mypy pre-commit hooks
+├── Dockerfile              # Container build
+├── docker-compose.yml      # Container deployment
 └── tests/
-    ├── unit/               # Isolated unit tests
-    ├── integration/        # I/O and subprocess tests
-    └── e2e/                # Full API & CLI end-to-end tests
+    ├── unit/               # 24 test files
+    ├── integration/        # 10 test files
+    └── e2e/                # 2 end-to-end test files
 ```
