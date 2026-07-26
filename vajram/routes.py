@@ -135,6 +135,39 @@ async def switch_session(request: Request):
     return {"session_id": sid, "messages": len(msgs)}
 
 
+@router.post("/api/session/rename")
+async def rename_session(request: Request):
+    chat = await _require_chat(request)
+    body = await request.json()
+    old_id = body.get("old_id", "")
+    new_id = body.get("new_id", "")
+    if not old_id or not new_id:
+        raise HTTPException(status_code=400, detail="old_id and new_id required")
+    ok = await chat.history.async_rename_session(old_id, new_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {"session_id": new_id}
+
+
+@router.post("/api/session/delete")
+async def delete_session(request: Request):
+    chat = await _require_chat(request)
+    body = await request.json()
+    sid = body.get("session_id", "")
+    if not sid:
+        raise HTTPException(status_code=400, detail="session_id required")
+    await chat.history.async_delete_session(sid)
+    return {"deleted": sid}
+
+
+@router.get("/api/usage")
+async def get_usage(request: Request):
+    chat = await _require_chat(request)
+    session = chat.usage.session_summary()
+    total = chat.usage.total_summary()
+    return {"session": session, "total": total}
+
+
 @router.get("/api/tools")
 async def list_tools(request: Request):
     chat = await _require_chat(request)

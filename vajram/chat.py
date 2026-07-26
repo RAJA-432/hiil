@@ -53,7 +53,7 @@ async def _stream_chat(chat, message: str):
 
 
 async def _log_events(bus):
-    import aiofiles  # type: ignore[import-untyped]
+    import aiofiles
 
     from vajram.config import VAJRAM_CHAT_LOG
 
