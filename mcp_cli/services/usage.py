@@ -95,12 +95,13 @@ class UsageTracker:
         self._session_output: int = 0
         self._session_cost: float = 0.0
         self._lock = threading.Lock()
-        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._conn: sqlite3.Connection | None = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._init_db()
         self._finalizer = weakref.finalize(self, self._close_conn, self._conn, self._lock)
 
     def _get_conn(self) -> sqlite3.Connection:
+        assert self._conn is not None
         return self._conn
 
     def _init_db(self):

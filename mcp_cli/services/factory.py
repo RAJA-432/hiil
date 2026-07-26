@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import AsyncExitStack
 from typing import Any
 
@@ -54,7 +54,7 @@ def _build_sampling_callback(
 
 async def create_chat(
     stack: AsyncExitStack,
-    logging_callback: Callable[[Any], None] | None = None,
+    logging_callback: Callable[[Any], Awaitable[Any]] | None = None,
 ) -> CliChat:
     settings, servers = load_settings()
 
@@ -65,7 +65,9 @@ async def create_chat(
         base_url=settings.base_url,
     )
 
-    cb = logging_callback or (lambda msg: logger.debug("MCP log: %s", msg))
+    async def _default_log(msg: Any) -> None:
+        logger.debug("MCP log: %s", msg)
+    cb = logging_callback or _default_log
 
     roots_manager = RootsManager(settings.roots)
     sampling_callback = _build_sampling_callback(claude)

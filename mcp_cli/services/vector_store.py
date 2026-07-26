@@ -21,13 +21,17 @@ class VectorStore:
             db_path = str(Path.home() / ".hiil" / "vectors.db")
         self.db_path = db_path
         self._lock = threading.Lock()
-        self._conn = sqlite3.connect(db_path, check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn: sqlite3.Connection | None = sqlite3.connect(db_path, check_same_thread=False)
+        self._get_conn().execute("PRAGMA journal_mode=WAL")
         self._init_db()
         self._finalizer = weakref.finalize(self, self._close_conn, self._conn, self._lock)
 
+    def _get_conn(self) -> sqlite3.Connection:
+        assert self._conn is not None
+        return self._conn
+
     def _init_db(self):
-        self._conn.execute("""
+        self._get_conn().execute("""
             CREATE TABLE IF NOT EXISTS vectors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 namespace TEXT NOT NULL DEFAULT 'default',
@@ -38,36 +42,36 @@ class VectorStore:
                 UNIQUE(namespace, key)
             )
         """)
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_vec_ns ON vectors(namespace)")
-        self._conn.commit()
+        self._get_conn().execute("CREATE INDEX IF NOT EXISTS idx_vec_ns ON vectors(namespace)")
+        self._get_conn().commit()
 
     def index(self, namespace: str, key: str, text: str, embedding: list[float], metadata: dict | None = None) -> None:
         """Insert or replace a vector entry in the given namespace."""
         with self._lock:
-            self._conn.execute(
+            self._get_conn().execute(
                 """INSERT OR REPLACE INTO vectors (namespace, key, text, embedding, metadata)
                    VALUES (?, ?, ?, ?, ?)""",
                 (namespace, key, text, json.dumps(embedding), json.dumps(metadata or {})),
             )
-            self._conn.commit()
+            self._get_conn().commit()
 
     def delete(self, namespace: str, key: str) -> bool:
         """Remove a single vector entry by namespace and key; return True if deleted."""
         with self._lock:
-            c = self._conn.execute("DELETE FROM vectors WHERE namespace=? AND key=?", (namespace, key))
-            self._conn.commit()
+            c = self._get_conn().execute("DELETE FROM vectors WHERE namespace=? AND key=?", (namespace, key))
+            self._get_conn().commit()
             return c.rowcount > 0
 
     def delete_namespace(self, namespace: str) -> int:
         """Remove all vectors in a namespace and return the number deleted."""
         with self._lock:
-            c = self._conn.execute("DELETE FROM vectors WHERE namespace=?", (namespace,))
-            self._conn.commit()
+            c = self._get_conn().execute("DELETE FROM vectors WHERE namespace=?", (namespace,))
+            self._get_conn().commit()
             return c.rowcount
 
     def list_keys(self, namespace: str) -> list[str]:
         """Return all vector keys in the given namespace, ordered by insertion."""
-        rows = self._conn.execute(
+        rows = self._get_conn().execute(
             "SELECT key FROM vectors WHERE namespace=? ORDER BY id", (namespace,)
         ).fetchall()
         return [r[0] for r in rows]
@@ -82,7 +86,7 @@ class VectorStore:
 
     def search(self, query_embedding: list[float], namespace: str = "default", limit: int = 5) -> list[dict[str, Any]]:
         """Return the top-k most similar vectors in a namespace ranked by cosine similarity."""
-        rows = self._conn.execute(
+        rows = self._get_conn().execute(
             "SELECT key, text, embedding, metadata FROM vectors WHERE namespace=?",
             (namespace,),
         ).fetchall()
@@ -99,7 +103,7 @@ class VectorStore:
 
     def count(self, namespace: str = "default") -> int:
         """Return the number of vectors stored in the given namespace."""
-        row = self._conn.execute(
+        row = self._get_conn().execute(
             "SELECT COUNT(*) FROM vectors WHERE namespace=?", (namespace,)
         ).fetchone()
         return row[0] if row else 0

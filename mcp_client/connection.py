@@ -86,6 +86,8 @@ class ManagedConnection:
         )
 
     async def _connect_stdio(self):
+        if self._command is None:
+            raise RuntimeError("stdio transport requires a command")
         server_params = StdioServerParameters(
             command=self._command,
             args=self._args,

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import time
 
 import httpx
 import streamlit as st
@@ -16,8 +15,6 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "uploaded_files" not in st.session_state:
     st.session_state.uploaded_files = []
-if "tool_logs" not in st.session_state:
-    st.session_state.tool_logs = []
 
 
 def api_headers() -> dict[str, str]:
@@ -53,19 +50,22 @@ def upload_files_to_api(files) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 with st.sidebar:
+    _status_data: dict | None = None
     st.subheader("🔌 System Status")
     try:
-        resp = httpx.get(f"{API_BASE}/api/status", headers=api_headers(), timeout=5)
-        if resp.is_success:
-            s = resp.json()
+        sresp = httpx.get(f"{API_BASE}/api/status", headers=api_headers(), timeout=5)
+        if sresp.is_success:
+            _status_data = sresp.json()
             cols = st.columns(3)
-            server_ok = isinstance(s.get("servers"), list) and len(s["servers"]) > 0
-            cols[0].metric("Gateway", "🟢" if server_ok else "🔴")
-            cols[1].metric("MCP", f"{len(s.get('servers', []))} servers")
-            cols[2].metric("Model", s.get("model", "?")[:12])
-            st.caption(f"Session: {s.get('session', '?')[:16]} · {s.get('messages', 0)} msgs")
+            servers = _status_data.get("servers", [])
+            cols[0].metric("Gateway", "🟢" if len(servers) > 0 else "🔴")
+            cols[1].metric("MCP", f"{len(servers)} servers")
+            cols[2].metric("Model", _status_data.get("model", "?")[:12])
+            st.caption(f"Session: {_status_data.get('session', '?')[:16]} · {_status_data.get('messages', 0)} msgs")
     except Exception:
         st.error("🔴 Status unavailable")
+
+    _model_name = _status_data.get("model", "?") if _status_data else "?"
 
     st.divider()
     st.subheader("💰 Usage")
@@ -77,7 +77,7 @@ with st.sidebar:
             col1, col2, col3 = st.columns(3)
             col1.metric("Tokens", sess.get("total_tokens", 0))
             col2.metric("Cost", f"${sess.get('cost', 0):.6f}")
-            col3.metric("Model", s.get("model", "?")[:10] if resp.is_success else "?")
+            col3.metric("Model", _model_name[:10])
     except Exception:
         st.caption("Usage data unavailable")
 

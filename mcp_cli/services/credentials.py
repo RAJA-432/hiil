@@ -47,8 +47,7 @@ def _encrypt(plaintext: str) -> str:
     f = _get_fernet()
     if f is not None:
         return f.encrypt(plaintext.encode("utf-8")).decode("utf-8")
-    blob = base64.b64encode(plaintext.encode("utf-8"))
-    return f"b64:{blob.decode('ascii')}"
+    raise RuntimeError("Fernet not available — cannot encrypt credential")
 
 
 def _decrypt(ciphertext: str) -> str:
@@ -62,8 +61,6 @@ def _decrypt(ciphertext: str) -> str:
             return f.decrypt(ciphertext.encode("utf-8")).decode("utf-8")
         except FernetInvalidToken:
             pass
-    if ciphertext.startswith("b64:"):
-        return base64.b64decode(ciphertext[4:]).decode("utf-8")
     raise ValueError("Unknown credential format")
 
 
