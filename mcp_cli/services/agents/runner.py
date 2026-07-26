@@ -7,7 +7,7 @@ import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from mcp_cli.services.agents.backend import VirtualBackend
 from mcp_cli.services.agents.interrupts import (
@@ -128,7 +128,7 @@ class AgentRunner:
         start = time.monotonic()
         output = ""
         error: str | None = None
-        final_status: str = "completed"
+        final_status: Literal["completed", "failed", "waiting"] = "completed"
 
         try:
             output = await asyncio.wait_for(
@@ -185,7 +185,7 @@ class AgentRunner:
         start = time.monotonic()
         output = ""
         error: str | None = None
-        final_status = "completed"
+        final_status: Literal["completed", "failed", "waiting"] = "completed"
 
         try:
             process_result = await self._process_decisions(decisions, pending)
@@ -260,14 +260,14 @@ class AgentRunner:
         tools = list(self.tool_router.openai_tools or [])
         if self._middleware:
             tools.extend(self._middleware.get_extra_tools())
-        tools: list[dict[str, Any]] | None = tools or None
+        tools_: list[dict[str, Any]] | None = tools or None
 
         for iteration in range(1, self.config.max_iterations + 1):
             if self.bus:
                 await self.bus.push_log("info", f"LLM call (iteration {iteration})...")
 
             message, input_tokens, output_tokens = await self.parent_chat.streamer.chat(
-                self._messages, tools=tools,
+                self._messages, tools=tools_,
             )
             self._state.total_tokens += input_tokens + output_tokens
 

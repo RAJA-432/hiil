@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from contextlib import AsyncExitStack
 from typing import Any
 
@@ -24,13 +24,13 @@ logger = get_logger("factory")
 
 def _build_sampling_callback(
     claude: Claude,
-) -> Callable[[RequestContext, CreateMessageRequestParams], CreateMessageResult]:
+) -> Callable[[RequestContext, CreateMessageRequestParams], Coroutine[Any, Any, CreateMessageResult]]:
     """Return a sampling callback that delegates LLM inference to the *claude* service."""
 
     async def _sample(
         context: RequestContext,
         params: CreateMessageRequestParams,
-    ) -> CreateMessageResult: # type: ignore
+    ) -> CreateMessageResult:
         messages = []
         for msg in params.messages:
             role = msg.role

@@ -5,6 +5,7 @@ import base64
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 if sys.platform == "win32":
     import win32crypt
@@ -13,25 +14,25 @@ try:
     from cryptography.fernet import Fernet
     from cryptography.fernet import InvalidToken as FernetInvalidToken
 except ImportError:
-    Fernet = None  # type: ignore[assignment]
-    FernetInvalidToken = None  # type: ignore[assignment]
+    Fernet = None  # type: ignore[assignment, misc]
+    FernetInvalidToken = None  # type: ignore[assignment, misc]
 
 _CRED_DIR = Path.home() / ".hiil"
 _CRED_FILE = _CRED_DIR / "credentials"
 
 
-def _get_fernet() -> object | None:
+def _get_fernet() -> Any:
     if Fernet is None:
         return None
     key_file = _CRED_DIR / ".key"
     if not key_file.exists():
         _CRED_DIR.mkdir(parents=True, exist_ok=True)
-        key = Fernet.generate_key() # type: ignore
+        key = Fernet.generate_key()
         key_file.write_bytes(key)
         key_file.chmod(0o600)
     else:
         key = key_file.read_bytes()
-    return Fernet(key) # type: ignore
+    return Fernet(key)
 
 
 def _encrypt(plaintext: str) -> str:

@@ -48,7 +48,7 @@ class ThemeManager:
 
     def __init__(self, theme_name: str | None = None, **overrides: str):
         self._named_themes: dict[str, Theme] = dict(THEMES)
-        self._theme_name = theme_name or os.getenv("CLI_THEME", "opencode")
+        self._theme_name: str = theme_name or os.getenv("CLI_THEME", "opencode")  # type: ignore[assignment]
         self._base = self._named_themes.get(self._theme_name) or next(
             iter(self._named_themes.values())
         )
@@ -113,7 +113,7 @@ class ThemeManager:
         del self._named_themes[name]
         if name == self._theme_name:
             self._theme_name = next(iter(self._named_themes.keys()), "opencode")
-            self._base = self._named_themes.get(self._theme_name) if self._named_themes.get(self._theme_name) else self._base
+            self._base = self._named_themes.get(self._theme_name) or self._base
             self._current = None
         return True
 
@@ -155,7 +155,7 @@ class ThemeManager:
 
     def toggle_light(self) -> bool:
         self.light = not self._light
-        return self._light # type: ignore[return-value]
+        return self._light
 
     def toggle_compact(self) -> bool:
         self._compact = not self._compact
