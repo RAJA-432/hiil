@@ -1,5 +1,5 @@
 main
 mcp_cli
-mcp_client
-mcp_server
+setu_bridge
+veda_engine
 webui

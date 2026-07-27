@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import datetime
 import json
 import os
@@ -22,10 +23,12 @@ async def handle_agent_cmd(chat, subcmd: str, rest: str, prompt_async) -> str:
             return f"Agent '{agent_name}' already exists."
         agent_dir = os.path.join(base_agent_dir, f"agent_{agent_name}")
         os.makedirs(agent_dir, exist_ok=True)
-        with open(os.path.join(agent_dir, "plan.json"), "w", encoding="utf-8") as f:
-            json.dump([], f)
-        with open(os.path.join(agent_dir, "output.log"), "w", encoding="utf-8") as f:
-            f.write("")
+        def _init_agent_files():
+            with open(os.path.join(agent_dir, "plan.json"), "w", encoding="utf-8") as f:
+                json.dump([], f)
+            with open(os.path.join(agent_dir, "output.log"), "w", encoding="utf-8") as f:
+                f.write("")
+        await asyncio.to_thread(_init_agent_files)
         os.makedirs(os.path.join(agent_dir, "interrupted"), exist_ok=True)
         return f"Agent '{agent_name}' created successfully!"
 
@@ -33,9 +36,10 @@ async def handle_agent_cmd(chat, subcmd: str, rest: str, prompt_async) -> str:
         base_agent_dir = os.path.join(".claude", "agents")
         if not os.path.exists(base_agent_dir):
             return "No agents installed yet."
+        entries = await asyncio.to_thread(os.listdir, base_agent_dir)
         agents = [
             d.replace("agent_", "")
-            for d in os.listdir(base_agent_dir)
+            for d in entries
             if os.path.isdir(os.path.join(base_agent_dir, d)) and d.startswith("agent_")
         ]
         if not agents:
@@ -52,11 +56,14 @@ async def handle_agent_cmd(chat, subcmd: str, rest: str, prompt_async) -> str:
         agent_path = os.path.join(".claude", "agents", f"agent_{agent_name}", "output.log")
         if not os.path.isfile(agent_path):
             return f"Agent '{agent_name}' has no output.log yet."
-        matches = []
-        with open(agent_path, encoding="utf-8") as f:
-            for i, line in enumerate(f, 1):
-                if query.lower() in line.lower():
-                    matches.append(f"{i}: {line.rstrip()}")
+        def _search_log():
+            ms = []
+            with open(agent_path, encoding="utf-8") as f:
+                for i, line in enumerate(f, 1):
+                    if query.lower() in line.lower():
+                        ms.append(f"{i}: {line.rstrip()}")
+            return ms
+        matches = await asyncio.to_thread(_search_log)
         if not matches:
             return f"No matches for '{query}' in '{agent_name}'."
         return "\n".join(matches)
@@ -73,8 +80,9 @@ async def handle_agent_cmd(chat, subcmd: str, rest: str, prompt_async) -> str:
             confirmation = await prompt_async(f"Pause agent '{agent_name}'? (y/n): ")
             if confirmation.strip().lower() not in ("y", "yes"):
                 return "Pause cancelled by user."
-            with open(pause_flag, "w", encoding="utf-8") as f:
-                f.write(f"Paused at {datetime.datetime.now().isoformat()}")
+            await asyncio.to_thread(
+                lambda: open(pause_flag, "w", encoding="utf-8").write(f"Paused at {datetime.datetime.now().isoformat()}")
+            )
             return f"Agent '{agent_name}' successfully paused. Awaiting approval."
         except Exception:
             return f"Error while pausing agent '{agent_name}'"

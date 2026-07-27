@@ -7,13 +7,13 @@ Both providers speak the OpenAI Chat Completions protocol, so we use the
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from openai import APIError as OpenAIError
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessage
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import Future, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from mcp_cli.services.logging import get_logger
 
@@ -27,7 +27,7 @@ _API_RETRY = retry(
     retry=retry_if_exception_type(_RETRYABLE),
     before_sleep=lambda retry_state: logger.warning(
         "API call failed (attempt %d/%d): %s",
-        retry_state.attempt_number, 3, retry_state.outcome.exception(),  # type: ignore[union-attr]
+        retry_state.attempt_number, 3, cast(Future, retry_state.outcome).exception(),
     ),
 )
 
@@ -42,7 +42,7 @@ class Claude:
     ):
         """Initialize the Claude wrapper with provider, model, and API credentials."""
         self.provider = provider
-        self.model = model
+        self.model = str(model)
         self.api_key = api_key
         self.base_url = base_url
         effective_key = api_key or "ollama-placeholder"
@@ -57,7 +57,7 @@ class Claude:
     ):
         """Stream a chat completion, yielding content chunks and tool calls."""
         kwargs: dict[str, Any] = {
-            "model": self.model,
+            "model": str(self.model),
             "messages": messages,
             "stream": True,
         }
@@ -131,7 +131,7 @@ class Claude:
         or dict instead of a full ChatCompletion; we normalize those.
         """
         kwargs: dict[str, Any] = {
-            "model": self.model,
+            "model": str(self.model),
             "messages": messages,
             "max_tokens": 8192,
         }
@@ -178,8 +178,8 @@ class Claude:
 
     def update_model(self, model: str) -> str:
         """Switch the active model and return a confirmation message."""
-        self.model = model
-        return f"Model switched to '{model}'."
+        self.model = str(model)
+        return f"Model switched to '{self.model}'."
 
     def update_provider(self, provider: str, api_key: str, base_url: str) -> str:
         """Switch the active provider, re-create the API client, and return confirmation."""

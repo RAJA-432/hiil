@@ -10,10 +10,12 @@
       "expect_json_schema": {
         "type": "object",
         "properties": {
-          "status": {"type": "string", "const": "ok"}
+          "status": {"type": "string", "const": "ok"},
+          "version": {"type": "string"},
+          "uptime_secs": {"type": "number"},
+          "chat_initialized": {"type": "boolean"}
         },
-        "required": ["status"],
-        "additional_properties": false
+        "required": ["status", "version", "uptime_secs", "chat_initialized"]
       },
       "expect_headers": {"content-type": "application/json"}
     },

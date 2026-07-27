@@ -12,12 +12,14 @@ dependencies = [
     "pyyaml>=6.0",
     "httpx>=0.27.0",
     "cryptography>=42.0",
-    "streamlit>=1.40.0",
+
     "fastapi",
     "uvicorn[standard]",
     "websockets>=12.0",
     "aiofiles>=23.0",
     "tiktoken>=0.7.0",
+    "pypdf>=5.0",
+    "python-docx>=1.1",
 ]
 
 [project.optional-dependencies]
@@ -37,8 +39,9 @@ build-backend = "setuptools.build_meta"
 py-modules = ["main", "webui"]
 packages = [
     "mcp_cli", "mcp_cli.ui", "mcp_cli.commands", "mcp_cli.services",
-    "mcp_client",
-    "mcp_server", "mcp_server.storage", "mcp_server.tools", "mcp_server.resources",
+    "setu_bridge",
+    "veda_engine", "veda_engine.storage", "veda_engine.tools", "veda_engine.resources",
+
 ]
 
 [tool.pytest.ini_options]
@@ -60,7 +63,7 @@ ignore = ["S101", "S311", "E402", "E501", "E701", "E741", "S110", "N802", "N806"
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "N802", "N803", "N806", "F841"]
 "mcp_cli/locales/*" = ["N999"]
-"mcp_server/*" = ["N999"]
+"veda_engine/*" = ["N999"]
 
 [tool.mypy]
 python_version = "3.13"

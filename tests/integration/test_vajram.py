@@ -59,18 +59,23 @@ def mock_chat():
 
 @pytest.fixture
 def app(mock_chat):
-    with patch("vajram.chat._init_chat", AsyncMock(return_value=mock_chat)):
-        from vajram import app as _app
+    from mcp_cli.services.users import register_user
+    from vajra_gate.auth import create_access_token
+
+    register_user("testuser", "testpass")
+    token = create_access_token("testuser")
+    with patch("vajra_gate.chat._init_chat", AsyncMock(return_value=mock_chat)):
+        from vajra_gate import app as _app
         with TestClient(_app) as client:
+            client.headers["Authorization"] = f"Bearer {token}"
             yield client
 
 
 class TestVajram:
-    def test_get_chat_ui(self, app):
-        resp = app.get("/chat")
-        assert resp.status_code == 200
-        assert resp.headers["content-type"].startswith("text/html")
-        assert "hiil" in resp.text
+    def test_root_redirect(self, app):
+        resp = app.get("/", follow_redirects=False)
+        assert resp.status_code in (307, 308)
+        assert resp.headers["location"] == "/canvas/"
 
     def test_get_status(self, app):
         resp = app.get("/api/status")

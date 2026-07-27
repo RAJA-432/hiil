@@ -7,6 +7,7 @@ from mcp_cli.services.agents import AgentConfig, AgentRunner
 from mcp_cli.services.context_manager import ContextManager
 from mcp_cli.services.document_injector import DocumentInjector
 from mcp_cli.services.history import ChatHistoryManager
+from mcp_cli.services.rag import RagPipeline
 from mcp_cli.services.logging import get_logger
 from mcp_cli.services.notification_bus import NotificationBus
 from mcp_cli.services.roots import RootsManager
@@ -17,7 +18,7 @@ from mcp_cli.services.usage import UsageTracker
 from mcp_cli.services.vector_store import VectorStore
 
 if TYPE_CHECKING:
-    from mcp_client import MCPClient
+    from setu_bridge import SetuBridge
 
 logger = get_logger("chat")
 
@@ -25,8 +26,8 @@ logger = get_logger("chat")
 class CliChat:
     def __init__(
         self,
-        doc_client: MCPClient | None,
-        clients: dict[str, MCPClient],
+        doc_client: SetuBridge | None,
+        clients: dict[str, SetuBridge],
         claude_service: Any,
         max_tool_iterations: int = 10,
         tool_timeout: float = 30.0,
@@ -49,6 +50,7 @@ class CliChat:
         self._vector_store = VectorStore()
         self.streamer = Streamer(claude_service)
         self.context = ContextManager(claude_service, self._vector_store, max_context_tokens)
+        self.rag = RagPipeline(claude_service, self._vector_store)
         self.doc_injector = DocumentInjector(doc_client)
         self.tool_runner = ToolRunner(self.tools_by_name, tool_timeout, roots_manager=self._roots)
         self._auto_index_task: asyncio.Task | None = None
@@ -106,12 +108,12 @@ class CliChat:
 
     async def refresh_tools(self):
         self.tools_by_name.clear()
-        all_clients: dict[str, MCPClient | None] = {
+        all_clients: dict[str, SetuBridge | None] = {
             "doc_client": self.doc_client,
             **self.clients,
         }
 
-        async def _fetch(client_id: str, client: MCPClient | None):
+        async def _fetch(client_id: str, client: SetuBridge | None):
             if client is None:
                 return
             try:
@@ -285,6 +287,20 @@ class CliChat:
             await bus.push_log("info", "Processing your request...")
 
         augmented = await self.doc_injector.resolve(user_input)
+
+        try:
+            rag_results = await self.rag.retrieve(user_input, top_k=3, min_score=0.25)
+            if rag_results:
+                ctx = self.rag.format_context(rag_results)
+                augmented = (
+                    f"Relevant knowledge base context:\n{ctx}\n\n"
+                    f"User question: {augmented}"
+                )
+                if bus:
+                    bus.push_rag(rag_results)
+        except Exception:
+            logger.warning("RAG retrieval failed, continuing without knowledge base context")
+
         self._auto_index_task = asyncio.create_task(
             self._auto_index_wrapper(user_input), name="auto_index"
         )

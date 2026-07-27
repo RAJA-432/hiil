@@ -15,13 +15,13 @@ def _make_chat_and_app(MockCliChat, MockCliApp):
 @patch("mcp_cli.services.factory.load_settings")
 @patch("mcp_cli.services.factory.Claude")
 @patch("mcp_cli.services.factory.AsyncExitStack")
-@patch("mcp_cli.services.server_manager.MCPClient")
+@patch("mcp_cli.services.server_manager.SetuBridge")
 @patch("mcp_cli.services.factory.create_servers")
 @patch("mcp_cli.services.factory.CliChat")
 @patch("mcp_cli.main.CliApp")
 @pytest.mark.asyncio
 async def test_main_success(MockCliApp, MockCliChat, MockCreateServers,
-                            MockMCPClient, MockExitStack, MockClaude,
+                            MockSetuBridge, MockExitStack, MockClaude,
                             MockLoadSettings):
     MockLoadSettings.return_value = (
         MagicMock(provider="ollama", model="gemma4", api_key="", base_url="", max_context_tokens=200000),

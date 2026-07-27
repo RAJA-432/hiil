@@ -116,4 +116,22 @@ def load_settings(config_path: str = "config.yaml") -> tuple[Settings, list[Serv
 
 
 def _validate_config(settings: Settings, servers: list[ServerConfig]) -> None:
-    pass
+    errors: list[str] = []
+    valid_providers = {"openrouter", "opencode", "ollama", "openai", "anthropic", "groq"}
+    if settings.provider not in valid_providers:
+        errors.append(f"Unknown provider '{settings.provider}'. Valid: {', '.join(sorted(valid_providers))}")
+    if settings.max_context_tokens < 1:
+        errors.append(f"max_context_tokens must be positive, got {settings.max_context_tokens}")
+    seen_ids: set[str] = set()
+    for sv in servers:
+        if not sv.script and not sv.command:
+            errors.append(f"Server '{sv.id}': one of 'script' or 'command' is required")
+        if sv.transport not in ("stdio", "sse"):
+            errors.append(f"Server '{sv.id}': transport must be 'stdio' or 'sse', got '{sv.transport}'")
+        if sv.transport == "sse" and not sv.command:
+            errors.append(f"Server '{sv.id}': sse transport requires a 'command'")
+        if sv.id in seen_ids:
+            errors.append(f"Duplicate server id '{sv.id}'")
+        seen_ids.add(sv.id)
+    if errors:
+        raise ValueError("Configuration validation failed:\n  - " + "\n  - ".join(errors))

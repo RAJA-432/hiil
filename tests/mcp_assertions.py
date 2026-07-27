@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mcp_server.storage.store import docs
+from veda_engine.storage.store import get_document, put_document
 
 
 def assert_mcp_result(case: dict, result) -> None:
@@ -29,17 +29,44 @@ def assert_mcp_result(case: dict, result) -> None:
         )
 
 
+_TEST_USER = "test"
+
+
 def run_mcp_setup(case: dict) -> dict | None:
     setup = case.get("setup")
-    if setup and "save_doc" in setup:
+    if not setup:
+        return None
+    saved = {}
+    if "save_doc" in setup:
         doc_id = setup["save_doc"]
-        return {doc_id: docs.get(doc_id, "")}
-    return None
+        try:
+            saved[doc_id] = get_document(doc_id, _TEST_USER)
+        except ValueError:
+            saved[doc_id] = ""
+    if "put_doc" in setup:
+        for doc_id, content in setup["put_doc"].items():
+            saved[doc_id] = ""
+            try:
+                saved[doc_id] = get_document(doc_id, _TEST_USER)
+            except ValueError:
+                pass
+            put_document(doc_id, content, _TEST_USER)
+    return saved if saved else None
 
 
 def run_mcp_teardown(case: dict, saved: dict | None) -> None:
+    if not saved:
+        return
     teardown = case.get("teardown")
-    if teardown and "restore_doc" in teardown and saved:
-        doc_id = teardown["restore_doc"]
+    restore = (teardown or {}).get("restore_doc", [])
+    if isinstance(restore, str):
+        restore = [restore]
+    for doc_id in restore:
         if doc_id in saved:
-            docs[doc_id] = saved[doc_id]
+            if saved[doc_id]:
+                put_document(doc_id, saved[doc_id], _TEST_USER)
+            else:
+                try:
+                    put_document(doc_id, "", _TEST_USER)
+                except Exception:
+                    pass

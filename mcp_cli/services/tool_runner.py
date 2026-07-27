@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 logger = get_logger("tool_runner")
 
 
-class ToolCallEvent(NamedTuple):
+class KaryaEvent(NamedTuple):
     name: str
     args: dict[str, Any]
     result: str | None = None
@@ -46,10 +46,12 @@ class ToolRunner:
         tools_by_name: dict[str, dict[str, Any]],
         tool_timeout: float = 30.0,
         roots_manager: RootsManager | None = None,
+        max_concurrent: int = 4,
     ):
         self.tools_by_name = tools_by_name
         self._tool_timeout = tool_timeout
         self.roots = roots_manager or RootsManager()
+        self._semaphore = asyncio.Semaphore(max_concurrent)
 
     async def call_tool(self, name: str, args: dict[str, Any]) -> str:
         entry = self.tools_by_name.get(name)
@@ -61,22 +63,23 @@ class ToolRunner:
             logger.warning("Root restriction on '%s': %s", name, root_err)
             return root_err
 
-        try:
-            result = await asyncio.wait_for(
-                entry["client"].call_tool(name, args),
-                timeout=self._tool_timeout,
-            )
-            return _extract_text(result)
-        except TimeoutError:
-            return f"[timeout] Tool '{name}' did not respond within {self._tool_timeout}s"
-        except Exception as exc:
-            return f"Tool error: {exc}"
+        async with self._semaphore:
+            try:
+                result = await asyncio.wait_for(
+                    entry["client"].call_tool(name, args),
+                    timeout=self._tool_timeout,
+                )
+                return _extract_text(result)
+            except TimeoutError:
+                return f"[timeout] Tool '{name}' did not respond within {self._tool_timeout}s"
+            except Exception as exc:
+                return f"Tool error: {exc}"
 
     async def execute_tool_calls(
         self,
         tool_calls: list[Any],
         *,
-        on_tool_event: Callable[[ToolCallEvent], None] | None = None,
+        on_tool_event: Callable[[KaryaEvent], None] | None = None,
         on_approval: Callable[[str, dict[str, Any]], Awaitable[bool]] | None = None,
     ) -> list[dict[str, Any]]:
         tool_results: list[dict[str, Any]] = []
@@ -87,13 +90,13 @@ class ToolRunner:
             except json.JSONDecodeError:
                 args = {}
             if on_tool_event:
-                on_tool_event(ToolCallEvent(name=name, args=args))
+                on_tool_event(KaryaEvent(name=name, args=args))
             if on_approval and is_sensitive_tool(name):
                 approved = await on_approval(name, args)
                 if not approved:
                     result_text = f"[denied] Tool '{name}' was rejected by user"
                     if on_tool_event:
-                        on_tool_event(ToolCallEvent(name=name, args=args, result=result_text))
+                        on_tool_event(KaryaEvent(name=name, args=args, result=result_text))
                     tool_results.append({
                         "role": "tool",
                         "tool_call_id": call.id,
@@ -102,7 +105,7 @@ class ToolRunner:
                     continue
             result_text = await self.call_tool(name, args)
             if on_tool_event:
-                on_tool_event(ToolCallEvent(name=name, args=args, result=result_text))
+                on_tool_event(KaryaEvent(name=name, args=args, result=result_text))
             tool_results.append({
                 "role": "tool",
                 "tool_call_id": call.id,

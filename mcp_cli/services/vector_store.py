@@ -4,6 +4,7 @@ import asyncio
 import json
 import math
 import sqlite3
+import struct
 import threading
 import weakref
 from pathlib import Path
@@ -12,6 +13,21 @@ from typing import Any
 from mcp_cli.services.logging import get_logger
 
 logger = get_logger(__name__)
+
+_BATCH_SIZE = 500
+
+
+def _decode_embedding(raw: str | bytes) -> list[float]:
+    if isinstance(raw, bytes):
+        n = len(raw) // 4
+        return list(struct.unpack(f"<{n}f", raw))
+    if isinstance(raw, str) and raw.startswith("["):
+        return json.loads(raw)
+    return json.loads(raw.decode("utf-8"))
+
+
+def _encode_embedding(emb: list[float]) -> bytes:
+    return struct.pack(f"<{len(emb)}f", *emb)
 
 
 class VectorStore:
@@ -37,7 +53,7 @@ class VectorStore:
                 namespace TEXT NOT NULL DEFAULT 'default',
                 key TEXT NOT NULL,
                 text TEXT NOT NULL,
-                embedding TEXT NOT NULL,
+                embedding BLOB NOT NULL,
                 metadata TEXT DEFAULT '{}',
                 UNIQUE(namespace, key)
             )
@@ -47,11 +63,12 @@ class VectorStore:
 
     def index(self, namespace: str, key: str, text: str, embedding: list[float], metadata: dict | None = None) -> None:
         """Insert or replace a vector entry in the given namespace."""
+        blob = _encode_embedding(embedding)
         with self._lock:
             self._get_conn().execute(
                 """INSERT OR REPLACE INTO vectors (namespace, key, text, embedding, metadata)
                    VALUES (?, ?, ?, ?, ?)""",
-                (namespace, key, text, json.dumps(embedding), json.dumps(metadata or {})),
+                (namespace, key, text, blob, json.dumps(metadata or {})),
             )
             self._get_conn().commit()
 
@@ -84,22 +101,43 @@ class VectorStore:
             return 0.0
         return dot / (na * nb)
 
-    def search(self, query_embedding: list[float], namespace: str = "default", limit: int = 5) -> list[dict[str, Any]]:
-        """Return the top-k most similar vectors in a namespace ranked by cosine similarity."""
-        rows = self._get_conn().execute(
-            "SELECT key, text, embedding, metadata FROM vectors WHERE namespace=?",
-            (namespace,),
-        ).fetchall()
+    def search(self, query_embedding: list[float], namespace: str = "default", limit: int = 5, batch_size: int = _BATCH_SIZE) -> list[dict[str, Any]]:
+        """Return the top-k most similar vectors in a namespace ranked by cosine similarity.
+
+        Loads vectors in batches to avoid loading the entire embedding table into RAM.
+        """
         scored: list[tuple[float, str, str, dict]] = []
-        for key, text, emb_json, meta_json in rows:
-            emb = json.loads(emb_json)
-            score = self._cosine_similarity(query_embedding, emb)
-            scored.append((score, key, text, json.loads(meta_json)))
+        offset = 0
+        while True:
+            rows = self._get_conn().execute(
+                "SELECT key, text, embedding, metadata FROM vectors WHERE namespace=? ORDER BY id LIMIT ? OFFSET ?",
+                (namespace, batch_size, offset),
+            ).fetchall()
+            if not rows:
+                break
+            for key, text, emb_raw, meta_json in rows:
+                emb = _decode_embedding(emb_raw)
+                score = self._cosine_similarity(query_embedding, emb)
+                scored.append((score, key, text, json.loads(meta_json)))
+            offset += len(rows)
         scored.sort(key=lambda x: x[0], reverse=True)
         return [
             {"key": k, "text": t, "score": round(s, 4), "metadata": m}
             for s, k, t, m in scored[:limit]
         ]
+
+    def search_page(self, query_embedding: list[float], namespace: str = "default", offset: int = 0, limit: int = 20) -> list[dict[str, Any]]:
+        """Return a page of vectors with computed similarity scores, ordered by id."""
+        rows = self._get_conn().execute(
+            "SELECT key, text, embedding, metadata FROM vectors WHERE namespace=? ORDER BY id LIMIT ? OFFSET ?",
+            (namespace, limit, offset),
+        ).fetchall()
+        results = []
+        for key, text, emb_raw, meta_json in rows:
+            emb = _decode_embedding(emb_raw)
+            score = self._cosine_similarity(query_embedding, emb)
+            results.append({"key": key, "text": text, "score": round(score, 4), "metadata": json.loads(meta_json)})
+        return results
 
     def count(self, namespace: str = "default") -> int:
         """Return the number of vectors stored in the given namespace."""
@@ -141,7 +179,12 @@ class VectorStore:
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self.index, namespace, key, text, embedding, metadata)
 
-    async def async_search(self, query_embedding: list[float], namespace: str = "default", limit: int = 5) -> list[dict[str, Any]]:
+    async def async_delete(self, namespace: str, key: str) -> bool:
+        """Delete a vector asynchronously via the thread pool."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.delete, namespace, key)
+
+    async def async_search(self, query_embedding: list[float], namespace: str = "default", limit: int = 5, batch_size: int = _BATCH_SIZE) -> list[dict[str, Any]]:
         """Search vectors asynchronously via the thread pool."""
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.search, query_embedding, namespace, limit)
+        return await loop.run_in_executor(None, self.search, query_embedding, namespace, limit, batch_size)

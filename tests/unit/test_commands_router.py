@@ -4,6 +4,7 @@ import pytest
 
 from mcp_cli.commands.router import route_command, route_tool_command
 from mcp_cli.locales import set_lang
+from mcp_cli.locales import set_lang
 
 
 @pytest.mark.asyncio
@@ -232,7 +233,7 @@ async def test_route_models_unavailable():
 async def test_route_key_status():
     chat = MagicMock()
     chat.claude.provider = "test_prov"
-    with patch("mcp_cli.commands.router.async_load_api_key", AsyncMock(return_value="sk-existing")):
+    with patch("mcp_cli.commands.key_cmds.async_load_api_key", AsyncMock(return_value="sk-existing")):
         cont, reply = await route_command("/key status", chat)
     assert cont is True
 
@@ -240,7 +241,7 @@ async def test_route_key_status():
 @pytest.mark.asyncio
 async def test_route_key_set():
     chat = MagicMock()
-    with patch("mcp_cli.commands.router.async_save_api_key", AsyncMock()) as mock_save:
+    with patch("mcp_cli.commands.key_cmds.async_save_api_key", AsyncMock()) as mock_save:
         cont, reply = await route_command("/key set my_prov sk-abc", chat)
         mock_save.assert_called_once_with("my_prov", "sk-abc")
         assert "saved" in reply
@@ -256,7 +257,7 @@ async def test_route_key_set_missing_args():
 @pytest.mark.asyncio
 async def test_route_key_delete():
     chat = MagicMock()
-    with patch("mcp_cli.commands.router.async_delete_api_key", AsyncMock(return_value=True)) as mock_del:
+    with patch("mcp_cli.commands.key_cmds.async_delete_api_key", AsyncMock(return_value=True)) as mock_del:
         cont, reply = await route_command("/key delete test_prov", chat)
         mock_del.assert_called_once_with("test_prov")
         assert "deleted" in reply
@@ -265,7 +266,7 @@ async def test_route_key_delete():
 @pytest.mark.asyncio
 async def test_route_key_delete_nonexistent():
     chat = MagicMock()
-    with patch("mcp_cli.commands.router.async_delete_api_key", AsyncMock(return_value=False)) as mock_del:
+    with patch("mcp_cli.commands.key_cmds.async_delete_api_key", AsyncMock(return_value=False)) as mock_del:
         cont, reply = await route_command("/key delete test_prov", chat)
         assert "No stored key" in reply
 
@@ -274,7 +275,7 @@ async def test_route_key_delete_nonexistent():
 async def test_route_key_no_subcommand():
     chat = MagicMock()
     chat.claude.provider = "test_prov"
-    with patch("mcp_cli.commands.router.async_load_api_key", AsyncMock(return_value="sk-some")):
+    with patch("mcp_cli.commands.key_cmds.async_load_api_key", AsyncMock(return_value="sk-some")):
         cont, reply = await route_command("/key", chat)
     assert "Stored key" in reply
 
@@ -283,7 +284,7 @@ async def test_route_key_no_subcommand():
 async def test_route_key_status_with_stored_key():
     chat = MagicMock()
     chat.claude.provider = "test_prov"
-    with patch("mcp_cli.commands.router.async_load_api_key", AsyncMock(return_value="sk-abc123xyz-extra-long")):
+    with patch("mcp_cli.commands.key_cmds.async_load_api_key", AsyncMock(return_value="sk-abc123xyz-extra-long")):
         cont, reply = await route_command("/key status", chat)
         assert "sk-abc12" in reply
 
@@ -292,7 +293,7 @@ async def test_route_key_status_with_stored_key():
 async def test_route_key_status_no_key():
     chat = MagicMock()
     chat.claude.provider = "test_prov"
-    with patch("mcp_cli.commands.router.async_load_api_key", AsyncMock(return_value=None)):
+    with patch("mcp_cli.commands.key_cmds.async_load_api_key", AsyncMock(return_value=None)):
         cont, reply = await route_command("/key status", chat)
         assert "No stored key" in reply
 
@@ -311,7 +312,7 @@ async def test_route_timer_status_no_timer():
     assert "No timer running" in reply
 
 
-@patch("mcp_cli.commands.router.set_lang")
+@patch("mcp_cli.commands.misc_cmds.set_lang")
 @pytest.mark.asyncio
 async def test_route_lang_switch(mock_set_lang):
     mock_set_lang.return_value = "English"

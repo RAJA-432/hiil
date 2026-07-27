@@ -1,0 +1,44 @@
+from __future__ import annotations
+
+import time
+import threading
+
+
+class TokenBucket:
+    def __init__(self, rate: float, capacity: int):
+        self._rate = rate
+        self._capacity = capacity
+        self._tokens = float(capacity)
+        self._last_refill = time.monotonic()
+        self._lock = threading.Lock()
+
+    def consume(self, tokens: int = 1) -> bool:
+        with self._lock:
+            now = time.monotonic()
+            elapsed = now - self._last_refill
+            self._tokens = min(self._capacity, self._tokens + elapsed * self._rate)
+            self._last_refill = now
+            if self._tokens >= tokens:
+                self._tokens -= tokens
+                return True
+            return False
+
+
+class RateLimiter:
+    def __init__(self, default_rate: float = 10.0, default_capacity: int = 20):
+        self._default_rate = default_rate
+        self._default_capacity = default_capacity
+        self._buckets: dict[str, TokenBucket] = {}
+        self._lock = threading.Lock()
+
+    def _bucket(self, key: str) -> TokenBucket:
+        if key not in self._buckets:
+            self._buckets[key] = TokenBucket(self._default_rate, self._default_capacity)
+        return self._buckets[key]
+
+    def check(self, key: str, tokens: int = 1) -> bool:
+        return self._bucket(key).consume(tokens)
+
+    def configure(self, key: str, rate: float, capacity: int):
+        with self._lock:
+            self._buckets[key] = TokenBucket(rate, capacity)

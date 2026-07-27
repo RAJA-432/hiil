@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 
+from typing import cast
+
 from mcp_cli.ui.themes import THEMES, Theme
 
 # ── Accessibility presets ────────────────────────────────────────────────
@@ -48,7 +50,7 @@ class ThemeManager:
 
     def __init__(self, theme_name: str | None = None, **overrides: str):
         self._named_themes: dict[str, Theme] = dict(THEMES)
-        self._theme_name: str = theme_name or os.getenv("CLI_THEME", "opencode")  # type: ignore[assignment]
+        self._theme_name: str = cast(str, theme_name or os.getenv("CLI_THEME", "opencode"))
         self._base = self._named_themes.get(self._theme_name) or next(
             iter(self._named_themes.values())
         )

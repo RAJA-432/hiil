@@ -156,7 +156,9 @@ class CodeInterpreterMiddleware(AgentMiddleware):
 
         with tempfile.TemporaryDirectory(prefix="hiil_code_") as tmpdir:
             script_path = Path(tmpdir) / "_execute.py"
-            script_path.write_text(wrapper, encoding="utf-8")
+            await asyncio.to_thread(
+                lambda: script_path.write_text(wrapper, encoding="utf-8")
+            )
 
             try:
                 proc = await asyncio.create_subprocess_exec(

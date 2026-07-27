@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from typing import cast
 
 RS = "\033[0m"  # ANSI reset sequence
 
@@ -152,7 +153,7 @@ class Theme:
             h = h.lstrip("#")
             if len(h) == 3:
                 h = "".join([c * 2 for c in h])
-            return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4)) # type: ignore[return-value]
+            return cast(tuple[int, int, int], tuple([int(h[i : i + 2], 16) for i in (0, 2, 4)]))
 
         s_r, s_g, s_b = hex_to_rgb(start_hex)
         e_r, e_g, e_b = hex_to_rgb(end_hex)

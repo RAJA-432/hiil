@@ -245,7 +245,7 @@ class AgentRunner:
 
     async def _execute_loop(self, task_input: str | None = None) -> str:
         if task_input is not None:
-            self._inject_memory()
+            await self._inject_memory()
 
             # Middleware: before_run
             if self._middleware:
@@ -284,7 +284,7 @@ class AgentRunner:
 
             tool_calls = getattr(message, "tool_calls", None)
             if not tool_calls:
-                self._persist_memory()
+                await self._persist_memory()
                 if self.bus:
                     await self.bus.push_log("info", "Agent response complete.")
                 return message.content or ""
@@ -322,7 +322,7 @@ class AgentRunner:
             self._messages.extend(tool_results)
             self._tool_calls_made += len(tool_calls)
 
-        self._persist_memory()
+        await self._persist_memory()
         return f"[stopped] Max iterations ({self.config.max_iterations}) reached."
 
     # ------------------------------------------------------------------
@@ -346,10 +346,21 @@ class AgentRunner:
                     if "```" in raw_args:
                         raw_args = re.sub(r"```(?:json)?\s*([\s\S]*?)\s*```", r"\1", raw_args).strip()
                     args = json.loads(raw_args)
-                except Exception:
-                    logger.exception("Agent %s: Malformed tool arguments for %s. Using empty args. Raw: %s",
-                                     self.agent_id, name, raw_args)
-                    args = {}
+                except Exception as exc:
+                    logger.warning("Agent %s: Malformed tool arguments for %s. %s. Raw: %s",
+                                   self.agent_id, name, exc, raw_args)
+                    results.append({
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": (
+                            f"<tool_result name=\"{name}\">\n"
+                            f"[invalid-args] Failed to parse arguments for '{name}': {exc}\n"
+                            f"Raw input received: {raw_args[:500]}\n"
+                            f"Please provide valid JSON arguments for this tool and retry.\n"
+                            f"</tool_result>"
+                        ),
+                    })
+                    continue
 
             # Check filesystem permissions before executing
             if self._perm_enforcer:
@@ -387,7 +398,7 @@ class AgentRunner:
 
             # Virtual backend intercept
             if self._virtual_backend.can_handle(name):
-                vb_result = self._virtual_backend.handle_tool(name, args)
+                vb_result = await asyncio.to_thread(self._virtual_backend.handle_tool, name, args)
                 if vb_result is not None:
                     results.append({
                         "role": "tool",
@@ -399,7 +410,15 @@ class AgentRunner:
             if self.bus:
                 await self.bus.push_tool_call(name, args, "running")
 
-            result_text = await self.tool_router.call_tool(name, args)
+            try:
+                result_text = await self.tool_router.call_tool(name, args)
+            except Exception as exc:
+                logger.warning("Agent %s: Tool call '%s' failed: %s", self.agent_id, name, exc)
+                result_text = (
+                    f"[tool-error] Tool '{name}' raised an error: {exc}\n"
+                    f"Arguments: {json.dumps(args)[:500]}\n"
+                    f"Please fix the arguments and retry."
+                )
 
             if self.bus:
                 await self.bus.push_tool_call(name, args, "done", result_text)
@@ -421,7 +440,7 @@ class AgentRunner:
         for req, decision in zip(pending, decisions):
             if decision.type == "approve":
                 if self._virtual_backend.can_handle(req.name):
-                    vb_result = self._virtual_backend.handle_tool(req.name, req.args)
+                    vb_result = await asyncio.to_thread(self._virtual_backend.handle_tool, req.name, req.args)
                     if vb_result is not None:
                         result_text = vb_result
                     else:
@@ -449,11 +468,11 @@ class AgentRunner:
     # Memory injection / persistence
     # ------------------------------------------------------------------
 
-    def _inject_memory(self) -> None:
+    async def _inject_memory(self) -> None:
         if not self.config.memory_files:
             return
-        loaded = self._memory.load_all(self.agent_id, self.config.memory_files)
-        self._memory_snapshot = self._memory.snapshot_hashes(self.agent_id, self.config.memory_files)
+        loaded = await asyncio.to_thread(self._memory.load_all, self.agent_id, self.config.memory_files)
+        self._memory_snapshot = await asyncio.to_thread(self._memory.snapshot_hashes, self.agent_id, self.config.memory_files)
         if not loaded:
             return
         block = "\n\n---\n".join(
@@ -471,14 +490,14 @@ class AgentRunner:
             if "## Persistent Memory" not in existing:
                 self._messages[system_idx]["content"] = existing + note
 
-    def _persist_memory(self) -> None:
+    async def _persist_memory(self) -> None:
         if not self.config.memory_files:
             return
         for mp in self.config.memory_files:
-            new_hash = self._memory.snapshot_hashes(self.agent_id, [mp]).get(mp, 0)
+            new_hash = (await asyncio.to_thread(self._memory.snapshot_hashes, self.agent_id, [mp])).get(mp, 0)
             old_hash = self._memory_snapshot.get(mp, 0)
             if new_hash != old_hash:
-                content = self._memory.read(self.agent_id, mp)
+                content = await asyncio.to_thread(self._memory.read, self.agent_id, mp)
                 if content is not None:
                     logger.info("Memory file %s unchanged (snapshot match)", mp)
                 continue
@@ -486,7 +505,7 @@ class AgentRunner:
                 content = msg.get("content", "")
                 if isinstance(content, str) and f"Memory: {mp}" in content:
                     lines = content.split("\n## Persistent Memory", 1)[0]
-                    self._memory.write(self.agent_id, mp, lines)
+                    await asyncio.to_thread(self._memory.write, self.agent_id, mp, lines)
                     logger.info("Persisted memory file %s for agent %s", mp, self.agent_id)
                     break
 

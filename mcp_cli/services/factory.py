@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import AsyncExitStack
@@ -56,7 +57,7 @@ async def create_chat(
     stack: AsyncExitStack,
     logging_callback: Callable[[Any], Awaitable[Any]] | None = None,
 ) -> CliChat:
-    settings, servers = load_settings()
+    settings, servers = await asyncio.to_thread(load_settings)
 
     claude = Claude(
         provider=settings.provider,

@@ -1,7 +1,7 @@
 {
   "description": "MCP Server Integration Tests",
   "command": "python",
-  "args": ["-m", "mcp_server"],
+  "args": ["-m", "veda_engine"],
   "cases": [
     {
       "id": "list_tools",
@@ -16,6 +16,7 @@
       "action": "call_tool",
       "tool": "read_document",
       "args": {"doc_id": "spec.txt"},
+      "setup": {"put_doc": {"spec.txt": "This document contains the technical requirements for the project."}},
       "expect": {"text_contains": "technical requirements"}
     },
     {
@@ -23,6 +24,8 @@
       "action": "call_tool",
       "tool": "edit_document",
       "args": {"doc_id": "spec.txt", "old_str": "technical requirements", "new_str": "tech specs"},
+      "setup": {"put_doc": {"spec.txt": "This document contains the technical requirements for the project."}},
+      "teardown": {"restore_doc": ["spec.txt"]},
       "expect": {"text_contains": "tech specs"}
     },
     {
@@ -30,6 +33,8 @@
       "action": "call_tool",
       "tool": "search_resources",
       "args": {"query": "test"},
+      "setup": {"put_doc": {"spec.txt": "This is a test document for search."}},
+      "teardown": {"restore_doc": ["spec.txt"]},
       "expect": {"text_contains": "test"}
     },
     {
@@ -42,12 +47,16 @@
     {
       "id": "list_resources",
       "action": "list_resources",
+      "setup": {"put_doc": {"spec.txt": "This document contains the technical requirements for the project."}},
+      "teardown": {"restore_doc": ["spec.txt"]},
       "expect": {"uri_contains": "docs://documents"}
     },
     {
       "id": "read_resource",
       "action": "read_resource",
       "uri": "docs://documents",
+      "setup": {"put_doc": {"spec.txt": "This document contains the technical requirements for the project."}},
+      "teardown": {"restore_doc": ["spec.txt"]},
       "expect": {"contains": "spec.txt"}
     },
     {

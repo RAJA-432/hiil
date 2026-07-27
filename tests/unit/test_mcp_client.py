@@ -3,18 +3,18 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from mcp import types
 
-from mcp_client import MCPClient
+from setu_bridge import SetuBridge
 
 
 @pytest.mark.asyncio
 async def test_mcp_client_session_uninitialized():
-    client = MCPClient(command="python", args=["server.py"])
+    client = SetuBridge(command="python", args=["server.py"])
     with pytest.raises(ConnectionError, match="Client session not initialized"):
         client.session()
 
 @pytest.mark.asyncio
 async def test_mcp_client_list_tools():
-    client = MCPClient(command="python", args=["server.py"])
+    client = SetuBridge(command="python", args=["server.py"])
     mock_session = AsyncMock()
     mock_session.list_tools.return_value = MagicMock(tools=[types.Tool(name="test_tool", description="test", inputSchema={})])
     client._conn._session = mock_session
@@ -26,7 +26,7 @@ async def test_mcp_client_list_tools():
 
 @pytest.mark.asyncio
 async def test_mcp_client_call_tool():
-    client = MCPClient(command="python", args=["server.py"])
+    client = SetuBridge(command="python", args=["server.py"])
     mock_session = AsyncMock()
     mock_session.call_tool.return_value = MagicMock(content=[])
     client._conn._session = mock_session

@@ -51,7 +51,7 @@ class HiilCompleter(Completer):
 
     def set_metadata(self) -> None:
         """Cache theme names, provider list, and provider metadata."""
-        from mcp_cli.commands.router import _PROVIDER_CONFIG
+        from mcp_cli.commands.provider_config import _PROVIDER_CONFIG
         from mcp_cli.ui.themes import THEMES
         self._themes = list(THEMES.keys())
         self._providers = list(_PROVIDER_CONFIG.keys())

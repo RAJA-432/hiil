@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import os
+
 import pytest
 
-from mcp_client import MCPClient
+from setu_bridge import SetuBridge
 from tests.harness import assert_mcp_result, load_cases, run_mcp_setup, run_mcp_teardown
 
 CASES = load_cases("mcp_server_tests.json")
@@ -13,7 +15,8 @@ CASES = load_cases("mcp_server_tests.json")
 async def test_mcp_server(case, mcp_server_available):
     action = case["action"]
     saved = run_mcp_setup(case)
-    async with MCPClient(command="python", args=["-m", "mcp_server"]) as client:
+    merged_env = {**os.environ, "HIIL_USER_ID": "test"}
+    async with SetuBridge(command="python", args=["-m", "veda_engine"], env=merged_env) as client:
         if action == "list_tools":
             result = await client.list_tools()
         elif action == "list_resources":

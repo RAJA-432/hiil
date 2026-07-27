@@ -14,7 +14,7 @@ async def test_cli_full_session():
             patch("mcp_cli.services.factory.load_settings") as MockLoadSettings,
             patch("mcp_cli.services.factory.Claude"),
             patch("mcp_cli.services.factory.AsyncExitStack"),
-            patch("mcp_cli.services.server_manager.MCPClient"),
+            patch("mcp_cli.services.server_manager.SetuBridge"),
             patch("mcp_cli.services.factory.create_servers", new_callable=AsyncMock) as MockCreateServers,
             patch("mcp_cli.services.factory.CliChat") as MockChat,
     ):

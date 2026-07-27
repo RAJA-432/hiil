@@ -69,7 +69,7 @@ class Streamer:
         message = ChatCompletionMessage(
             role="assistant",
             content=full_content or None,
-            tool_calls=streamed_tool_calls or None, # type: ignore
+            tool_calls=streamed_tool_calls or None,  # type: ignore[arg-type]
         )
         output_tokens = count_tokens(full_content, self.claude.model)
         return message, input_tokens, output_tokens

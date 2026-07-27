@@ -7,7 +7,7 @@ from mcp_cli.services.server_manager import load_mcp_server
 
 @pytest.mark.asyncio
 async def test_load_mcp_server_default():
-    with patch("mcp_cli.services.server_manager.MCPClient") as MockClient:
+    with patch("mcp_cli.services.server_manager.SetuBridge") as MockClient:
         instance = AsyncMock()
         MockClient.return_value = instance
 
@@ -26,7 +26,7 @@ async def test_load_mcp_server_default():
 @pytest.mark.asyncio
 async def test_load_mcp_server_with_uv(monkeypatch):
     monkeypatch.setenv("USE_UV", "1")
-    with patch("mcp_cli.services.server_manager.MCPClient") as MockClient:
+    with patch("mcp_cli.services.server_manager.SetuBridge") as MockClient:
         instance = AsyncMock()
         MockClient.return_value = instance
 
@@ -42,7 +42,7 @@ async def test_load_mcp_server_with_uv(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_load_mcp_server_with_args():
-    with patch("mcp_cli.services.server_manager.MCPClient") as MockClient:
+    with patch("mcp_cli.services.server_manager.SetuBridge") as MockClient:
         instance = AsyncMock()
         MockClient.return_value = instance
 
@@ -55,7 +55,7 @@ async def test_load_mcp_server_with_args():
 
 @pytest.mark.asyncio
 async def test_load_mcp_server_with_env():
-    with patch("mcp_cli.services.server_manager.MCPClient") as MockClient:
+    with patch("mcp_cli.services.server_manager.SetuBridge") as MockClient:
         instance = AsyncMock()
         MockClient.return_value = instance
 

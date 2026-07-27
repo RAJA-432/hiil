@@ -8,14 +8,14 @@ import asyncio
 import os
 import sys
 
-# Make the project root importable so we can reuse the shared MCPClient.
+# Make the project root importable so we can reuse the shared SetuBridge.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from mcp_client import MCPClient
+from setu_bridge import SetuBridge
 
 
 async def main() -> None:
-    async with MCPClient(command="python", args=["examples/server.py"]) as client:
+    async with SetuBridge(command="python", args=["examples/server.py"]) as client:
         tools = await client.list_tools()
         print("Available tools:", [t.name for t in tools])
 

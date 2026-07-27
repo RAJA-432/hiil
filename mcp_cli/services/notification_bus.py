@@ -14,13 +14,20 @@ class NotificationBus:
     Each streaming request gets its own bus. Supports multiple subscribers —
     each call to ``events()`` creates an independent queue and all published
     events are broadcast to every subscriber.
+
+    Events that arrive *before* any subscriber registers are buffered and
+    replayed to the first subscriber.
     """
 
     def __init__(self):
         self._queues: list[asyncio.Queue[dict[str, Any]]] = []
         self._done = False
+        self._buffer: list[dict[str, Any]] = []
 
     def _broadcast(self, event: dict[str, Any]) -> None:
+        if not self._queues:
+            self._buffer.append(event)
+            return
         for q in self._queues:
             try:
                 q.put_nowait(event)
@@ -49,6 +56,9 @@ class NotificationBus:
     def push_tool_call_nowait(self, name: str, args: dict[str, Any], status: str, result: str = "") -> None:
         self._broadcast({"type": "tool_event", "tool": name, "status": status, "args": args, "result": result[:200] if result else ""})
 
+    def push_rag(self, chunks: list[dict[str, Any]]) -> None:
+        self._broadcast({"type": "rag_context", "chunks": chunks})
+
     async def push_done(self) -> None:
         self._done = True
         self._broadcast({"type": "done"})
@@ -56,7 +66,18 @@ class NotificationBus:
     async def events(self) -> AsyncIterator[dict[str, Any]]:
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._queues.append(queue)
+        # Drain pre-subscriber buffer into this queue.
+        buffer_had_done = any(e.get("type") == "done" for e in self._buffer)
+        for event in self._buffer:
+            queue.put_nowait(event)
+        self._buffer.clear()
+        # If done was signaled but not actually in the buffer (e.g.
+        # push_done was called after subscribers already existed), inject
+        # a synthetic done so this subscriber terminates.
+        if self._done and not buffer_had_done:
+            queue.put_nowait({"type": "done"})
         try:
+            await asyncio.sleep(0)
             while True:
                 event = await queue.get()
                 yield event

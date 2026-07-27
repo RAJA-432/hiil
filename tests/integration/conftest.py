@@ -1,12 +1,6 @@
-from pathlib import Path
-
 import pytest
 
-try:
-    from mcp_server.storage.store import STORE_FILE as _STORE_FILE
-    STORE_FILE = _STORE_FILE
-except ImportError:
-    STORE_FILE = Path(__file__).parents[2] / "mcp_server" / "storage" / "documents_store.json"
+from veda_engine.storage.store import reset_store
 
 _MCP_SERVER_AVAILABLE: bool | None = None
 
@@ -16,7 +10,7 @@ def _check_mcp_server() -> bool:
     if _MCP_SERVER_AVAILABLE is not None:
         return _MCP_SERVER_AVAILABLE
     try:
-        import mcp_server  # noqa: F401
+        import veda_engine  # noqa: F401
         _MCP_SERVER_AVAILABLE = True
     except ImportError:
         _MCP_SERVER_AVAILABLE = False
@@ -24,9 +18,8 @@ def _check_mcp_server() -> bool:
 
 
 def _clean_store():
-    """Remove the on-disk store so tests start from hardcoded defaults."""
-    if STORE_FILE.exists():
-        STORE_FILE.unlink()
+    reset_store("default")
+    reset_store("test")
 
 
 def pytest_sessionstart(session):
@@ -52,12 +45,12 @@ def mcp_subprocess_timeout():
 
 @pytest.fixture
 def mcp_server_available():
-    """Skip test if mcp_server package is not installed."""
+    """Skip test if veda_engine package is not installed."""
     if not _check_mcp_server():
-        pytest.skip("mcp_server package not available — install with `pip install -e .`")
+        pytest.skip("veda_engine package not available — install with `pip install -e .`")
 
 
 def pytest_runtest_makereport(item, call):
-    """Force-clean any lingering documents_store.json after a failed test."""
+    """Reset the document store after a failed test."""
     if call.when == "teardown" and call.excinfo is not None:
         _clean_store()

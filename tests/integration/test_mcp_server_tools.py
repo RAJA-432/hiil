@@ -1,28 +1,39 @@
 import pytest
 
-from mcp_server.storage.store import get_document
-from mcp_server.tools.documents import edit_document, format_document, read_document
+from veda_engine.storage.store import create_document, get_document, reset_store
+from veda_engine.tools.documents import edit_document, format_document, read_document
+
+_TEST_USER = "test"
+
+
+@pytest.fixture(autouse=True)
+def clean_store():
+    reset_store(_TEST_USER)
+    create_document("report.pdf", "The report details the state of a 20m condenser tower.", user_id=_TEST_USER)
+    create_document("spec.txt", "These specifications define the technical requirements for the equipment.", user_id=_TEST_USER)
+    yield
+    reset_store(_TEST_USER)
 
 
 @pytest.mark.asyncio
 async def test_read_document():
-    content = await read_document("report.pdf")
+    content = await read_document("report.pdf", user_id=_TEST_USER)
     assert "condenser tower" in content
 
 
 @pytest.mark.asyncio
 async def test_read_document_not_found():
     with pytest.raises(ValueError):
-        await read_document("nonexistent.pdf")
+        await read_document("nonexistent.pdf", user_id=_TEST_USER)
 
 
 @pytest.mark.asyncio
 async def test_edit_document_tool():
-    original = get_document("spec.txt")
-    result = await edit_document("spec.txt", "technical", "functional")
+    original = get_document("spec.txt", user_id=_TEST_USER)
+    result = await edit_document("spec.txt", "technical", "functional", user_id=_TEST_USER)
     assert "functional" in result
-    await edit_document("spec.txt", "functional", "technical")
-    assert get_document("spec.txt") == original
+    await edit_document("spec.txt", "functional", "technical", user_id=_TEST_USER)
+    assert get_document("spec.txt", user_id=_TEST_USER) == original
 
 
 @pytest.mark.asyncio

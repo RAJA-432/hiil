@@ -11,7 +11,7 @@ from mcp.types import LoggingMessageNotificationParams
 
 from mcp_cli.config import ServerConfig
 from mcp_cli.services.logging import get_logger
-from mcp_client import MCPClient
+from setu_bridge import SetuBridge
 
 logger = get_logger("server_manager")
 
@@ -43,7 +43,7 @@ async def load_mcp_server(
     roots: list[str] | None = None,
     sampling_callback: Callable | None = None,
     logging_callback: Callable[[LoggingMessageNotificationParams], Any] | None = None,
-) -> MCPClient:
+) -> SetuBridge:
     """Launch and connect a new MCP server.
 
     When *transport* is ``"sse"`` the server is launched as an HTTP process on a
@@ -57,7 +57,7 @@ async def load_mcp_server(
         port = _find_free_port(_SSE_BASE_PORT)
         cmd, cmd_args = cfg.resolve_launch()
         sse_args = ["--transport", "sse", "--port", str(port)]
-        client = MCPClient(
+        client = SetuBridge(
             command=cmd,
             args=[*cmd_args, *sse_args] if cmd_args else sse_args,
             env=env,
@@ -71,7 +71,7 @@ async def load_mcp_server(
         port = _find_free_port(_HTTP_BASE_PORT)
         cmd, cmd_args = cfg.resolve_launch()
         http_args = ["--transport", "streamable-http", "--port", str(port)]
-        client = MCPClient(
+        client = SetuBridge(
             command=cmd,
             args=[*cmd_args, *http_args] if cmd_args else http_args,
             env=env,
@@ -83,7 +83,7 @@ async def load_mcp_server(
         )
     else:
         cmd, cmd_args = cfg.resolve_launch()
-        client = MCPClient(
+        client = SetuBridge(
             command=cmd,
             args=cmd_args,
             env=env,
@@ -116,7 +116,7 @@ async def create_servers(
     roots: list[str] | None = None,
     sampling_callback: Callable | None = None,
     logging_callback: Callable[[LoggingMessageNotificationParams], Any] | None = None,
-) -> tuple[MCPClient | None, dict[str, MCPClient]]:
+) -> tuple[SetuBridge | None, dict[str, SetuBridge]]:
     """Start the doc server and all configured MCP servers.
 
     Returns ``(doc_client, clients)``.
@@ -138,7 +138,7 @@ async def create_servers(
 
     other_cfgs = [s for s in servers_config if s.script != "mcp_server"]
 
-    async def _load_one(s_cfg: ServerConfig) -> tuple[str, MCPClient] | None:
+    async def _load_one(s_cfg: ServerConfig) -> tuple[str, SetuBridge] | None:
         try:
             client = await stack.enter_async_context(
                 await load_mcp_server(

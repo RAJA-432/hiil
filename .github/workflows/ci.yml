@@ -7,11 +7,12 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  ci:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.13", "3.14"]
+      fail-fast: true
 
     steps:
       - uses: actions/checkout@v4
@@ -20,46 +21,18 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
 
-      - name: Install dependencies
+      - name: Install uv and project
         run: |
-          pip install -e ".[dev]"
+          pip install uv
+          uv pip install -e ".[dev]" --system
 
-      - name: Run tests
-        run: python -m pytest tests/ -q --tb=short
+      - name: lint
+        run: ruff check mcp_cli setu_bridge veda_engine vajra_gate tests/
 
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: typecheck
+        run: mypy mcp_cli setu_bridge veda_engine vajra_gate --ignore-missing-imports
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Install ruff
-        run: pip install ruff
-
-      - name: Lint check
-        run: ruff check .
-
-      - name: Format check
-        run: ruff format .
-
-  typecheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-
-      - name: Install dependencies
-        run: |
-          pip install -e ".[dev]"
-
-      - name: Type check
-        run: mypy mcp_cli mcp_client mcp_server --ignore-missing-imports
+      - name: test
+        run: pytest tests/ -q

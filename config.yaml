@@ -17,7 +17,7 @@ settings:
 # Default MCP Servers to load
 servers:
   - id: "doc_server"
-    script: "mcp_server"
+    script: "veda_engine"
     args: []
     env: {}
 
