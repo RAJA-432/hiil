@@ -53,25 +53,13 @@ async def _stream_chat(chat, message: str):
 
 
 async def lekh_record(bus):
-    import aiofiles
-
-    from vajra_gate.config import VAJRA_GATE_CHAT_LOG
-
-    if not VAJRA_GATE_CHAT_LOG:
-        try:
-            async for _ in bus.events():
-                pass
-        except Exception:
-            logger.warning("Failed to consume bus events (logging disabled)")
-            pass
-        return
     try:
-        async with aiofiles.open(VAJRA_GATE_CHAT_LOG, "a", encoding="utf-8") as f:
-            async for event in bus.events():
-                await f.write(json.dumps(event) + "\n")
+        async for _ in bus.events():
+            pass
+    except (GeneratorExit, asyncio.CancelledError):
+        pass
     except Exception:
-        logger.exception("Failed to log events to file")
-    # Note: We don't need the infinite loop that was causing hangs
+        logger.warning("Failed to consume bus events (logging disabled)")
 
 
 async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
@@ -79,10 +67,9 @@ async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
         try:
             await chat.send(message, on_chunk=on_chunk, on_tool_event=on_tool_event, notification_bus=bus)
         except asyncio.CancelledError:
-            raise
+            pass
         except Exception:
             logger.exception("Chat send failed")
-            pass
         finally:
             await bus.push_done()
 
@@ -94,15 +81,14 @@ async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
     except GeneratorExit:
         chat_task.cancel()
         log_task.cancel()
-        raise
+    except asyncio.CancelledError:
+        chat_task.cancel()
+        log_task.cancel()
     finally:
         chat_task.cancel()
         log_task.cancel()
-        try:
-            await chat_task
-        except (asyncio.CancelledError, Exception):
-            pass
-        try:
-            await log_task
-        except (asyncio.CancelledError, Exception):
-            pass
+        for t in (chat_task, log_task):
+            try:
+                await t
+            except (asyncio.CancelledError, Exception):
+                pass
