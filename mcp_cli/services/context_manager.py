@@ -98,7 +98,7 @@ class ContextManager:
     async def fetch_model_context(self, model: str) -> int | None:
         base_url = getattr(self.claude, "base_url", None)
         if not isinstance(base_url, str):
-            return None
+            return 8192
         api_key = getattr(self.claude, "api_key", None)
         if not isinstance(api_key, str):
             api_key = ""
@@ -122,9 +122,8 @@ class ContextManager:
                             if ctx:
                                 return int(ctx)
         except Exception:
-            logger.warning("Failed to fetch model context")
-            pass
-        return None
+            logger.warning("Failed to fetch model context from API, using fallback")
+        return 8192
 
     async def auto_index(self, text: str, namespace: str = "messages") -> None:
         if not text or len(text) < 20:

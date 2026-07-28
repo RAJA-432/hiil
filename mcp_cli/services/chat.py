@@ -163,9 +163,8 @@ class CliChat:
         await self.refresh_tools()
         await self.doc_injector.initialize()
         api_ctx = await self.context.fetch_model_context(self.claude.model)
-        if api_ctx:
-            self.context.max_context_tokens = min(self.context.max_context_tokens, api_ctx - 20000)
-            logger.info("model context limit from API: %s, effective budget: %s", api_ctx, self.context.max_context_tokens)
+        self.context.max_context_tokens = min(self.context.max_context_tokens, int(api_ctx * 0.9))
+        logger.info("model context limit: %s, effective budget: %s", api_ctx, self.context.max_context_tokens)
 
     def refresh_system_prompt(self) -> None:
         prompt = self.claude.system_prompt()

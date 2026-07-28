@@ -53,9 +53,9 @@ async def read_file(path: str):
         mime_type, _ = mimetypes.guess_type(safe_path)
         if mime_type and not mime_type.startswith("text/"):
             with open(safe_path, "rb") as f:
-                content = f.read()
+                raw_bytes = f.read()
             return Response(
-                content=content,
+                content=raw_bytes,
                 media_type=mime_type or "application/octet-stream",
                 headers={
                     "X-File-Path": path,
@@ -64,9 +64,9 @@ async def read_file(path: str):
                 },
             )
         with open(safe_path, encoding="utf-8", errors="replace") as f:
-            content = f.read()
+            raw_text = f.read()
         return PlainTextResponse(
-            content,
+            raw_text,
             headers={
                 "X-File-Path": path,
                 "X-File-Size": str(stat.st_size),

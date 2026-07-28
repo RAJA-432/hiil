@@ -8,7 +8,7 @@ import jwt
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-_SECRET = os.getenv("HIIL_JWT_SECRET")
+_SECRET: str = os.getenv("HIIL_JWT_SECRET") or ""
 if not _SECRET:
     import hashlib
     _SECRET = hashlib.sha256(b"hiil-jwt-fallback-secret-do-not-use-in-production").hexdigest()

@@ -95,7 +95,7 @@ async def grep(pattern: str, glob_pattern: str = "*", ctx: Context = None) -> li
     for i, path in enumerate(candidates):
         rel = str(path.relative_to(WORKSPACE_ROOT))
         try:
-            text = await asyncio.to_thread(
+            text: str = await asyncio.to_thread(
                 lambda p=path: p.read_text("utf-8", errors="replace")
             )
             for line in text.splitlines():

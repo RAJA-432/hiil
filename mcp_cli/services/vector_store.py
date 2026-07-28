@@ -23,7 +23,7 @@ def _decode_embedding(raw: str | bytes) -> list[float]:
         return list(struct.unpack(f"<{n}f", raw))
     if isinstance(raw, str) and raw.startswith("["):
         return json.loads(raw)
-    return json.loads(raw.decode("utf-8"))
+    return json.loads(raw)
 
 
 def _encode_embedding(emb: list[float]) -> bytes:

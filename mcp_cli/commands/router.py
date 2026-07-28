@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+from typing import Any
+
 from mcp_cli.commands.agent import handle_agent_cmd
 from mcp_cli.commands.key_cmds import handle_cmd_key
 from mcp_cli.commands.misc_cmds import (
@@ -69,7 +71,7 @@ _CMD_HANDLERS = {
     "roots": handle_cmd_roots,
 }
 
-_SPECIAL_HANDLERS = {
+_SPECIAL_HANDLERS: dict[str, Any] = {
     "load": handle_load,
     "unload": handle_unload,
     "reload": handle_reload,
