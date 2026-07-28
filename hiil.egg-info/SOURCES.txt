@@ -61,6 +61,14 @@ setu_bridge/main.py
 setu_bridge/prompts.py
 setu_bridge/resources.py
 setu_bridge/tools.py
+vajra_gate/__init__.py
+vajra_gate/__main__.py
+vajra_gate/auth.py
+vajra_gate/chat.py
+vajra_gate/config.py
+vajra_gate/models.py
+vajra_gate/state.py
+vajra_gate/storage.py
 veda_engine/__init__.py
 veda_engine/__main__.py
 veda_engine/config.py

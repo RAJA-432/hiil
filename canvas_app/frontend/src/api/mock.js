@@ -237,10 +237,13 @@ export function simulateStreamResponse(convId, text, onToken, onTool, onDone) {
   let buffer = ''
   const toolCalls = []
   let timer = null
+  let resolveDone = null
+  const done = new Promise((resolve) => { resolveDone = resolve })
 
   function emit() {
     if (i >= text.length) {
       if (onDone) onDone(text, toolCalls, [])
+      if (resolveDone) resolveDone()
       return
     }
 
@@ -266,5 +269,5 @@ export function simulateStreamResponse(convId, text, onToken, onTool, onDone) {
   }
 
   emit()
-  return () => { if (timer) clearTimeout(timer) }
+  return { cancel: () => { if (timer) clearTimeout(timer); if (resolveDone) resolveDone() }, done }
 }

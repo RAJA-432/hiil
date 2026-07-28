@@ -7,7 +7,7 @@ export function useChat(conversationId) {
   const [streamingText, setStreamingText] = useState('')
   const cancelRef = useRef(null)
   const mountedRef = useRef(false)
-  const streamPromiseRef = useRef(null)
+  const streamRef = useRef(null)
 
   useEffect(() => {
     mountedRef.current = true
@@ -21,20 +21,17 @@ export function useChat(conversationId) {
   }, [conversationId])
 
   const send = useCallback(async (text) => {
-    if (!conversationId || !text.trim()) return
+    if (!conversationId || !text.trim() || !mountedRef.current) return
 
-    if (!mountedRef.current) return
     setStreaming(true)
     setStreamingText('')
 
     const toolCalls = []
     const abortController = new AbortController()
 
-    if (mountedRef.current) {
-      setMessages(prev => [...prev, { id: `temp-${Date.now()}`, role: 'user', content: text, timestamp: new Date().toISOString(), tool_calls: [], artifacts: [] }])
-    }
+    setMessages(prev => [...prev, { id: `temp-${Date.now()}`, role: 'user', content: text, timestamp: new Date().toISOString(), tool_calls: [], artifacts: [] }])
 
-    const cancel = sendMessage(conversationId, text,
+    const stream = sendMessage(conversationId, text,
       (event) => {
         if (!mountedRef.current) return
         if (event.type === 'tokens') {
@@ -63,30 +60,30 @@ export function useChat(conversationId) {
       abortController.signal,
     )
 
-    cancelRef.current = cancel
-    streamPromiseRef.current = { cancel }
+    cancelRef.current = stream
+    streamRef.current = stream
 
-    await new Promise((resolve) => {
-      const check = () => {
-        if (!mountedRef.current) return resolve()
-        setTimeout(() => {
-          loadMessages().then(() => {
-            if (mountedRef.current) {
-              setStreaming(false)
-              setStreamingText('')
-            }
-            resolve()
-          }).catch(() => resolve())
-        }, 100)
+    try {
+      await stream.done
+    } catch {
+      // stream was cancelled or errored
+    }
+
+    if (mountedRef.current) {
+      setStreaming(false)
+      setStreamingText('')
+      try {
+        await loadMessages()
+      } catch {
+        // ignore
       }
-      check()
-    })
+    }
   }, [conversationId, loadMessages])
 
   const stop = useCallback(() => {
-    if (streamPromiseRef.current) {
-      streamPromiseRef.current.cancel()
-      streamPromiseRef.current = null
+    if (streamRef.current) {
+      streamRef.current.cancel()
+      streamRef.current = null
     }
     cancelRef.current = null
     setStreaming(false)

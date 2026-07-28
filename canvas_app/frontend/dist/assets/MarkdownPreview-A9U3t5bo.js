@@ -1,1 +1,0 @@
-import{j as t,m as r}from"./index-CvJi3_Yo.js";function o({content:e}){return t.jsx("div",{style:{padding:24,overflow:"auto",height:"100%",lineHeight:1.7,fontSize:14},dangerouslySetInnerHTML:{__html:r(e)}})}export{o as default};

@@ -42,12 +42,11 @@ export function apiStream(method, path, body, onEvent, onError, signal) {
   const controller = new AbortController()
   const internalSignal = controller.signal
 
-  // Combine external signal with internal controller
   const abortSignal = signal
     ? AbortSignal.any([signal, internalSignal])
     : internalSignal
 
-  fetch(`${BACKEND_URL}${path}`, {
+  const donePromise = fetch(`${BACKEND_URL}${path}`, {
     method,
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -56,8 +55,7 @@ export function apiStream(method, path, body, onEvent, onError, signal) {
     .then(async (res) => {
       if (!res.ok) {
         const detail = await res.text().catch(() => '')
-        if (onError) onError(new ApiError(res.status, detail))
-        return
+        throw new ApiError(res.status, detail)
       }
 
       const reader = res.body.getReader()
@@ -81,13 +79,14 @@ export function apiStream(method, path, body, onEvent, onError, signal) {
           }
         }
       }
-      return 'ok';
     })
     .catch((err) => {
       if (onError && err.name !== 'AbortError') onError(err)
+      throw err
     })
 
   return {
     cancel: () => controller.abort(),
+    done: donePromise,
   }
 }

@@ -1,1 +1,0 @@
-import{j as r}from"./index-CvJi3_Yo.js";function s({filePath:e}){return e.startsWith("http")?r.jsx("img",{src:e,alt:e}):r.jsxs("div",{className:"preview-empty",children:[r.jsx("p",{children:"Image preview not available in mock mode"}),r.jsx("p",{style:{fontSize:11,color:"var(--text-dim)"},children:e})]})}export{s as default};
