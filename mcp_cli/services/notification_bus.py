@@ -19,14 +19,18 @@ class NotificationBus:
     replayed to the first subscriber.
     """
 
-    def __init__(self):
+    def __init__(self, max_queue_size: int = 1000):
         self._queues: list[asyncio.Queue[dict[str, Any]]] = []
         self._done = False
         self._buffer: list[dict[str, Any]] = []
+        self._max_queue_size = max_queue_size
 
     def _broadcast(self, event: dict[str, Any]) -> None:
         if not self._queues:
-            self._buffer.append(event)
+            if len(self._buffer) < self._max_queue_size:
+                self._buffer.append(event)
+            else:
+                _log.warning("NotificationBus buffer full (%s), dropping event %s", self._max_queue_size, event.get("type"))
             return
         for q in self._queues:
             try:
@@ -64,7 +68,7 @@ class NotificationBus:
         self._broadcast({"type": "done"})
 
     async def events(self) -> AsyncIterator[dict[str, Any]]:
-        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=self._max_queue_size)
         self._queues.append(queue)
         # Drain pre-subscriber buffer into this queue.
         buffer_had_done = any(e.get("type") == "done" for e in self._buffer)

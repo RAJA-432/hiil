@@ -1,4 +1,4 @@
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
+const USE_MOCK = (import.meta.env.VITE_USE_MOCK || 'false') === 'true'
 
 import { apiGet, apiStream, apiPost, apiDelete } from './client'
 import { getMockConversations, getMockMessages, addMockMessage, simulateStreamResponse } from './mock'
@@ -21,7 +21,7 @@ export async function sendMessage(conversationId, message, onEvent, onError, sig
     )
   }
 
-  return apiStream('POST', `/api/chat?stream=1`, { message, session_id: conversationId }, onEvent, onError, signal)
+  return apiStream('POST', `/api/chat?stream=1`, { message, session_id: conversationId, stream: true }, onEvent, onError, signal)
 }
 
 export async function loadConversations() {
@@ -50,5 +50,5 @@ export async function renameConversation(id, title) {
     if (conv) conv.title = title
     return true
   }
-  return apiPost('/api/session/rename', { old_id: id, new_id: title })
+  return apiPost('/api/session/rename', { session_id: id, new_title: title })
 }

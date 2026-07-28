@@ -20,7 +20,8 @@ export function useWorkspace() {
       const result = await readFile(path)
       setFileContent(result.content)
       setFileLanguage(result.language || 'plaintext')
-    } catch {
+    } catch (e) {
+      console.warn('Failed to load file:', e)
       setFileContent(`// Error: could not load ${path}`)
       setFileLanguage('plaintext')
     }

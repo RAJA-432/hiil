@@ -26,8 +26,8 @@ function TreeNode({ node, depth = 0, onOpenFile }) {
       </div>
       {isDir && expanded && node.children && (
         <div className="file-tree-children">
-          {node.children.map((child, i) => (
-            <TreeNode key={`${child.name}-${i}`} node={child} depth={depth + 1} onOpenFile={onOpenFile} />
+          {node.children.map((child) => (
+            <TreeNode key={child.path || child.name} node={child} depth={depth + 1} onOpenFile={onOpenFile} />
           ))}
         </div>
       )}

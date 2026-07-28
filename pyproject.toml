@@ -36,10 +36,11 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["main", "webui"]
+py-modules = ["main"]
 packages = [
     "mcp_cli", "mcp_cli.ui", "mcp_cli.commands", "mcp_cli.services",
     "setu_bridge",
+    "vajra_gate",
     "veda_engine", "veda_engine.storage", "veda_engine.tools", "veda_engine.resources",
 
 ]

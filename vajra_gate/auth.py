@@ -10,7 +10,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from mcp_cli.services.users import authenticate_user, register_user, user_count
 
-_SECRET = os.getenv("HIIL_JWT_SECRET", os.urandom(32).hex())
+_SECRET = os.getenv("HIIL_JWT_SECRET")
+if not _SECRET:
+    import hashlib
+    _SECRET = hashlib.sha256(b"hiil-jwt-fallback-secret-do-not-use-in-production").hexdigest()
 _ALGORITHM = "HS256"
 _ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 

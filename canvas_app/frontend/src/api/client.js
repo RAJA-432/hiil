@@ -76,7 +76,9 @@ export function apiStream(method, path, body, onEvent, onError, signal) {
           try {
             const event = JSON.parse(trimmed)
             if (onEvent) onEvent(event)
-          } catch {}
+          } catch (e) {
+            console.warn('Failed to parse SSE event:', e)
+          }
         }
       }
       return 'ok';

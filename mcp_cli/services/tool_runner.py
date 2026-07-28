@@ -88,7 +88,13 @@ class ToolRunner:
             try:
                 args = json.loads(call.function.arguments or "{}")
             except json.JSONDecodeError:
-                args = {}
+                logger.warning("ToolRunner: malformed JSON arguments for '%s': %s", name, call.function.arguments)
+                tool_results.append({
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": f"<tool_result name=\"{name}\">\n[invalid-args] Failed to parse arguments for '{name}'.\nRaw input: {call.function.arguments}\n</tool_result>",
+                })
+                continue
             if on_tool_event:
                 on_tool_event(KaryaEvent(name=name, args=args))
             if on_approval and is_sensitive_tool(name):

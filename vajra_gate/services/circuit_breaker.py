@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import time
 from enum import Enum
 
@@ -18,16 +19,19 @@ class CircuitBreaker:
         self._state = CircuitState.CLOSED
         self._failure_count = 0
         self._last_failure_time = 0.0
+        self._lock = threading.Lock()
 
     @property
     def state(self) -> CircuitState:
-        if self._state == CircuitState.OPEN and time.monotonic() - self._last_failure_time >= self._recovery_timeout:
-            self._state = CircuitState.HALF_OPEN
-        return self._state
+        with self._lock:
+            if self._state == CircuitState.OPEN and time.monotonic() - self._last_failure_time >= self._recovery_timeout:
+                self._state = CircuitState.HALF_OPEN
+            return self._state
 
     def call(self, fn):
-        if self.state == CircuitState.OPEN:
-            raise RuntimeError(f"Circuit breaker '{self.name}' is OPEN")
+        with self._lock:
+            if self._state == CircuitState.OPEN:
+                raise RuntimeError(f"Circuit breaker '{self.name}' is OPEN")
         try:
             result = fn()
             self._success()
@@ -37,8 +41,9 @@ class CircuitBreaker:
             raise
 
     async def acall(self, fn):
-        if self.state == CircuitState.OPEN:
-            raise RuntimeError(f"Circuit breaker '{self.name}' is OPEN")
+        with self._lock:
+            if self._state == CircuitState.OPEN:
+                raise RuntimeError(f"Circuit breaker '{self.name}' is OPEN")
         try:
             result = await fn()
             self._success()
@@ -48,15 +53,18 @@ class CircuitBreaker:
             raise
 
     def _success(self):
-        self._state = CircuitState.CLOSED
-        self._failure_count = 0
+        with self._lock:
+            self._state = CircuitState.CLOSED
+            self._failure_count = 0
 
     def _failure(self):
-        self._failure_count += 1
-        self._last_failure_time = time.monotonic()
-        if self._failure_count >= self._failure_threshold:
-            self._state = CircuitState.OPEN
+        with self._lock:
+            self._failure_count += 1
+            self._last_failure_time = time.monotonic()
+            if self._failure_count >= self._failure_threshold:
+                self._state = CircuitState.OPEN
 
     def reset(self):
-        self._state = CircuitState.CLOSED
-        self._failure_count = 0
+        with self._lock:
+            self._state = CircuitState.CLOSED
+            self._failure_count = 0

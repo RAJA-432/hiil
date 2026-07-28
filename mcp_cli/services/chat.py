@@ -179,6 +179,8 @@ class CliChat:
     def _sanitize_input(text: str) -> str:
         text = text.replace("\0", "")
         stripped = text.strip().lower()
+        stripped = stripped.replace("\u200b", "").replace("\ufeff", "")
+        stripped = " ".join(stripped.split())
         blocklist = [
             "ignore previous instructions",
             "ignore all instructions",
@@ -195,7 +197,7 @@ class CliChat:
         ]
         for pattern in blocklist:
             if pattern in stripped:
-                raise ValueError(f"Message blocked: prompt injection pattern '{pattern}' detected")
+                raise ValueError(f"Message blocked: prompt injection pattern detected")
         return text
 
     def get_last_assistant_message(self) -> str | None:

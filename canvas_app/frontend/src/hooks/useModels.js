@@ -6,12 +6,14 @@ export function useModels(initialModel) {
   const [activeModel, setActiveModel] = useState(initialModel || 'gpt-4o-mini')
 
   useEffect(() => {
-    listModels().then(setModels).catch(() => {})
+    listModels().then(setModels).catch((e) => console.warn('Failed to load models:', e))
   }, [])
 
   const switchModel = async (modelId) => {
     setActiveModel(modelId)
-    try { await setModel(modelId) } catch {}
+    try { await setModel(modelId) } catch (e) {
+      console.warn('Failed to switch model:', e)
+    }
   }
 
   return { models, activeModel, switchModel }

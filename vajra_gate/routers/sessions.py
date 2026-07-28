@@ -80,14 +80,14 @@ async def switch_session(request: Request, user: str = Depends(get_current_user)
 async def rename_session(request: Request, user: str = Depends(get_current_user)):
     chat = await _require_chat(request)
     body = await request.json()
-    old_id = body.get("old_id", "")
-    new_id = body.get("new_id", "")
-    if not old_id or not new_id:
-        raise HTTPException(status_code=400, detail="old_id and new_id required")
-    ok = await chat.history.async_rename_session(old_id, new_id)
+    session_id = body.get("session_id") or body.get("old_id", "")
+    new_title = body.get("new_title") or body.get("new_id", "")
+    if not session_id or not new_title:
+        raise HTTPException(status_code=400, detail="session_id/old_id and new_title/new_id required")
+    ok = await chat.history.async_rename_session(session_id, new_title)
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")
-    return {"session_id": new_id}
+    return {"session_id": new_title}
 
 
 @router.post("/api/session/delete")

@@ -42,11 +42,23 @@ async def web_search(
     return f"Web search results for '{query}':\n\n" + "\n\n".join(snippets)
 
 
+import ipaddress
+
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 _BLOCKED_HOSTS = frozenset({
     "169.254.169.254", "metadata.google.internal", "100.100.100.200",
     "localhost", "127.0.0.1", "::1", "0.0.0.0",
 })
+_PRIVATE_NETWORKS = [
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+    ipaddress.ip_network("fe80::/10"),
+]
 
 
 def _validate_url(url: str) -> str:
@@ -56,6 +68,14 @@ def _validate_url(url: str) -> str:
     host = parsed.hostname or ""
     if host in _BLOCKED_HOSTS or host.endswith(".internal"):
         raise ValueError(f"URL host '{host}' is blocked for security")
+    try:
+        ip = ipaddress.ip_address(host)
+        for net in _PRIVATE_NETWORKS:
+            if ip in net:
+                raise ValueError(f"URL host '{host}' is in a private/reserved range and is blocked for security")
+    except ValueError:
+        if host.endswith(".internal"):
+            raise ValueError(f"URL host '{host}' is blocked for security")
     return url
 
 

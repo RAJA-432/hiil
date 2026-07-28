@@ -39,15 +39,31 @@ def _get_fernet() -> Any:
     return Fernet(key)
 
 
+def _get_or_create_key() -> bytes | None:
+    if Fernet is None:
+        return None
+    key_file = _CRED_DIR / ".key"
+    if not key_file.exists():
+        _CRED_DIR.mkdir(parents=True, exist_ok=True)
+        key = Fernet.generate_key()
+        key_file.write_bytes(key)
+        key_file.chmod(0o600)
+    else:
+        key = key_file.read_bytes()
+    return key
+
+
 def _encrypt(plaintext: str) -> str:
     if sys.platform == "win32":
         data = plaintext.encode("utf-16-le")
         blob = win32crypt.CryptProtectData(data, None, None, None, None, 0)
         return base64.b64encode(blob).decode("ascii")
-    f = _get_fernet()
-    if f is not None:
+    key = _get_or_create_key()
+    if key is not None:
+        f = Fernet(key)
         return f.encrypt(plaintext.encode("utf-8")).decode("utf-8")
-    raise RuntimeError("Fernet not available — cannot encrypt credential")
+    logger.warning("Fernet not available — storing credential in plaintext (install cryptography for encryption)")
+    return base64.b64encode(plaintext.encode("utf-8")).decode("ascii")
 
 
 def _decrypt(ciphertext: str) -> str:
@@ -55,13 +71,17 @@ def _decrypt(ciphertext: str) -> str:
         blob = base64.b64decode(ciphertext)
         data = win32crypt.CryptUnprotectData(blob, None, None, None, 0)
         return data[1].decode("utf-16-le")
-    f = _get_fernet()
-    if f is not None:
+    key = _get_or_create_key()
+    if key is not None:
+        f = Fernet(key)
         try:
             return f.decrypt(ciphertext.encode("utf-8")).decode("utf-8")
         except FernetInvalidToken:
             pass
-    raise ValueError("Unknown credential format")
+    try:
+        return base64.b64decode(ciphertext).decode("utf-8")
+    except Exception:
+        raise ValueError("Unknown credential format")
 
 
 def load_api_key(provider: str) -> str | None:

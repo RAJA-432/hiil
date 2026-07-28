@@ -13,12 +13,16 @@ export function loadUIState() {
   try {
     const raw = localStorage.getItem(UI_STORE_KEY)
     if (raw) return { ...defaults, ...JSON.parse(raw) }
-  } catch {}
+  } catch (e) {
+    console.warn('Failed to load UI state:', e)
+  }
   return { ...defaults }
 }
 
 export function saveUIState(state) {
   try {
     localStorage.setItem(UI_STORE_KEY, JSON.stringify(state))
-  } catch {}
+  } catch (e) {
+    console.warn('Failed to save UI state:', e)
+  }
 }

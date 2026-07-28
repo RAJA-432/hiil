@@ -1,9 +1,11 @@
+import os
 import time
 
 from fastapi import APIRouter
 from fastapi.responses import RedirectResponse
 
 import vajra_gate.state as _state
+from vajra_gate.config import WORKSPACE_DIR
 
 _START_TIME = time.time()
 
@@ -23,6 +25,14 @@ async def health():
         "version": "0.2.0",
         "uptime_secs": round(uptime_secs, 1),
         "chat_initialized": _state._chat is not None,
+    }
+
+
+@router.get("/api/workspace")
+async def workspace():
+    return {
+        "name": os.path.basename(WORKSPACE_DIR),
+        "root": WORKSPACE_DIR,
     }
 
 

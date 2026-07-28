@@ -9,6 +9,16 @@ function escapeHtml(str) {
   return str.replace(/[&<>"]/g, (c) => escMap[c])
 }
 
+const _ALLOWED_URI_SCHEMES = new Set(['http', 'https', 'mailto', 'file'])
+function _is_safe_url(url) {
+  try {
+    const parsed = new URL(url)
+    return _ALLOWED_URI_SCHEMES.has(parsed.protocol.replace(':', ''))
+  } catch {
+    return false
+  }
+}
+
 export function marked(text) {
   if (!text) return ''
 
@@ -21,12 +31,16 @@ export function marked(text) {
 
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
 
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy" />')
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
+    if (!_is_safe_url(src)) src = '#'
+    return `<img src="${src}" alt="${alt}" loading="lazy" />`
+  })
 
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
     if (url.startsWith('file://') || url.startsWith('/')) {
       return `<a href="#" data-file="${url}">${text}</a>`
     }
+    if (!_is_safe_url(url)) url = '#'
     return `<a href="${url}" target="_blank" rel="noopener">${text}</a>`
   })
 
@@ -75,11 +89,7 @@ export function marked(text) {
       } else if (/^>\s/.test(line)) {
         result.push(`<blockquote>${line.replace(/^>\s/, '')}</blockquote>`)
       } else {
-        if (line.startsWith('<')) {
-          result.push(`${line}`)
-        } else {
-          result.push(`<p>${line}</p>`)
-        }
+        result.push(`<p>${line}</p>`)
       }
     }
   }

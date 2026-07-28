@@ -34,10 +34,6 @@ export default function App() {
   }, [activeConversation?.id, loadMessages])
 
   useEffect(() => {
-    if (activeConversation) loadMessages()
-  }, [activeConversation?.id])
-
-  useEffect(() => {
     document.documentElement.className = settings.theme === 'light' ? 'light' : ''
   }, [settings.theme])
 

@@ -291,13 +291,15 @@ class AgentRunner:
 
             # Check summarization middleware
             from mcp_cli.services.agents.summarization import SummarizationMiddleware
-            summary_mw = next(
-                (m for m in (self._middleware._middleware if self._middleware else [])
-                 if isinstance(m, SummarizationMiddleware)),
-                None,
-            )
-            if summary_mw and summary_mw.should_summarize(self._messages):
-                summary_prompt_content = summary_mw._summary_prompt + "\n\n" + "\n".join(
+            summary_mw = None
+            if self._middleware:
+                summary_mw = next(
+                    (m for m in self._middleware._middleware if isinstance(m, SummarizationMiddleware)),
+                    None,
+                )
+            if summary_mw is not None and summary_mw.should_summarize(self._messages):
+                summary_prompt = getattr(summary_mw, '_summary_prompt', 'Summarize the following conversation:')
+                summary_prompt_content = summary_prompt + "\n\n" + "\n".join(
                     f"{m.get('role', '?')}: {str(m.get('content', ''))[:200]}"
                     for m in self._messages[:-5]
                 )

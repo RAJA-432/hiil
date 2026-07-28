@@ -1,4 +1,4 @@
-const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
+const USE_MOCK = (import.meta.env.VITE_USE_MOCK || 'false') === 'true'
 
 import { apiGet } from './client'
 import { getMockFileTree, getMockFileContent } from './mock'
@@ -7,7 +7,13 @@ export async function readFile(path) {
   if (USE_MOCK) return { path, content: getMockFileContent(path), language: detectLanguage(path), size: getMockFileContent(path).length }
   const res = await fetch(`/api/files/${encodeURIComponent(path)}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const content = await res.text()
+  const ct = res.headers.get('Content-Type') || ''
+  let content
+  if (ct.startsWith('text/') || ct.includes('json') || ct.includes('javascript')) {
+    content = await res.text()
+  } else {
+    content = await res.text()
+  }
   return { path, content, language: detectLanguage(path), size: parseInt(res.headers.get('X-File-Size') || '0', 10) }
 }
 
@@ -18,7 +24,7 @@ export async function listDirectory(dir) {
 
 export async function getFileTree() {
   if (USE_MOCK) return getMockFileTree()
-  return apiGet('/api/list?dir=.')
+  return apiGet('/api/list?dir=.&recursive=true')
 }
 
 function detectLanguage(path) {

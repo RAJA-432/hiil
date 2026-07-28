@@ -117,7 +117,7 @@ class RootsManager:
         }
         candidates: list[tuple[str, str]] = []
         if tool_name in tools_with_root_arg:
-            for key in ("path", "paths", "source", "dest", "root"):
+            for key in ("path", "paths", "source", "dest", "root", "target", "filepath", "output_path", "input_path", "directory", "src", "dst", "filename"):
                 val = args.get(key)
                 if isinstance(val, str) and val.strip():
                     candidates.append((key, val.strip()))
@@ -125,6 +125,14 @@ class RootsManager:
                     for item in val:
                         if isinstance(item, str) and item.strip():
                             candidates.append((key, item.strip()))
+            for key, val in args.items():
+                if key not in ("path", "paths", "source", "dest", "root", "target", "filepath", "output_path", "input_path", "directory", "src", "dst", "filename"):
+                    if isinstance(val, str) and val.strip() and ('/' in val or '\\' in val or val.startswith('.')):
+                        candidates.append((key, val.strip()))
+                    elif isinstance(val, list):
+                        for item in val:
+                            if isinstance(item, str) and item.strip() and ('/' in item or '\\' in item or item.startswith('.')):
+                                candidates.append((key, item.strip()))
         return candidates
 
 

@@ -78,6 +78,20 @@ export default function ConversationList({ conversations, activeConversation, on
               onClick={() => onSelect(conv)}
             >
               <span className="truncate">{conv.title}</span>
+              {onDelete && (
+                <button
+                  className="conversation-delete"
+                  onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
+                  title="Delete conversation"
+                  style={{
+                    marginLeft: 'auto', background: 'none', border: 'none',
+                    color: 'var(--text-dim)', cursor: 'pointer', padding: '0 4px',
+                    fontSize: 14, lineHeight: 1,
+                  }}
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
         </div>
