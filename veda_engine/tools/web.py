@@ -47,7 +47,7 @@ import ipaddress
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 _BLOCKED_HOSTS = frozenset({
     "169.254.169.254", "metadata.google.internal", "100.100.100.200",
-    "localhost", "127.0.0.1", "::1", "0.0.0.0",
+    "localhost", "127.0.0.1", "::1", "0.0.0.0",  # noqa: S104 -- blocklist, not bind address
 })
 _PRIVATE_NETWORKS = [
     ipaddress.ip_network("10.0.0.0/8"),

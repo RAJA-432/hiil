@@ -3,9 +3,8 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 
-from mcp_cli.locales import set_lang
+from mcp_cli.locales import available_labels, set_lang
 from mcp_cli.locales import get as get_locale
-from mcp_cli.locales import available_labels
 
 
 async def handle_cmd_timer(rest: str, chat, app=None) -> tuple[bool, str]:

@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from contextlib import AsyncExitStack
-from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from mcp_cli.config import ServerConfig, Settings, _validate_config, load_settings
 from mcp_cli.services.factory import _build_sampling_callback, create_chat
-
 
 # ---------------------------------------------------------------------------
 # Settings dataclass

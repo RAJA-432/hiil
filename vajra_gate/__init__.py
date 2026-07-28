@@ -11,8 +11,7 @@ from vajra_gate.middleware.logging_middleware import AccessLogMiddleware, setup_
 setup_vajra_gate_logger(log_json=VAJRA_GATE_LOG_JSON, log_level=VAJRA_GATE_LOG_LEVEL)
 logger = logging.getLogger("vajra_gate")
 
-import vajra_gate.state as _state
-
+import vajra_gate.state as _state  # noqa: F401 -- imported for side effects (init state)
 from vajra_gate.middleware.rate_limit import RateLimitMiddleware
 
 app = FastAPI(title="hiil API Gateway", version="0.2.0")

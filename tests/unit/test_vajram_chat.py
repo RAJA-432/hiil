@@ -145,22 +145,22 @@ async def test_log_events_with_chat_log(tmp_path):
     """Test that lekh_record properly writes events when VAJRA_GATE_CHAT_LOG is set."""
     log_file = tmp_path / "chat.log"
     bus = NotificationBus()
-    
+
     # Push a test event and done signal
     async def push_events():
         await asyncio.sleep(0)  # Let consumer start
         await bus.push_log("info", "test log entry")
         await bus.push_done()
-    
+
     # Start the event pusher task
     pusher = asyncio.create_task(push_events())
-    
+
     # Patch the log path and run lekh_record
     with patch("vajra_gate.config.VAJRA_GATE_CHAT_LOG", str(log_file)):
         await lekh_record(bus)
-    
+
     await pusher
-    
+
     # Verify the log file was created and contains the message
     assert log_file.exists(), "Log file should exist after lekh_record completes"
     content = log_file.read_text(encoding="utf-8")
@@ -178,7 +178,7 @@ async def test_log_events_file_write_failure():
         await bus.push_done()
         try:
             await asyncio.wait_for(task, timeout=5)
-        except (TimeoutError, asyncio.TimeoutError):
+        except TimeoutError:
             task.cancel()
             try:
                 await task

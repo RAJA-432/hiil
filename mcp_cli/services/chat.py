@@ -7,9 +7,9 @@ from mcp_cli.services.agents import AgentConfig, AgentRunner
 from mcp_cli.services.context_manager import ContextManager
 from mcp_cli.services.document_injector import DocumentInjector
 from mcp_cli.services.history import ChatHistoryManager
-from mcp_cli.services.rag import RagPipeline
 from mcp_cli.services.logging import get_logger
 from mcp_cli.services.notification_bus import NotificationBus
+from mcp_cli.services.rag import RagPipeline
 from mcp_cli.services.roots import RootsManager
 from mcp_cli.services.server_manager import load_mcp_server
 from mcp_cli.services.streamer import Streamer
@@ -197,7 +197,7 @@ class CliChat:
         ]
         for pattern in blocklist:
             if pattern in stripped:
-                raise ValueError(f"Message blocked: prompt injection pattern detected")
+                raise ValueError("Message blocked: prompt injection pattern detected")
         return text
 
     def get_last_assistant_message(self) -> str | None:

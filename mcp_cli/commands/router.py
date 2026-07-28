@@ -14,15 +14,15 @@ from mcp_cli.commands.misc_cmds import (
     handle_cmd_servers,
     handle_cmd_status,
     handle_cmd_theme,
-    handle_cmd_timestamp,
     handle_cmd_timer,
+    handle_cmd_timestamp,
     handle_cmd_tools,
     handle_cmd_usage,
 )
 from mcp_cli.commands.model_cmds import handle_cmd_model, handle_cmd_models, handle_cmd_provider
 from mcp_cli.commands.plan import handle_plan_cmd
 from mcp_cli.commands.search_cmds import handle_cmd_copy, handle_cmd_search, handle_cmd_semsearch
-from mcp_cli.commands.servers import handle_load, handle_unload, handle_reload
+from mcp_cli.commands.servers import handle_load, handle_reload, handle_unload
 from mcp_cli.commands.session_cmds import (
     handle_cmd_compact,
     handle_cmd_fork,

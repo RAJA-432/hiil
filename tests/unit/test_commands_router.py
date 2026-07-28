@@ -4,7 +4,6 @@ import pytest
 
 from mcp_cli.commands.router import route_command, route_tool_command
 from mcp_cli.locales import set_lang
-from mcp_cli.locales import set_lang
 
 
 @pytest.mark.asyncio

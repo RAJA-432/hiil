@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 from mcp_cli.services.chunker import (
     chunk_by_sentences,
     chunk_by_tokens,
@@ -87,7 +83,7 @@ class TestExtractText:
         assert extract_text(content, "test.txt") == "hello world"
 
     def test_plain_text_with_utf8(self):
-        content = "héllo wörld 🎉".encode("utf-8")
+        content = "héllo wörld 🎉".encode()
         result = extract_text(content, "notes.txt")
         assert "héllo" in result
 
@@ -107,8 +103,9 @@ class TestExtractText:
         assert len(result) > 0
 
     def test_empty_pdf_returns_empty(self):
-        from pypdf import PdfWriter
         import io
+
+        from pypdf import PdfWriter
         w = PdfWriter()
         buf = io.BytesIO()
         w.write(buf)
@@ -153,8 +150,9 @@ startxref
 
 
 def _make_simple_docx() -> bytes:
-    from docx import Document
     import io
+
+    from docx import Document
     doc = Document()
     doc.add_paragraph("Hello from docx.")
     doc.add_paragraph("Second paragraph.")

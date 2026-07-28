@@ -84,8 +84,9 @@ def chunk_by_sentences(
 
 
 def extract_text_from_pdf(content: bytes) -> str:
-    from pypdf import PdfReader
     import io
+
+    from pypdf import PdfReader
     reader = PdfReader(io.BytesIO(content))
     pages: list[str] = []
     for page in reader.pages:
@@ -96,8 +97,9 @@ def extract_text_from_pdf(content: bytes) -> str:
 
 
 def extract_text_from_docx(content: bytes) -> str:
-    from docx import Document
     import io
+
+    from docx import Document
     doc = Document(io.BytesIO(content))
     paragraphs: list[str] = []
     for para in doc.paragraphs:

@@ -36,7 +36,7 @@ class CircuitBreaker:
             result = fn()
             self._success()
             return result
-        except Exception as exc:
+        except Exception:
             self._failure()
             raise
 
@@ -48,7 +48,7 @@ class CircuitBreaker:
             result = await fn()
             self._success()
             return result
-        except Exception as exc:
+        except Exception:
             self._failure()
             raise
 

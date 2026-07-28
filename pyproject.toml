@@ -62,7 +62,7 @@ select = ["E", "F", "W", "I", "N", "UP", "S"]
 ignore = ["S101", "S311", "E402", "E501", "E701", "E741", "S110", "N802", "N806"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "N802", "N803", "N806", "F841"]
+"tests/*" = ["S101", "S108", "W291", "N802", "N803", "N806", "F841"]
 "mcp_cli/locales/*" = ["N999"]
 "veda_engine/*" = ["N999"]
 

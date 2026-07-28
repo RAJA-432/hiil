@@ -63,7 +63,7 @@ async def read_file(path: str):
                     "X-File-MTime": str(datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()),
                 },
             )
-        with open(safe_path, "r", encoding="utf-8", errors="replace") as f:
+        with open(safe_path, encoding="utf-8", errors="replace") as f:
             content = f.read()
         return PlainTextResponse(
             content,

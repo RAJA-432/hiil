@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
-
 import pytest
 
 from mcp_cli.services.agents.middleware import AgentMiddleware, MiddlewarePipeline

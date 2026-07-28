@@ -61,7 +61,7 @@ def validate_path(requested: str | Path, root: Path) -> str | None:
         if not requested_path.is_absolute():
             requested_path = (root / requested_path).resolve()
         if not is_safe_path(requested_path, root):
-            return f"Access denied: path is not within the workspace root"
+            return "Access denied: path is not within the workspace root"
         return None
     except (ValueError, OSError) as exc:
         return f"Path validation error: {exc}"

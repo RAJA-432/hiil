@@ -123,7 +123,7 @@ class ChatHistoryManager:
         ids = [row[0] for row in cursor.fetchall()]
         if ids:
             conn.execute(
-                f"DELETE FROM messages WHERE id IN ({','.join('?' * len(ids))})", ids
+                f"DELETE FROM messages WHERE id IN ({','.join('?' * len(ids))})", ids  # noqa: S608 -- parameterized query, ? placeholders are safe
             )
             conn.commit()
         return len(ids)

@@ -8,8 +8,6 @@ import jwt
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from mcp_cli.services.users import authenticate_user, register_user, user_count
-
 _SECRET = os.getenv("HIIL_JWT_SECRET")
 if not _SECRET:
     import hashlib
