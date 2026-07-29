@@ -47,7 +47,17 @@ function TreeNode({ node, depth = 0, onOpenFile }) {
   )
 }
 
-export default function FileTree({ tree, onOpenFile }) {
+export default function FileTree({ tree, onOpenFile, error }) {
+  if (error) {
+    return (
+      <div className="file-tree" role="tree" aria-label="Workspace files">
+        <div style={{ padding: 16, textAlign: 'center', color: 'var(--error-color, #e74c3c)', fontSize: 13 }}>
+          <span role="img" aria-label="error">⚠️</span> {error}
+        </div>
+      </div>
+    )
+  }
+
   if (!tree) {
     return (
       <div className="file-tree" role="tree" aria-label="Workspace files">

@@ -47,8 +47,9 @@ export function useSkills() {
         const found = skills.find(s => s.id === skillId)
         if (found) setActiveSkill(found)
       }
-    } catch {
-      console.error('Failed to activate skill')
+    } catch (err) {
+      console.error('Failed to activate skill:', err)
+      throw err
     }
   }, [skills])
 

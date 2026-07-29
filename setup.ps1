@@ -1,6 +1,6 @@
 param([switch]$Dev)
 
-pip install -e ".[dev]" --quiet
+python -m pip install -e ".[dev]" --quiet
 if ($LASTEXITCODE -ne 0) { exit }
 
 Push-Location canvas_app\frontend

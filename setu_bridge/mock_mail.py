@@ -79,6 +79,7 @@ _INBOX: list[dict[str, Any]] = [
 
 _DRAFTS: list[dict[str, Any]] = []
 _AUTH_TOKEN: str | None = None
+_MOCK_PASSWORD = "mail_mock_secret"  # noqa: S105
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +101,7 @@ async def authenticate(password: str) -> str:
     ``mail_mock_secret`` (for local development only — never hardcoded
     in production).
     """
-    if password == "mail_mock_secret":
+    if password == _MOCK_PASSWORD:
         global _AUTH_TOKEN
         _AUTH_TOKEN = str(uuid.uuid4())
         return f"Authenticated. Token: {_AUTH_TOKEN[:8]}..."

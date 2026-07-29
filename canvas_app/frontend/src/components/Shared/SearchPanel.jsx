@@ -1,30 +1,78 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { searchMessages } from '../../api/chat'
 
-export default function SearchPanel({ conversations, onSelectConversation, onClose }) {
+export default function SearchPanel({ conversations, onSelectConversation, onClose, onResultClick }) {
   const [query, setQuery] = useState('')
+  const [results, setResults] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [searched, setSearched] = useState(false)
   const inputRef = useRef(null)
+  const debounceRef = useRef(null)
 
   useEffect(() => { inputRef.current?.focus() }, [])
 
-  const results = useMemo(() => {
-    if (!query.trim()) return []
-    const q = query.toLowerCase()
-    const matched = []
-    for (const conv of conversations) {
-      let score = 0
-      const title = (conv.title || '').toLowerCase()
-      if (title.includes(q)) score += 3
-      const snippet = title.includes(q) ? conv.title : ''
-      if (score > 0) {
-        matched.push({ conv, score, snippet, matchType: 'title' })
-      }
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    const q = query.trim()
+    if (!q) {
+      setResults([])
+      setSearched(false)
+      setLoading(false)
+      return
     }
-    matched.sort((a, b) => b.score - a.score)
-    return matched.slice(0, 30)
-  }, [query, conversations])
+    setLoading(true)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const data = await searchMessages(q)
+        setResults(data.results || [])
+      } catch {
+        setResults([])
+      } finally {
+        setSearched(true)
+        setLoading(false)
+      }
+    }, 300)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [query])
+
+  const groupedResults = useMemo(() => {
+    const grouped = {}
+    for (const r of results) {
+      if (!grouped[r.conversation_id]) {
+        grouped[r.conversation_id] = {
+          conversation_id: r.conversation_id,
+          conversation_title: r.conversation_title,
+          messages: [],
+        }
+      }
+      grouped[r.conversation_id].messages.push(r)
+    }
+    return Object.values(grouped)
+  }, [results])
+
+  const handleResultClick = (convId, title, messageId) => {
+    const conv = conversations.find(c => c.id === convId)
+    if (conv && onResultClick) {
+      onResultClick(conv, messageId)
+    }
+  }
 
   const handleKeyDown = (e) => {
     if (e.key === 'Escape') onClose?.()
+  }
+
+  const highlightMatch = (text, q) => {
+    if (!q.trim()) return text
+    const idx = text.toLowerCase().indexOf(q.toLowerCase())
+    if (idx === -1) return text
+    const before = text.slice(0, idx)
+    const match = text.slice(idx, idx + q.length)
+    const after = text.slice(idx + q.length)
+    return (
+      <>{before}<strong>{match}</strong>{after}</>
+    )
   }
 
   return (
@@ -34,35 +82,56 @@ export default function SearchPanel({ conversations, onSelectConversation, onClo
           ref={inputRef}
           type="text"
           className="search-panel-input"
-          placeholder="Search all conversations..."
+          placeholder="Search message content..."
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
         />
         <span className="search-panel-count">
-          {query.trim() ? `${results.length} result${results.length !== 1 ? 's' : ''}` : ''}
+          {loading ? '…' : query.trim() ? `${results.length} result${results.length !== 1 ? 's' : ''}` : ''}
         </span>
         <button className="toolbar-btn" onClick={onClose}>✕</button>
       </div>
       <div className="search-panel-filters">
-        <span className="search-panel-filter-hint">Search by conversation title</span>
+        <span className="search-panel-filter-hint">Search by message content</span>
       </div>
-      {results.length > 0 && (
+
+      {loading && (
+        <div className="search-panel-loading">
+          <span className="search-spinner" />
+        </div>
+      )}
+
+      {!loading && groupedResults.length > 0 && (
         <div className="search-panel-results">
-          {results.map(r => (
-            <div
-              key={r.conv.id}
-              className="search-result-item"
-              onClick={() => onSelectConversation(r.conv)}
-            >
-              <div className="search-result-title">{r.conv.title}</div>
-              <div className="search-result-meta">{r.conv.message_count || 0} messages</div>
+          {groupedResults.map(group => (
+            <div key={group.conversation_id} className="search-result-group">
+              <div className="search-result-conv-header">
+                {group.conversation_title}
+              </div>
+              {group.messages.map(r => (
+                <div
+                  key={r.message_id}
+                  className="search-result-item"
+                  onClick={() => handleResultClick(r.conversation_id, r.conversation_title, r.message_id)}
+                >
+                  <div className="search-result-snippet">
+                    {highlightMatch(r.snippet, query.trim())}
+                  </div>
+                  <div className="search-result-meta">
+                    <span className="search-result-timestamp">
+                      {new Date(r.timestamp).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>
       )}
-      {query.trim() && results.length === 0 && (
-        <div className="search-panel-empty">No conversations found</div>
+
+      {!loading && searched && results.length === 0 && (
+        <div className="search-panel-empty">No results found</div>
       )}
     </div>
   )

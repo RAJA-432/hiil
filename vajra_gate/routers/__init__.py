@@ -6,6 +6,7 @@ from vajra_gate.routers.knowledge import router as knowledge_router
 from vajra_gate.routers.langgraph import router as langgraph_router
 from vajra_gate.routers.misc import router as misc_router
 from vajra_gate.routers.phase_c import router as phase_c_router
+from vajra_gate.routers.search import router as search_router
 from vajra_gate.routers.sessions import router as sessions_router
 from vajra_gate.routers.skills import router as skills_router
 
@@ -18,6 +19,7 @@ __all__ = [
     "langgraph_router",
     "misc_router",
     "phase_c_router",
+    "search_router",
     "sessions_router",
     "skills_router",
 ]

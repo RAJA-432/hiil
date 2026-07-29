@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { useChatContext } from '../../context/ChatContext'
+import { useUIContext } from '../../context/UIContext'
 import MessageBubble from './MessageBubble'
 import MarkdownRenderer from './MarkdownRenderer'
 import TokenBar from '../Shared/TokenBar'
@@ -10,16 +12,34 @@ import ConversationExport from '../Shared/ConversationExport'
 import SystemPromptBar from './SystemPromptBar'
 import { MessageSkeleton } from '../Shared/LoadingSkeleton'
 
-export default function ChatPanel({ messages, streaming, streamingText, ragChunks, activityLogs, error, activeConversation, onOpenFile, onRetry, onDelete, onCopy, onEdit, activeSkill }) {
+export default function ChatPanel({ onOpenFile, onCopy }) {
+  const { messages, streaming, streamingText, ragChunks, activityLogs, error, activeConversation, handleRetry, handleDeleteMessage, handleEditMessage } = useChatContext()
+  const { activeSkill } = useUIContext()
   const bottomRef = useRef(null)
   const messagesRef = useRef(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [transparencyOpen, setTransparencyOpen] = useState(false)
 
+  const isNearBottom = useRef(true)
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    const container = messagesRef.current
+    if (container && isNearBottom.current) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [messages, streamingText])
+
+  useEffect(() => {
+    const container = messagesRef.current
+    if (!container) return
+    const handleScroll = () => {
+      const threshold = 150
+      isNearBottom.current = container.scrollHeight - container.scrollTop - container.clientHeight < threshold
+    }
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => container.removeEventListener('scroll', handleScroll)
+  }, [])
 
   useEffect(() => {
     if (activeConversation && messages.length > 0) {
@@ -58,7 +78,7 @@ export default function ChatPanel({ messages, streaming, streamingText, ragChunk
                 onClick={() => setTransparencyOpen(!transparencyOpen)}
                 title="Toggle transparency panel"
               >
-                {transparencyOpen ? '📊' : '📊'}
+                📊
               </button>
             )}
             <ConversationExport
@@ -110,10 +130,10 @@ export default function ChatPanel({ messages, streaming, streamingText, ragChunk
                 key={msg.id || i}
                 message={msg}
                 onOpenFile={onOpenFile}
-                onRetry={onRetry}
-                onDelete={onDelete}
+                onRetry={handleRetry}
+                onDelete={handleDeleteMessage}
                 onCopy={onCopy}
-                onEdit={onEdit}
+                onEdit={handleEditMessage}
               />
             ))}
             {error && (

@@ -23,3 +23,16 @@ export function FileTreeSkeleton() {
     </div>
   )
 }
+
+export function SkillsSkeleton() {
+  return (
+    <div className="skeleton-list" style={{ padding: '12px' }}>
+      {Array.from({ length: 4 }, (_, i) => (
+        <div key={i} className="skeleton-card" style={{ marginBottom: 10, borderRadius: 8 }}>
+          <div className="skeleton-line skeleton-line-short" />
+          <div className="skeleton-line skeleton-line-medium" style={{ marginTop: 6 }} />
+        </div>
+      ))}
+    </div>
+  )
+}

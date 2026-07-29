@@ -108,6 +108,10 @@ class ModelsResponse(BaseModel):
     active: str | None = None
 
 
+class ModelSetRequest(BaseModel):
+    model: str
+
+
 class ModelSetResponse(BaseModel):
     model: str
 
@@ -258,6 +262,20 @@ class FileTreeResponse(BaseModel):
     type: str
     path: str
     children: list[FileItem]
+
+
+class SearchResultItem(BaseModel):
+    conversation_id: str
+    conversation_title: str
+    message_id: int
+    content: str
+    snippet: str
+    timestamp: str
+
+
+class SearchResponse(BaseModel):
+    results: list[SearchResultItem]
+    total_count: int
 
 
 class StatusResponse(BaseModel):

@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useUIContext } from '../../context/UIContext'
 import Modal from './Modal'
 
-export default function SettingsModal({ open, onClose, settings, onUpdateSettings, models, activeModel, onSwitchModel }) {
+export default function SettingsModal({ open, onClose }) {
+  const { settings, updateSettings, models, activeModel, handleSwitchModel } = useUIContext()
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt || '')
   const [temperature, setTemperature] = useState(settings.temperature ?? 0.7)
   const [maxTokens, setMaxTokens] = useState(settings.maxTokens ?? 4096)
@@ -9,8 +11,19 @@ export default function SettingsModal({ open, onClose, settings, onUpdateSetting
   const [apiKey, setApiKey] = useState(settings.apiKey || '')
   const [showApiKey, setShowApiKey] = useState(false)
 
+  useEffect(() => {
+    setSystemPrompt(settings.systemPrompt || '')
+    setTemperature(settings.temperature ?? 0.7)
+    setMaxTokens(settings.maxTokens ?? 4096)
+    setApiBaseUrl(settings.apiBaseUrl || '')
+    setApiKey(settings.apiKey || '')
+  }, [settings])
+  const [saving, setSaving] = useState(false)
+
   const handleSave = () => {
-    onUpdateSettings({
+    if (saving) return
+    setSaving(true)
+    updateSettings({
       systemPrompt,
       temperature: parseFloat(temperature),
       maxTokens: parseInt(maxTokens, 10) || 4096,
@@ -28,7 +41,7 @@ export default function SettingsModal({ open, onClose, settings, onUpdateSetting
           <select
             className="settings-select"
             value={activeModel}
-            onChange={e => onSwitchModel(e.target.value)}
+            onChange={e => handleSwitchModel(e.target.value)}
           >
             {models.map(m => (
               <option key={m.id || m} value={m.id || m}>{m.name || m.id || m}</option>
@@ -109,7 +122,7 @@ export default function SettingsModal({ open, onClose, settings, onUpdateSetting
 
         <div className="settings-actions">
           <button className="toolbar-btn" onClick={onClose}>Cancel</button>
-          <button className="settings-save-btn" onClick={handleSave}>Save Settings</button>
+          <button className="settings-save-btn" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Settings'}</button>
         </div>
       </div>
     </Modal>

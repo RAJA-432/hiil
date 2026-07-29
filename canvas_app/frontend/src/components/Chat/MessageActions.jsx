@@ -1,7 +1,9 @@
 import { useState, useCallback } from 'react'
+import ConfirmDialog from '../Shared/ConfirmDialog'
 
 export default function MessageActions({ message, onRetry, onDelete, onCopy, onEdit }) {
   const [copied, setCopied] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const handleCopy = useCallback(() => {
     const text = typeof message?.content === 'string' ? message.content : ''
@@ -26,8 +28,18 @@ export default function MessageActions({ message, onRetry, onDelete, onCopy, onE
         <button className="message-action-btn" onClick={() => onRetry(message)} aria-label="Retry message">Retry</button>
       )}
       {onDelete && (
-        <button className="message-action-btn" onClick={() => onDelete(message.id)} aria-label="Delete message">Delete</button>
+        <button className="message-action-btn" onClick={() => setConfirmOpen(true)} aria-label="Delete message">Delete</button>
       )}
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title="Delete message?"
+        message="This will permanently delete this message."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => { setConfirmOpen(false); onDelete(message.id) }}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
 }

@@ -83,6 +83,15 @@ async def lekh_record(bus):
                 pass
 
 
+async def _heartbeat(bus, interval: float = 5.0):
+    try:
+        while True:
+            await asyncio.sleep(interval)
+            bus._broadcast({"type": "heartbeat", "timestamp": __import__("datetime").datetime.now().isoformat()})
+    except asyncio.CancelledError:
+        pass
+
+
 async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
     async def run_chat():
         try:
@@ -99,19 +108,23 @@ async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
 
     chat_task = asyncio.create_task(run_chat(), name="chat_send")
     log_task = asyncio.create_task(lekh_record(bus), name="chat_log")
+    hb_task = asyncio.create_task(_heartbeat(bus), name="heartbeat")
     try:
         async for event in bus.events():
             yield event
     except GeneratorExit:
         chat_task.cancel()
         log_task.cancel()
+        hb_task.cancel()
     except asyncio.CancelledError:
         chat_task.cancel()
         log_task.cancel()
+        hb_task.cancel()
     finally:
         chat_task.cancel()
         log_task.cancel()
-        for t in (chat_task, log_task):
+        hb_task.cancel()
+        for t in (chat_task, log_task, hb_task):
             try:
                 await t
             except (asyncio.CancelledError, GeneratorExit, RuntimeError):

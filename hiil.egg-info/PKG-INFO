@@ -14,7 +14,7 @@ Requires-Dist: httpx>=0.27.0
 Requires-Dist: cryptography>=42.0
 Requires-Dist: fastapi
 Requires-Dist: uvicorn[standard]
-Requires-Dist: websockets>=12.0
+Requires-Dist: websockets<16,>=14
 Requires-Dist: aiofiles>=23.0
 Requires-Dist: tiktoken>=0.7.0
 Requires-Dist: pypdf>=5.0

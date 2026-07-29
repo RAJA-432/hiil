@@ -6,8 +6,9 @@ export default defineConfig({
   base: '/canvas/',
   plugins: [react()],
   test: {
-    environment: 'node',
+    environment: 'jsdom',
     include: ['src/**/*.test.{js,jsx}'],
+    setupFiles: ['./src/test/setup.js'],
   },
   server: {
     proxy: {
@@ -18,5 +19,13 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-markdown': ['react-markdown', 'rehype-raw', 'remark-gfm'],
+        },
+      },
+    },
   },
 })

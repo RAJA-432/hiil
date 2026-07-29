@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import TagManager from './TagManager'
+import ConfirmDialog from '../Shared/ConfirmDialog'
 
 export default function ConversationItem({ conversation, active, onSelect, onDelete, onRename, tags, onAddTag, onRemoveTag, pinned, onTogglePin }) {
   const [editing, setEditing] = useState(false)
   const [editTitle, setEditTitle] = useState(conversation.title || '')
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -34,8 +36,17 @@ export default function ConversationItem({ conversation, active, onSelect, onDel
 
   const handleDelete = useCallback((e) => {
     e.stopPropagation()
+    setConfirmOpen(true)
+  }, [])
+
+  const handleConfirmDelete = useCallback(() => {
+    setConfirmOpen(false)
     onDelete?.(conversation.id)
   }, [conversation.id, onDelete])
+
+  const handleCancelDelete = useCallback(() => {
+    setConfirmOpen(false)
+  }, [])
 
   const handlePin = useCallback((e) => {
     e.stopPropagation()
@@ -81,6 +92,16 @@ export default function ConversationItem({ conversation, active, onSelect, onDel
         />
       </div>
       <button className="conversation-item-delete" onClick={handleDelete} aria-label="Delete conversation">✕</button>
+      <ConfirmDialog
+        isOpen={confirmOpen}
+        title="Delete conversation?"
+        message="This will permanently delete this conversation and all its messages."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
     </div>
   )
 }

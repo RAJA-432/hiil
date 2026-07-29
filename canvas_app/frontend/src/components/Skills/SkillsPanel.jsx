@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import SkillCard from './SkillCard'
 import { getSkillIcon } from '../../hooks/useSkills'
+import Spinner from '../Shared/Spinner'
 
 const CATEGORIES = [
   { id: 'all', label: 'All Skills' },
@@ -10,7 +11,7 @@ const CATEGORIES = [
   { id: 'writing', label: 'Writing' },
 ]
 
-export default function SkillsPanel({ skills, activeSkill, onSelectSkill }) {
+export default function SkillsPanel({ skills, activeSkill, onSelectSkill, loading }) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
 
@@ -62,16 +63,23 @@ export default function SkillsPanel({ skills, activeSkill, onSelectSkill }) {
       </div>
 
       <div className="skills-panel-list">
-        {filtered.map(skill => (
-          <SkillCard
-            key={skill.id}
-            skill={skill}
-            active={activeSkill?.id === skill.id}
-            onSelect={onSelectSkill}
-          />
-        ))}
-        {filtered.length === 0 && (
+        {loading ? (
+          <div className="skills-loading" style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+            <Spinner size={24} label="Loading skills..." />
+          </div>
+        ) : skills.length === 0 ? (
+          <div className="skills-empty">No skills available.</div>
+        ) : filtered.length === 0 ? (
           <div className="skills-empty">No skills match your filter.</div>
+        ) : (
+          filtered.map(skill => (
+            <SkillCard
+              key={skill.id}
+              skill={skill}
+              active={activeSkill?.id === skill.id}
+              onSelect={onSelectSkill}
+            />
+          ))
         )}
       </div>
 

@@ -1,0 +1,1067 @@
+openapi: 3.1.0
+info:
+  title: hiil — Canvas API
+  version: 0.2.0
+  description: |
+    CLI + Web chat backed by MCP tool servers.
+    SSE chat endpoint emits typed events with sequence numbers.
+
+paths:
+  /api/chat:
+    post:
+      summary: Send a message
+      parameters:
+        - name: stream
+          in: query
+          schema:
+            type: string
+            enum: ["1"]
+          description: Enable SSE streaming
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: Chat response or SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/SSEEvent"
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+
+  /api/models:
+    get:
+      summary: List available models
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelsResponse"
+
+  /api/model:
+    post:
+      summary: Set active model
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelSetRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelSetResponse"
+
+  /api/status:
+    get:
+      summary: Get chat status
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+
+  /api/usage:
+    get:
+      summary: Get token usage
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UsageResponse"
+
+  /api/tools:
+    get:
+      summary: List available tools
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolListResponse"
+
+  /api/tools/call:
+    post:
+      summary: Call a tool by name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToolCallRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ToolCallResponse"
+
+  /api/sessions:
+    get:
+      summary: List all session IDs
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionListResponse"
+
+  /api/conversations:
+    get:
+      summary: List all conversations
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationListResponse"
+
+  /api/history/{session_id}:
+    get:
+      summary: Get session message history
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HistoryResponse"
+
+  /api/session/new:
+    post:
+      summary: Create a new session
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionNewResponse"
+
+  /api/session/delete:
+    post:
+      summary: Delete a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionDeleteRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionDeleteResponse"
+
+  /api/session/rename:
+    post:
+      summary: Rename a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SessionRenameRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionRenameResponse"
+
+  /api/skills:
+    get:
+      summary: List all skills
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillsResponse"
+
+  /api/skills/{skill_id}:
+    get:
+      summary: Get skill details
+      parameters:
+        - name: skill_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillInfo"
+
+  /api/skills/activate:
+    post:
+      summary: Activate a skill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SkillActivateRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillActivateResponse"
+
+  /api/files/{path}:
+    get:
+      summary: Read a file
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File content with X-File-* headers
+
+  /api/list:
+    get:
+      summary: List directory
+      parameters:
+        - name: dir
+          in: query
+          schema:
+            type: string
+        - name: recursive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileItem"
+
+  /api/upload:
+    post:
+      summary: Upload a document
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadResponse"
+
+  /api/documents:
+    get:
+      summary: List documents
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentListResponse"
+
+  /api/documents/{doc_id}:
+    get:
+      summary: Get document details
+      parameters:
+        - name: doc_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentDetailResponse"
+
+  /api/retrieve:
+    post:
+      summary: Retrieve relevant chunks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetrieveRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetrieveResponse"
+
+  /api/agents:
+    get:
+      summary: List agents
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentListResponse"
+    post:
+      summary: Create an agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgentCreateRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentCreateResponse"
+
+  /api/auth/register:
+    post:
+      summary: Register a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /api/auth/login:
+    post:
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AuthRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/workspace:
+    get:
+      summary: Get workspace info
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceResponse"
+
+  /ok:
+    get:
+      summary: LangGraph-compatible OK check
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+
+  /info:
+    get:
+      summary: LangGraph-compatible server info
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServerInfoResponse"
+
+  /threads:
+    get:
+      summary: List threads
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  threads:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ThreadItem"
+    post:
+      summary: Create a thread
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThreadCreateRequest"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  thread_id:
+                    type: string
+
+  /metrics:
+    get:
+      summary: Prometheus-formatted metrics
+      responses:
+        "200":
+          description: Prometheus text format
+
+  /ws:
+    get:
+      summary: WebSocket chat endpoint
+      description: |
+        JSON messages over WebSocket.
+        Client sends: {"type":"chat","message":"..."} or {"type":"ping"}
+        Server sends: SSE-like JSON events (token, bus_event, complete, error)
+
+components:
+  schemas:
+    SSEEvent:
+      type: object
+      discriminator:
+        propertyName: type
+      oneOf:
+        - $ref: "#/components/schemas/TokenEvent"
+        - $ref: "#/components/schemas/ToolEvent"
+        - $ref: "#/components/schemas/RagContextEvent"
+        - $ref: "#/components/schemas/LogEvent"
+        - $ref: "#/components/schemas/ProgressEvent"
+        - $ref: "#/components/schemas/InterruptEvent"
+        - $ref: "#/components/schemas/DoneEvent"
+        - $ref: "#/components/schemas/HeartbeatEvent"
+        - $ref: "#/components/schemas/ErrorEvent"
+
+    TokenEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [tokens]
+        seq:
+          type: integer
+          description: Monotonic event sequence number
+        text:
+          type: string
+      required: [type, seq, text]
+
+    ToolEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [tool_event]
+        seq:
+          type: integer
+        tool:
+          type: string
+        status:
+          type: string
+          enum: [running, done, error]
+        args:
+          type: object
+        result:
+          type: string
+      required: [type, seq, tool, status]
+
+    RagContextEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [rag_context]
+        seq:
+          type: integer
+        chunks:
+          type: array
+          items:
+            $ref: "#/components/schemas/RagChunk"
+      required: [type, seq, chunks]
+
+    LogEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [log]
+        seq:
+          type: integer
+        level:
+          type: string
+          enum: [info, warn, error, tool, rag]
+        text:
+          type: string
+        source:
+          type: string
+      required: [type, seq, level, text]
+
+    ProgressEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [progress]
+        seq:
+          type: integer
+        current:
+          type: integer
+        total:
+          type: integer
+        percent:
+          type: number
+        text:
+          type: string
+      required: [type, seq, current, total]
+
+    InterruptEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [interrupt]
+        seq:
+          type: integer
+        action_requests:
+          type: array
+          items:
+            type: object
+      required: [type, seq, action_requests]
+
+    DoneEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [done]
+        seq:
+          type: integer
+      required: [type, seq]
+
+    HeartbeatEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [heartbeat]
+        seq:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+      required: [type, seq, timestamp]
+
+    ErrorEvent:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [error]
+        seq:
+          type: integer
+        code:
+          type: integer
+        message:
+          type: string
+      required: [type, seq, message]
+
+    ChatRequest:
+      type: object
+      properties:
+        message:
+          type: string
+        session_id:
+          type: string
+      required: [message]
+
+    ChatResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+
+    ModelSetRequest:
+      type: object
+      properties:
+        model:
+          type: string
+      required: [model]
+
+    ModelSetResponse:
+      type: object
+      properties:
+        model:
+          type: string
+
+    ModelsResponse:
+      type: object
+      properties:
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelInfo"
+        active:
+          type: string
+
+    ModelInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+
+    StatusResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+        model:
+          type: string
+        message_count:
+          type: integer
+        tool_count:
+          type: integer
+
+    UsageResponse:
+      type: object
+      properties:
+        session:
+          $ref: "#/components/schemas/TokenUsage"
+        total:
+          $ref: "#/components/schemas/TokenUsage"
+
+    TokenUsage:
+      type: object
+      properties:
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        cost:
+          type: number
+
+    ToolListResponse:
+      type: object
+      properties:
+        tools:
+          type: array
+          items:
+            type: string
+
+    ToolCallRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        arguments:
+          type: object
+
+    ToolCallResponse:
+      type: object
+      properties:
+        result:
+          type: object
+
+    SessionListResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            type: string
+        active:
+          type: string
+
+    ConversationItem:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        created:
+          type: string
+        updated:
+          type: string
+        message_count:
+          type: integer
+        pinned:
+          type: boolean
+
+    ConversationListResponse:
+      type: object
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationItem"
+
+    HistoryResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+        timestamp:
+          type: string
+        tool_calls:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolCallData"
+        rag_chunks:
+          type: array
+          items:
+            $ref: "#/components/schemas/RagChunk"
+
+    ToolCallData:
+      type: object
+      properties:
+        tool:
+          type: string
+        args:
+          type: object
+        status:
+          type: string
+        result:
+          type: string
+
+    RagChunk:
+      type: object
+      properties:
+        text:
+          type: string
+        score:
+          type: number
+        metadata:
+          type: object
+
+    SessionNewResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+
+    SessionDeleteRequest:
+      type: object
+      properties:
+        session_id:
+          type: string
+      required: [session_id]
+
+    SessionDeleteResponse:
+      type: object
+      properties:
+        deleted:
+          type: string
+
+    SessionRenameRequest:
+      type: object
+      properties:
+        session_id:
+          type: string
+        new_title:
+          type: string
+      required: [session_id, new_title]
+
+    SessionRenameResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+
+    SkillsResponse:
+      type: object
+      properties:
+        skills:
+          type: array
+          items:
+            $ref: "#/components/schemas/SkillInfo"
+
+    SkillInfo:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        category:
+          type: string
+        systemPrompt:
+          type: string
+        promptTemplates:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              label:
+                type: string
+              prompt:
+                type: string
+        toolPresets:
+          type: array
+          items:
+            type: string
+        color:
+          type: string
+
+    SkillActivateRequest:
+      type: object
+      properties:
+        skill_id:
+          type: string
+      required: [skill_id]
+
+    SkillActivateResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        skill:
+          $ref: "#/components/schemas/SkillInfo"
+
+    FileItem:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [file, dir]
+        path:
+          type: string
+        size:
+          type: integer
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileItem"
+
+    UploadResponse:
+      type: object
+      properties:
+        doc_id:
+          type: string
+        filename:
+          type: string
+        rag:
+          type: object
+
+    DocumentListResponse:
+      type: object
+      properties:
+        documents:
+          type: array
+          items:
+            type: object
+
+    DocumentDetailResponse:
+      type: object
+      properties:
+        doc_id:
+          type: string
+        content:
+          type: string
+        has_file:
+          type: boolean
+        file_size:
+          type: integer
+
+    RetrieveRequest:
+      type: object
+      properties:
+        query:
+          type: string
+        top_k:
+          type: integer
+        min_score:
+          type: number
+      required: [query]
+
+    RetrieveResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+        count:
+          type: integer
+
+    AgentCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        role:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+
+    AgentCreateResponse:
+      type: object
+      properties:
+        agent_id:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+
+    AgentListResponse:
+      type: object
+      properties:
+        agents:
+          type: array
+          items:
+            type: object
+
+    AuthRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+      required: [username, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        username:
+          type: string
+        first_login:
+          type: boolean
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        version:
+          type: string
+        uptime_secs:
+          type: number
+        chat_initialized:
+          type: boolean
+
+    WorkspaceResponse:
+      type: object
+      properties:
+        name:
+          type: string
+        root:
+          type: string
+
+    ServerInfoResponse:
+      type: object
+      properties:
+        server:
+          type: string
+        version:
+          type: string
+        endpoints:
+          type: array
+          items:
+            type: string
+
+    ThreadItem:
+      type: object
+      properties:
+        thread_id:
+          type: string
+        created_at:
+          type: string
+        updated_at:
+          type: string
+        metadata:
+          type: object
+
+    ThreadCreateRequest:
+      type: object
+      properties:
+        thread_id:
+          type: string
+        metadata:
+          type: object

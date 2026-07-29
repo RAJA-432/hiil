@@ -46,6 +46,10 @@
   color: var(--primary);
 }
 
+.toolbar-hamburger {
+  display: none;
+}
+
 /* ─── Model Picker ─── */
 
 .model-picker {
@@ -76,6 +80,7 @@
 }
 
 /* ─── Status Bar ─── */
+/* Connectivity indicator */
 
 .status-bar {
   display: flex;

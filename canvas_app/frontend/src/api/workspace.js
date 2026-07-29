@@ -8,4 +8,4 @@ export async function getWorkspaceInfo() {
   return apiGet('/api/workspace')
 }
 
-export { readFile as readWorkspaceFile, listDirectory as listWorkspaceDir } from './files'
+

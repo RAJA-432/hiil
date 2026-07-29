@@ -3,18 +3,16 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time
-import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import PlainTextResponse
 
+from vajra_gate.a2a import get_a2a_bus
 from vajra_gate.auth import get_current_user
 from vajra_gate.chat import _init_chat, _require_chat
 from vajra_gate.crons import get_scheduler
 from vajra_gate.metrics import generate as generate_metrics
 from vajra_gate.metrics import inc_agent_run, inc_chat
-from vajra_gate.a2a import get_a2a_bus
 
 logger = logging.getLogger("vajra_gate.phase_c")
 router = APIRouter()

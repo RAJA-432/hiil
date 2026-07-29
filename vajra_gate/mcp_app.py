@@ -87,6 +87,7 @@ async def hiil_create_agent(name: str, role: str, capabilities: list[str] | None
         capabilities: Tool capability tags (e.g. ['sqlite', 'read']).
     """
     import json
+
     from mcp_cli.services.agents import AgentConfig
     chat = _chat()
     config = AgentConfig(

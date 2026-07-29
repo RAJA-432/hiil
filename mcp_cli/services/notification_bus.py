@@ -24,8 +24,11 @@ class NotificationBus:
         self._done = False
         self._buffer: list[dict[str, Any]] = []
         self._max_queue_size = max_queue_size
+        self._seq = 0
 
     def _broadcast(self, event: dict[str, Any]) -> None:
+        self._seq += 1
+        event["seq"] = self._seq
         if not self._queues:
             if len(self._buffer) < self._max_queue_size:
                 self._buffer.append(event)

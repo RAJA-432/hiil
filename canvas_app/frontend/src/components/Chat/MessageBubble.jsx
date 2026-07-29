@@ -66,7 +66,7 @@ export default function MessageBubble({ message, onOpenFile, onRetry, onDelete, 
 
   if (editing) {
     return (
-      <div className={`message ${role} message-editing`}>
+      <div id={message.id ? `msg-${message.id}` : undefined} className={`message ${role} message-editing`}>
         <div className="message-edit-container">
           <textarea
             ref={editRef}
@@ -87,7 +87,7 @@ export default function MessageBubble({ message, onOpenFile, onRetry, onDelete, 
   }
 
   return (
-    <div className={`message ${role}`}>
+    <div id={message.id ? `msg-${message.id}` : undefined} className={`message ${role}`}>
       <div className="message-content" onClick={handleDelegate}>
         {role === 'assistant' ? (
           <MarkdownRenderer content={content} />

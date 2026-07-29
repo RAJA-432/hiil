@@ -122,10 +122,19 @@ export function useChat(conversationId, onUndoPush) {
     if (!mountedRef.current || !conversationId) return
     const msgIndex = messages.findIndex(m => m.id === msg.id)
     if (msgIndex === -1) return
+    const snapshot = [...messages]
     const msgsToKeep = messages.slice(0, msgIndex)
     setMessages(msgsToKeep)
     setRagChunks([])
     setActivityLogs([])
+    if (onUndoPush) {
+      onUndoPush({
+        type: 'edit-message',
+        message: 'Message edited',
+        data: { messages: snapshot },
+        undo: (data) => { setMessages(data.messages) },
+      })
+    }
     const msgId = `temp-${Date.now()}`
     const stream = runStream(newText, null, msgId)
     try { await stream.done } catch {}
@@ -134,7 +143,7 @@ export function useChat(conversationId, onUndoPush) {
       setStreamingText('')
       try { await loadMessages() } catch {}
     }
-  }, [conversationId, messages, loadMessages, runStream])
+  }, [conversationId, messages, loadMessages, runStream, onUndoPush])
 
   const deleteMessage = useCallback((id) => {
     const msg = messages.find(m => m.id === id)

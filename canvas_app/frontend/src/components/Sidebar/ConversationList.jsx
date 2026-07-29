@@ -1,21 +1,6 @@
 import { useState, useMemo } from 'react'
 import ConversationItem from './ConversationItem'
-
-function formatDate(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const now = new Date()
-  const diff = now - d
-  const mins = Math.floor(diff / 60000)
-  const hours = Math.floor(diff / 3600000)
-  const days = Math.floor(diff / 86400000)
-
-  if (mins < 1) return 'Just now'
-  if (mins < 60) return `${mins}m ago`
-  if (hours < 24) return `${hours}h ago`
-  if (days < 7) return `${days}d ago`
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
+import Spinner from '../Shared/Spinner'
 
 function groupByDate(conversations) {
   const now = new Date()
@@ -50,7 +35,7 @@ function groupByDate(conversations) {
     .map(([key, items]) => ({ label: labels[key], items }))
 }
 
-export default function ConversationList({ conversations, activeConversation, onSelect, onNew, onDelete, onRename, tags, onAddTag, onRemoveTag, onTogglePin }) {
+export default function ConversationList({ conversations, activeConversation, onSelect, onNew, onDelete, onRename, tags, onAddTag, onRemoveTag, onTogglePin, loading, hasMore, onLoadMore, loadingMore }) {
   const [tagFilter, setTagFilter] = useState(null)
 
   const allUsedTags = useMemo(() => {
@@ -92,7 +77,11 @@ export default function ConversationList({ conversations, activeConversation, on
         </div>
       )}
 
-      {groups.map((group) => (
+      {loading ? (
+        <div className="conversations-loading" style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+          <Spinner size={20} label="Loading conversations..." />
+        </div>
+      ) : groups.map((group) => (
         <div key={group.label}>
           <div className="sidebar-section-header">
             {group.label}
@@ -116,7 +105,18 @@ export default function ConversationList({ conversations, activeConversation, on
         </div>
       ))}
 
-      {conversations.length === 0 && (
+      {!loading && hasMore && conversations.length > 0 && (
+        <button
+          className="conversation-new-btn conversation-load-more"
+          onClick={onLoadMore}
+          disabled={loadingMore}
+          style={{ marginTop: 8 }}
+        >
+          {loadingMore ? <Spinner size={14} label="Loading more..." /> : 'Load more'}
+        </button>
+      )}
+
+      {!loading && conversations.length === 0 && (
         <div className="conversation-empty">No conversations yet</div>
       )}
     </div>

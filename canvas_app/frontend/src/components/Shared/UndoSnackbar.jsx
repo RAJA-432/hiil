@@ -1,15 +1,18 @@
-export default function UndoSnackbar({ items, onUndo, onDismiss }) {
-  if (!items || items.length === 0) return null
+import { useChatContext } from '../../context/ChatContext'
+
+export default function UndoSnackbar() {
+  const { undoItems, handleUndo, dismissUndo } = useChatContext()
+  if (!undoItems || undoItems.length === 0) return null
 
   return (
     <div className="undo-snackbar-container">
-      {items.map(item => (
+      {undoItems.map(item => (
         <div key={item.id} className="undo-snackbar">
           <span className="undo-snackbar-message">{item.message}</span>
-          <button className="undo-snackbar-btn" onClick={() => { onUndo(item); onDismiss(item.id) }}>
+          <button className="undo-snackbar-btn" onClick={() => { handleUndo(item); dismissUndo(item.id) }}>
             Undo
           </button>
-          <button className="undo-snackbar-close" onClick={() => onDismiss(item.id)}>✕</button>
+          <button className="undo-snackbar-close" onClick={() => dismissUndo(item.id)}>✕</button>
         </div>
       ))}
     </div>

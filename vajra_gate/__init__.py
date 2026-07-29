@@ -60,6 +60,7 @@ from vajra_gate.routers import (
     langgraph_router,
     misc_router,
     phase_c_router,
+    search_router,
     sessions_router,
     skills_router,
 )
@@ -70,6 +71,7 @@ app.include_router(chat_router)
 app.include_router(knowledge_router)
 app.include_router(langgraph_router)
 app.include_router(phase_c_router)
+app.include_router(search_router)
 app.include_router(sessions_router)
 app.include_router(skills_router)
 app.include_router(files_router)

@@ -1,3 +1,4 @@
+import { useUIContext } from '../../context/UIContext'
 import Modal from './Modal'
 
 const SHORTCUTS = [
@@ -12,9 +13,10 @@ const SHORTCUTS = [
   { key: 'Ctrl + L', desc: 'Focus search' },
 ]
 
-export default function ShortcutsModal({ open, onClose }) {
+export default function ShortcutsModal() {
+  const { shortcutsOpen, setShortcutsOpen } = useUIContext()
   return (
-    <Modal open={open} onClose={onClose} title="Keyboard Shortcuts" width={420}>
+    <Modal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Keyboard Shortcuts" width={420}>
       <div className="shortcuts-list">
         {SHORTCUTS.map((s, i) => (
           <div key={i} className="shortcut-row">

@@ -4,6 +4,7 @@ import asyncio
 import json
 import time
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -314,7 +315,6 @@ async def search_thread(request: Request, thread_id: str, body: ThreadSearchRequ
     except NotImplementedError:
         results = []
     except Exception:
-        from vajra_gate.routers.sessions import _parse_session_ts
         results = []
         for m in msgs:
             score = 1.0 if body.query.lower() in (m.get("content", "") or "").lower() else 0.0

@@ -39,10 +39,15 @@
   --border-light: #d0d0d0;
   --text: #1a1a1a;
   --text-muted: #888;
-  --text-dim: #bbb;
+  --text-dim: #888;
   --primary: #2563eb;
   --user-bubble: #e8f0fe;
   --assistant-bubble: #ffffff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent, #4a9eff);
+  outline-offset: 2px;
 }
 
 html, body, #root {
@@ -113,8 +118,73 @@ body {
   .canvas-layout {
     grid-template-columns: 0px 1fr 0px;
   }
-  .sidebar, .preview-panel {
+
+  .sidebar {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100%;
+    z-index: 101;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    border-right: 1px solid var(--border);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .sidebar-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .preview-panel {
     display: none;
+  }
+
+  .preview-panel.mobile-open {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 320px;
+    height: 100%;
+    z-index: 101;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+  }
+
+  .preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .preview-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .toolbar-hamburger {
+    display: inline-flex;
   }
 }
 

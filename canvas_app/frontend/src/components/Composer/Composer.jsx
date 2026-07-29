@@ -26,6 +26,9 @@ export default function Composer({ streaming, onSend, onStop, onInsertTemplate, 
       const newVal = prev ? prev + '\n' + template.prompt : template.prompt
       return newVal
     })
+    if (onInsertTemplate) {
+      onInsertTemplate(template)
+    }
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus()

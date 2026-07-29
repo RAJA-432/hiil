@@ -36,12 +36,13 @@ class ChatHistoryManager(SqliteStore):
 
     def load_session(self, session_id: str) -> list[dict[str, Any]]:
         """Retrieve all messages for a session ordered by timestamp."""
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC",
-            (session_id,)
-        )
-        return [{"role": row[0], "content": row[1] or ""} for row in cursor.fetchall()]
+        with self._lock:
+            conn = self._get_conn()
+            cursor = conn.execute(
+                "SELECT id, role, content, timestamp FROM messages WHERE session_id = ? ORDER BY timestamp ASC",
+                (session_id,)
+            )
+            return [{"id": row[0], "role": row[1], "content": row[2] or "", "timestamp": row[3]} for row in cursor.fetchall()]
 
     def list_sessions(self) -> list[str]:
         """Return all session ids ordered by most recent activity."""
@@ -59,12 +60,13 @@ class ChatHistoryManager(SqliteStore):
 
     def search_messages(self, session_id: str, query: str) -> list[dict[str, Any]]:
         """Search messages in a session for a keyword."""
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT role, content FROM messages WHERE session_id = ? AND content LIKE ? ORDER BY timestamp ASC",
-            (session_id, f"%{query}%")
-        )
-        return [{"role": row[0], "content": row[1] or ""} for row in cursor.fetchall()]
+        with self._lock:
+            conn = self._get_conn()
+            cursor = conn.execute(
+                "SELECT role, content FROM messages WHERE session_id = ? AND content LIKE ? ORDER BY timestamp ASC",
+                (session_id, f"%{query}%")
+            )
+            return [{"role": row[0], "content": row[1] or ""} for row in cursor.fetchall()]
 
     def rename_session(self, old_id: str, new_id: str) -> bool:
         """Rename a session. Returns True if successful."""
@@ -89,6 +91,23 @@ class ChatHistoryManager(SqliteStore):
         )
         conn.commit()
         return len(rows)
+
+    def global_search(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
+        """Search messages across all sessions. Returns results ordered by recency."""
+        with self._lock:
+            conn = self._get_conn()
+            cursor = conn.execute(
+                """SELECT id, session_id, role, content, timestamp
+                   FROM messages
+                   WHERE content LIKE ?
+                   ORDER BY timestamp DESC
+                   LIMIT ?""",
+                (f"%{query}%", limit)
+            )
+            return [
+                {"id": row[0], "session_id": row[1], "role": row[2], "content": row[3] or "", "timestamp": row[4]}
+                for row in cursor.fetchall()
+            ]
 
     def undo_last_messages(self, session_id: str, count: int = 2) -> int:
         """Remove the last N messages from a session. Returns number removed."""
@@ -145,6 +164,10 @@ class ChatHistoryManager(SqliteStore):
 
     @asyncify("fork_session")
     async def async_fork_session(self, source_id: str, target_id: str) -> int:
+        ...
+
+    @asyncify("global_search")
+    async def async_global_search(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
         ...
 
     @asyncify("undo_last_messages")

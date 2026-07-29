@@ -15,9 +15,14 @@ export function sendMessage(conversationId, message, onEvent, onError, signal) {
   return apiStream('POST', `/api/chat?stream=1`, { message, session_id: conversationId, stream: true }, onEvent, onError, signal)
 }
 
-export async function loadConversations() {
-  if (USE_MOCK) return getMockConversations()
-  return (await apiGet('/api/conversations')).conversations || []
+export async function loadConversations({ limit = 50, offset = 0 } = {}) {
+  if (USE_MOCK) {
+    const all = getMockConversations()
+    return { conversations: all, total: all.length }
+  }
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
+  const result = await apiGet(`/api/conversations?${params}`)
+  return { conversations: result.conversations || [], total: result.total ?? result.conversations?.length ?? 0 }
 }
 
 export async function loadConversationMessages(conversationId) {
@@ -42,6 +47,32 @@ export async function renameConversation(id, title) {
     return true
   }
   return apiPost('/api/session/rename', { session_id: id, new_title: title })
+}
+
+export async function searchMessages(query) {
+  if (USE_MOCK) {
+    const q = query.toLowerCase()
+    const allMessages = []
+    const convs = getMockConversations()
+    for (const conv of convs) {
+      const msgs = getMockMessages(conv.id) || []
+      for (const msg of msgs) {
+        if ((msg.content || '').toLowerCase().includes(q)) {
+          allMessages.push({
+            conversation_id: conv.id,
+            conversation_title: conv.title,
+            message_id: msg.id,
+            content: msg.content,
+            snippet: (msg.content || '').slice(0, 200),
+            timestamp: msg.timestamp,
+          })
+        }
+      }
+    }
+    allMessages.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+    return { results: allMessages.slice(0, 50), total_count: allMessages.length }
+  }
+  return apiGet(`/api/search?q=${encodeURIComponent(query)}`)
 }
 
 export async function fetchUsage() {
