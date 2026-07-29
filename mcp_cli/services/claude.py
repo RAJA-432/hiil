@@ -13,18 +13,25 @@ import httpx
 from openai import APIError as OpenAIError
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessage
-from tenacity import Future, retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import Future, retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from mcp_cli.services.logging import get_logger
 
 logger = get_logger("claude")
 
-_RETRYABLE = (httpx.HTTPError, httpx.TimeoutException, ConnectionError, OpenAIError, TimeoutError)
+_RETRYABLE_NETWORK = (httpx.TimeoutException, httpx.ConnectError, ConnectionError, TimeoutError)
+
+def _is_retryable(exc: BaseException) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return (exc.response.status_code or 0) >= 500
+    if isinstance(exc, OpenAIError):
+        return True
+    return isinstance(exc, _RETRYABLE_NETWORK)
 
 _API_RETRY = retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=1, max=10),
-    retry=retry_if_exception_type(_RETRYABLE),
+    retry=retry_if_exception(_is_retryable),
     before_sleep=lambda retry_state: logger.warning(
         "API call failed (attempt %d/%d): %s",
         retry_state.attempt_number, 3, cast(Future, retry_state.outcome).exception(),
@@ -32,7 +39,7 @@ _API_RETRY = retry(
 )
 
 
-class Claude:
+class LLMClient:
     def __init__(
         self,
         provider: str,
@@ -40,7 +47,7 @@ class Claude:
         api_key: str,
         base_url: str | None = None,
     ):
-        """Initialize the Claude wrapper with provider, model, and API credentials."""
+        """Initialize the LLM client with provider, model, and API credentials."""
         self.provider = provider
         self.model = str(model)
         self.api_key = api_key
@@ -236,7 +243,7 @@ class Claude:
             resp.raise_for_status()
             data = resp.json()
             return data["data"][0]["embedding"]
-        except _RETRYABLE:
+        except _RETRYABLE_NETWORK:
             raise
         except Exception as exc:
             logger.warning("embedding failed from %s: %s", url, exc)
@@ -259,7 +266,7 @@ class Claude:
                     {"id": m.get("id") or m.get("name", ""), "name": m.get("name") or m.get("id", "")}
                     for m in models
                 ]
-        except _RETRYABLE:
+        except _RETRYABLE_NETWORK:
             raise
         except Exception as exc:
             logger.warning("failed to list models from %s: %s", url, exc)
@@ -279,3 +286,6 @@ def _normalize_tool_call(tc: Any) -> Any:
                 "arguments": tc.get("arguments", "{}"),
             }
     return tc
+
+
+Claude = LLMClient  # backward compat alias

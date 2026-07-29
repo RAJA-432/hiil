@@ -1,5 +1,7 @@
 import logging
 import os
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,9 +16,26 @@ logger = logging.getLogger("vajra_gate")
 import vajra_gate.state as _state  # noqa: F401 -- imported for side effects (init state)
 from vajra_gate.middleware.rate_limit import RateLimitMiddleware
 
-app = FastAPI(title="hiil API Gateway", version="0.2.0")
 
-origins = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",")
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    yield
+    stack = getattr(_state, "_chat_stack", None)
+    if stack is not None:
+        try:
+            await stack.aclose()
+        except BaseExceptionGroup:
+            pass
+        except Exception:
+            logger.exception("Chat stack cleanup error")
+        _state._chat_stack = None
+        _state._chat = None
+
+
+
+app = FastAPI(title="hiil API Gateway", version="0.2.0", lifespan=lifespan)
+
+origins = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173").split(",")
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,21 +47,31 @@ app.add_middleware(
 app.add_middleware(AccessLogMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver,testclient").split(","))
+
 from vajra_gate.routers import (
     agents_router,
     auth_router,
     chat_router,
     files_router,
     knowledge_router,
+    langgraph_router,
     misc_router,
+    phase_c_router,
     sessions_router,
+    skills_router,
 )
 
+app.include_router(agents_router)
 app.include_router(auth_router)
 app.include_router(chat_router)
-app.include_router(sessions_router)
 app.include_router(knowledge_router)
-app.include_router(agents_router)
+app.include_router(langgraph_router)
+app.include_router(phase_c_router)
+app.include_router(sessions_router)
+app.include_router(skills_router)
 app.include_router(files_router)
 app.include_router(misc_router)
 

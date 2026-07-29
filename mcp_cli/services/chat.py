@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import TYPE_CHECKING, Any
 
 from mcp_cli.services.agents import AgentConfig, AgentRunner
@@ -14,7 +15,7 @@ from mcp_cli.services.roots import RootsManager
 from mcp_cli.services.server_manager import load_mcp_server
 from mcp_cli.services.streamer import Streamer
 from mcp_cli.services.tool_runner import ToolRunner, _mcp_tool_to_openai
-from mcp_cli.services.usage import UsageTracker
+from mcp_cli.services.usage import UsageTracker, count_tokens
 from mcp_cli.services.vector_store import VectorStore
 
 if TYPE_CHECKING:
@@ -196,7 +197,7 @@ class CliChat:
         ]
         for pattern in blocklist:
             if pattern in stripped:
-                raise ValueError("Message blocked: prompt injection pattern detected")
+                raise ValueError(f"Message blocked: {pattern!r} — prompt injection pattern detected")
         return text
 
     def get_last_assistant_message(self) -> str | None:
@@ -247,6 +248,31 @@ class CliChat:
         self.agents[runner.agent_id] = runner
         logger.info("Spawned agent %s (%s) with capabilities %s", runner.agent_id, config.name, config.capabilities)
         return runner
+
+    async def parallel_spawn(
+        self,
+        agents: list[tuple[AgentConfig, str]],
+    ) -> list[tuple[str, Any]]:
+        """Spawn multiple agents in parallel and run each with its own task input.
+
+        Each tuple is ``(config, task_input)``. Returns ``[(agent_id, AgentResult), ...]``
+        in the same order as the input list.
+
+        Used by playbooks that require concurrent research (e.g. newsletter
+        genre research fans out one ``genre-researcher`` per genre).
+        """
+        runners: list[AgentRunner] = []
+        for config, task_input in agents:
+            runner = self.spawn_agent(config)
+            runners.append(runner)
+
+        async def _run(runner: AgentRunner, task: str) -> tuple[str, Any]:
+            result = await runner.run(task)
+            return (runner.agent_id, result)
+
+        return await asyncio.gather(*(
+            _run(r, t) for r, (_, t) in zip(runners, agents)
+        ))
 
     def get_agent(self, agent_id: str) -> AgentRunner | None:
         return self.agents.get(agent_id)
@@ -307,8 +333,9 @@ class CliChat:
         )
         self.messages.append({"role": "user", "content": augmented})
         await self.history.async_save_message(self.session_id, "user", augmented)
-        self.messages = self.context.trim(self.messages)
         tools = self._openai_tools if self._openai_tools else None
+        tools_tokens = count_tokens(json.dumps(tools), self.claude.model) if tools else 0
+        self.messages = self.context.trim(self.messages, tools_tokens)
         iterations = 0
         while True:
             iterations += 1
@@ -358,3 +385,4 @@ class CliChat:
                 on_approval=on_approval,
             )
             self.messages.extend(tool_results)
+            self.messages = self.context.trim(self.messages, tools_tokens)

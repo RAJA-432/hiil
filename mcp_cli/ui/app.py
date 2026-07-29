@@ -19,6 +19,59 @@ from mcp_cli.ui.theme_manager import ThemeManager
 from mcp_cli.ui.themes import RS, THEMES
 from mcp_cli.ui.tool_events import ToolEventHandler
 
+HELP_SECTIONS: list[tuple[str, list[tuple]]] = [
+    ("Session", [
+        (lambda _: _('new'), "start a new session"),
+        (lambda _: _('rename') + " <n>", "rename current session"),
+        (lambda _: _('fork') + " <id>", "fork messages from another session"),
+        (lambda _: _('compact'), "compact session (collapse old messages)"),
+        (lambda _: _('session') + " <id>", "switch to a different session"),
+        (lambda _: _('sessions'), "list saved chat sessions"),
+        (lambda _: _('history') + " [id]", "show recent messages from a session"),
+        (lambda _: _('undo') + " [n]", "undo last n exchanges"),
+        (lambda _: _('export'), "export session transcript to file"),
+    ]),
+    ("Model", [
+        (lambda _: _('model') + " [name]", "show or switch the model"),
+        (lambda _: _('models'), "list available models from provider"),
+        (lambda _: _('provider') + " [name]", "show or switch the provider"),
+        (lambda _: _('plan'), "interactive model picker for planning"),
+        (lambda _: _('timer'), "session timer (start/stop/status)"),
+    ]),
+    ("System", [
+        (lambda _: _('ls') + " [path]", "list directory contents"),
+        (lambda _: _('roots'), "list approved root directories"),
+        (lambda _: _('tools'), "list available MCP tools"),
+        (lambda _: _('servers'), "list active MCP servers"),
+        (lambda _: _('status'), "show system status"),
+        (lambda _: _('theme') + " [name]", f"switch theme ({', '.join(THEMES.keys())})"),
+        (lambda _: _('usage'), "show token usage and cost"),
+        (lambda _: _('search') + " <q>", "search session messages"),
+        (lambda _: _('semsearch') + " <q>", "semantic vector search over messages"),
+        (lambda _: _('copy'), "copy last assistant message to clipboard"),
+        (lambda _: _('key'), "manage encrypted API keys"),
+        (lambda _: _('timestamp'), "toggle timestamps in history display"),
+        (lambda _: _('lang'), "switch language"),
+        (lambda _: _('agent'), "manage background agents"),
+    ]),
+    ("Server", [
+        (lambda _: _('load') + " <script>", "dynamically load a new MCP server"),
+        (lambda _: _('unload') + " <id>", "unload an MCP server"),
+        (lambda _: _('reload') + " <id>", "restart an MCP server"),
+    ]),
+    ("Other", [
+        (lambda _: "<tool> [args]", "call an MCP tool directly"),
+        (lambda _: _('help'), "show this help"),
+        (lambda _: _('exit') + " / " + _('quit'), "leave the chat"),
+        (lambda _: "@docid", "inject a document from the store"),
+        (lambda _: "@all / @*", "inject every document from the store"),
+    ]),
+    ("Shortcuts", [
+        (lambda _: "Tab / arrows", "auto-complete commands and names"),
+        (lambda _: "Ctrl+C", "cancel or interrupt"),
+    ]),
+]
+
 
 class CliApp:
     def __init__(self, chat: Any, theme_name: str | None = None):
@@ -256,66 +309,8 @@ class CliApp:
             return f"  {T.ansi('muted')}/{c:<22}{RS} {T.ansi('secondary')}{desc}{RS}"
         bar = f"{T.ansi('muted')}\u2501{RS}" * 78
         print(bar)
-        print(f"  {T.ansi('primary')}Session{RS}")
-        for c, d in [
-            (_('new'), "start a new session"),
-            (_('rename') + " <n>", "rename current session"),
-            (_('fork') + " <id>", "fork messages from another session"),
-            (_('compact'), "compact session (collapse old messages)"),
-            (_('session') + " <id>", "switch to a different session"),
-            (_('sessions'), "list saved chat sessions"),
-            (_('history') + " [id]", "show recent messages from a session"),
-            (_('undo') + " [n]", "undo last n exchanges"),
-            (_('export'), "export session transcript to file"),
-        ]:
-            print(cmd(c, d))
-        print(f"  {T.ansi('primary')}Model{RS}")
-        for c, d in [
-            (_('model') + " [name]", "show or switch the model"),
-            (_('models'), "list available models from provider"),
-            (_('provider') + " [name]", "show or switch the provider"),
-            (_('plan'), "interactive model picker for planning"),
-            (_('timer'), "session timer (start/stop/status)"),
-        ]:
-            print(cmd(c, d))
-        print(f"  {T.ansi('primary')}System{RS}")
-        for c, d in [
-            (_('ls') + " [path]", "list directory contents"),
-            (_('roots'), "list approved root directories"),
-            (_('tools'), "list available MCP tools"),
-            (_('servers'), "list active MCP servers"),
-            (_('status'), "show system status"),
-            (_('theme') + " [name]", f"switch theme ({', '.join(THEMES.keys())})"),
-            (_('usage'), "show token usage and cost"),
-            (_('search') + " <q>", "search session messages"),
-            (_('semsearch') + " <q>", "semantic vector search over messages"),
-            (_('copy'), "copy last assistant message to clipboard"),
-            (_('key'), "manage encrypted API keys"),
-            (_('timestamp'), "toggle timestamps in history display"),
-            (_('lang'), "switch language"),
-            (_('agent'), "manage background agents"),
-        ]:
-            print(cmd(c, d))
-        print(f"  {T.ansi('primary')}Server{RS}")
-        for c, d in [
-            (_('load') + " <script>", "dynamically load a new MCP server"),
-            (_('unload') + " <id>", "unload an MCP server"),
-            (_('reload') + " <id>", "restart an MCP server"),
-        ]:
-            print(cmd(c, d))
-        print(f"  {T.ansi('primary')}Other{RS}")
-        for c, d in [
-            ("<tool> [args]", "call an MCP tool directly"),
-            (_('help'), "show this help"),
-            (_('exit') + " / " + _('quit'), "leave the chat"),
-            ("@docid", "inject a document from the store"),
-            ("@all / @*", "inject every document from the store"),
-        ]:
-            print(cmd(c, d))
-        print(f"  {T.ansi('primary')}Shortcuts{RS}")
-        for c, d in [
-            ("Tab / arrows", "auto-complete commands and names"),
-            ("Ctrl+C", "cancel or interrupt"),
-        ]:
-            print(cmd(c, d))
+        for section_name, entries in HELP_SECTIONS:
+            print(f"  {T.ansi('primary')}{section_name}{RS}")
+            for cmd_fn, desc in entries:
+                print(cmd(cmd_fn(_), desc))
         print(bar)

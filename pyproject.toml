@@ -52,6 +52,11 @@ markers = ["asyncio: async test"]
 filterwarnings = [
     "ignore:::fastapi.testclient:",
 ]
+addopts = "--cov=mcp_cli --cov=vajra_gate --cov-report=term-missing --cov-report=html"
+
+[tool.coverage.run]
+source = ["mcp_cli", "vajra_gate"]
+omit = ["*/tests/*", "*.venv/*"]
 
 [tool.ruff]
 target-version = "py311"
@@ -65,6 +70,7 @@ ignore = ["S101", "S311", "E402", "E501", "E701", "E741", "S110", "N802", "N806"
 "tests/*" = ["S101", "S108", "W291", "N802", "N803", "N806", "F841"]
 "mcp_cli/locales/*" = ["N999"]
 "veda_engine/*" = ["N999"]
+"vajra_gate/models.py" = ["N815"]
 
 [tool.mypy]
 python_version = "3.13"

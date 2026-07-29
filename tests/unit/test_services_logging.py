@@ -5,17 +5,25 @@ from unittest.mock import patch
 
 import pytest
 
-from mcp_cli.services.logging import _LEVEL_MAP, _LOG_DIR, _LOG_FILE, _ROOT, _setup, get_logger
+from mcp_cli.services.logging import _LEVEL_MAP, _LOG_FILE, _ROOT, _setup, get_logger
 
 
-def teardown_module():
+@pytest.fixture(autouse=True)
+def reset_logging():
     for h in getattr(_ROOT, "handlers", [])[:]:
         _ROOT.removeHandler(h)
     import mcp_cli.services.logging as m
     m._ROOT = None
+    yield
+    for k in ["HIIL_LOG_LEVEL", "HIIL_DEBUG"]:
+        os.environ.pop(k, None)
 
 
-def cleanup_env():
+@pytest.fixture
+def setup_env():
+    for k in ["HIIL_LOG_LEVEL", "HIIL_DEBUG"]:
+        os.environ.pop(k, None)
+    yield
     for k in ["HIIL_LOG_LEVEL", "HIIL_DEBUG"]:
         os.environ.pop(k, None)
 
@@ -92,10 +100,7 @@ def test_logger_writes_to_file():
     assert "test message 12345" in content
 
 
-def test_default_level_no_env():
-    cleanup_env()
-    with patch("mcp_cli.services.logging._setup", side_effect=_setup):
-        pass
+def test_default_level_no_env(setup_env):
     _setup()
     root = logging.getLogger("hiil")
     console_handler = None
@@ -107,8 +112,7 @@ def test_default_level_no_env():
     assert console_handler.level == logging.WARNING
 
 
-def test_env_debug_sets_debug_level():
-    cleanup_env()
+def test_env_debug_sets_debug_level(setup_env):
     os.environ["HIIL_DEBUG"] = "1"
     _setup()
     root = logging.getLogger("hiil")
@@ -118,8 +122,7 @@ def test_env_debug_sets_debug_level():
             return
 
 
-def test_env_log_level_debug():
-    cleanup_env()
+def test_env_log_level_debug(setup_env):
     os.environ["HIIL_LOG_LEVEL"] = "debug"
     _setup()
     root = logging.getLogger("hiil")
@@ -129,8 +132,7 @@ def test_env_log_level_debug():
             return
 
 
-def test_env_log_level_info():
-    cleanup_env()
+def test_env_log_level_info(setup_env):
     os.environ["HIIL_LOG_LEVEL"] = "info"
     _setup()
     root = logging.getLogger("hiil")
@@ -140,8 +142,7 @@ def test_env_log_level_info():
             return
 
 
-def test_env_log_level_warn():
-    cleanup_env()
+def test_env_log_level_warn(setup_env):
     os.environ["HIIL_LOG_LEVEL"] = "warn"
     _setup()
     root = logging.getLogger("hiil")
@@ -151,8 +152,7 @@ def test_env_log_level_warn():
             return
 
 
-def test_env_log_level_error():
-    cleanup_env()
+def test_env_log_level_error(setup_env):
     os.environ["HIIL_LOG_LEVEL"] = "error"
     _setup()
     root = logging.getLogger("hiil")
@@ -162,8 +162,7 @@ def test_env_log_level_error():
             return
 
 
-def test_env_log_level_invalid_defaults_to_warning():
-    cleanup_env()
+def test_env_log_level_invalid_defaults_to_warning(setup_env):
     os.environ["HIIL_LOG_LEVEL"] = "invalid"
     _setup()
     root = logging.getLogger("hiil")
@@ -173,8 +172,7 @@ def test_env_log_level_invalid_defaults_to_warning():
             return
 
 
-def test_console_formatter_with_debug_level():
-    cleanup_env()
+def test_console_formatter_with_debug_level(setup_env):
     os.environ["HIIL_LOG_LEVEL"] = "debug"
     _setup()
     root = logging.getLogger("hiil")
@@ -185,8 +183,7 @@ def test_console_formatter_with_debug_level():
             return
 
 
-def test_console_formatter_with_warning_level():
-    cleanup_env()
+def test_console_formatter_with_warning_level(setup_env):
     os.environ["HIIL_LOG_LEVEL"] = "warn"
     _setup()
     root = logging.getLogger("hiil")
@@ -212,7 +209,6 @@ def test_get_logger_different_names():
 
 def test_setup_creates_directory():
     import tempfile
-    orig_dir = _LOG_DIR
     test_dir = Path(tempfile.mkdtemp())
     with patch("mcp_cli.services.logging._LOG_DIR", test_dir):
         with patch("mcp_cli.services.logging._LOG_FILE", test_dir / "chat.log"):

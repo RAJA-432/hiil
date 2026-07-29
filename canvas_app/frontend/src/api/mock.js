@@ -15,7 +15,7 @@ const conversations = [
 
 const messages = {
   conv_1: [
-    { id: 'm1', role: 'user', content: 'Can you show me how to implement a binary search tree in Python?', timestamp: ago(30), tool_calls: [], artifacts: [] },
+    { id: 'm1', role: 'user', content: 'Can you show me how to implement a binary search tree in Python?', timestamp: ago(30), tool_calls: [], artifacts: [], rag_chunks: [] },
     { id: 'm2', role: 'assistant', content: `Here's a clean implementation of a BST in Python:
 
 \`\`\`python
@@ -70,8 +70,8 @@ The key operations:
 - **Search**: O(log n) average, follows the same comparison path
 - **Inorder traversal**: returns keys in sorted order
 
-Would you like me to add \`delete\` and \`balance\` methods as well?`, timestamp: ago(29), tool_calls: [{ tool: 'read_document', args: { path: 'src/datastructures/tree.py' }, status: 'done', result: 'Found existing file with basic tree structure' }], artifacts: [{ type: 'code', title: 'bst.py', content: 'class Node...' }] },
-    { id: 'm3', role: 'user', content: 'Yes, add delete and balance methods', timestamp: ago(28) },
+Would you like me to add \`delete\` and \`balance\` methods as well?`, timestamp: ago(29), tool_calls: [{ tool: 'read_document', args: { path: 'src/datastructures/tree.py' }, status: 'done', result: 'Found existing file with basic tree structure' }], artifacts: [{ type: 'code', title: 'bst.py', content: 'class Node...' }], rag_chunks: [{ text: 'Binary search trees support O(log n) insertion, deletion, and search operations on average.', score: 0.92, metadata: { filename: 'dsa_notes.md' } }, { text: 'Python implementation of BST with insert, search, inorder traversal methods.', score: 0.87, metadata: { filename: 'examples/bst.py' } }] },
+    { id: 'm3', role: 'user', content: 'Yes, add delete and balance methods', timestamp: ago(28), tool_calls: [], artifacts: [], rag_chunks: [] },
     { id: 'm4', role: 'assistant', content: `Here's the extended implementation with deletion and balancing:
 
 \`\`\`python
@@ -101,18 +101,18 @@ def _min(self, node):
     return node
 \`\`\`
 
-For balancing, you can run a **sorted array → balanced BST** algorithm on the inorder traversal. This re-constructs the tree in O(n).`, timestamp: ago(27), tool_calls: [{ tool: 'edit_document', args: { path: 'src/datastructures/tree.py' }, status: 'done', result: 'Added delete and balance methods' }], artifacts: [{ type: 'code', title: 'bst_extended.py', content: 'def delete...' }] },
+For balancing, you can run a **sorted array → balanced BST** algorithm on the inorder traversal. This re-constructs the tree in O(n).`, timestamp: ago(27), tool_calls: [{ tool: 'edit_document', args: { path: 'src/datastructures/tree.py' }, status: 'done', result: 'Added delete and balance methods' }], artifacts: [{ type: 'code', title: 'bst_extended.py', content: 'def delete...' }], rag_chunks: [] },
   ],
   conv_2: [
-    { id: 'm5', role: 'user', content: 'I need to refactor the auth module. Currently it uses basic auth and I want JWT.', timestamp: ago(120), tool_calls: [], artifacts: [] },
-    { id: 'm6', role: 'assistant', content: 'Let me look at the current auth module first.\n\n```\nReading src/auth/authenticator.py...\nFound 245 lines\n```', timestamp: ago(119), tool_calls: [{ tool: 'read_document', args: { path: 'src/auth/authenticator.py' }, status: 'done' }], artifacts: [] },
+    { id: 'm5', role: 'user', content: 'I need to refactor the auth module. Currently it uses basic auth and I want JWT.', timestamp: ago(120), tool_calls: [], artifacts: [], rag_chunks: [] },
+    { id: 'm6', role: 'assistant', content: 'Let me look at the current auth module first.\n\n```\nReading src/auth/authenticator.py...\nFound 245 lines\n```', timestamp: ago(119), tool_calls: [{ tool: 'read_document', args: { path: 'src/auth/authenticator.py' }, status: 'done' }], artifacts: [], rag_chunks: [] },
   ],
   conv_3: [
-    { id: 'm7', role: 'user', content: 'The database connection pool keeps exhausting under load.', timestamp: ago(240), tool_calls: [], artifacts: [] },
-    { id: 'm8', role: 'assistant', content: 'Let me investigate the connection pool configuration.\n\n\`\`\`\nChecking config/database.py...\nPool size: 5, max overflow: 2\nTimeout: 30s\n\`\`\`\n\nThe issue is likely the pool size being too small for concurrent requests. With 5 workers × 5 connections, you can handle 25 concurrent queries before overflow kicks in.', timestamp: ago(239), tool_calls: [{ tool: 'read_document', args: { path: 'config/database.py' }, status: 'done' }], artifacts: [] },
+    { id: 'm7', role: 'user', content: 'The database connection pool keeps exhausting under load.', timestamp: ago(240), tool_calls: [], artifacts: [], rag_chunks: [] },
+    { id: 'm8', role: 'assistant', content: 'Let me investigate the connection pool configuration.\n\n```\nChecking config/database.py...\nPool size: 5, max overflow: 2\nTimeout: 30s\n```\n\nThe issue is likely the pool size being too small for concurrent requests. With 5 workers × 5 connections, you can handle 25 concurrent queries before overflow kicks in.', timestamp: ago(239), tool_calls: [{ tool: 'read_document', args: { path: 'config/database.py' }, status: 'done' }], artifacts: [], rag_chunks: [] },
   ],
   conv_4: [
-    { id: 'm9', role: 'user', content: 'Can you explain the MCP protocol architecture?', timestamp: ago(480), tool_calls: [], artifacts: [] },
+    { id: 'm9', role: 'user', content: 'Can you explain the MCP protocol architecture?', timestamp: ago(480), tool_calls: [], artifacts: [], rag_chunks: [] },
     { id: 'm10', role: 'assistant', content: `The **Model Context Protocol (MCP)** follows a client-server architecture:
 
 \`\`\`
@@ -129,7 +129,7 @@ For balancing, you can run a **sorted array → balanced BST** algorithm on the 
 2. **Tools** — Functions the server exposes (search, compute, transform)
 3. **Prompts** — Reusable prompt templates
 
-The transport layer uses either **stdio** (for local subprocess) or **SSE** (for remote servers).`, timestamp: ago(479), tool_calls: [], artifacts: [{ type: 'markdown', title: 'MCP Architecture', content: '# MCP...' }] },
+The transport layer uses either **stdio** (for local subprocess) or **SSE** (for remote servers).`, timestamp: ago(479), tool_calls: [], artifacts: [{ type: 'markdown', title: 'MCP Architecture', content: '# MCP...' }], rag_chunks: [] },
   ],
 }
 
@@ -195,6 +195,13 @@ export function getMockModels() {
   ]
 }
 
+export function getMockUsage() {
+  return {
+    session: { input_tokens: 1247, output_tokens: 892, total_tokens: 2139, cost: 0.042 },
+    total: { input_tokens: 28470, output_tokens: 15630, total_tokens: 44100, cost: 1.24 },
+  }
+}
+
 export function addMockMessage(convId, role, content, toolCalls, artifacts) {
   if (!messages[convId]) messages[convId] = []
   const msg = {
@@ -204,6 +211,7 @@ export function addMockMessage(convId, role, content, toolCalls, artifacts) {
     timestamp: new Date().toISOString(),
     tool_calls: toolCalls || [],
     artifacts: artifacts || [],
+    rag_chunks: [],
   }
   messages[convId].push(msg)
   const conv = conversations.find(c => c.id === convId)
@@ -232,42 +240,173 @@ export function deleteMockConversation(id) {
   delete messages[id]
 }
 
-export function simulateStreamResponse(convId, text, onToken, onTool, onDone) {
+// --- Error / Latency simulation configuration ---
+
+export const MockScenario = {
+  /** Fast: no errors, minimal delay (default). */
+  FAST: 'fast',
+  /** Normal: typical latency, occasional RAG events. */
+  NORMAL: 'normal',
+  /** Slow: high latency, throttled output. */
+  SLOW: 'slow',
+  /** Unreliable: random errors, retries, high latency spikes. */
+  UNRELIABLE: 'unreliable',
+}
+
+const SCENARIO_CONFIG = {
+  [MockScenario.FAST]: {
+    delayMin: 5,
+    delayMax: 15,
+    chunkMin: 5,
+    chunkMax: 15,
+    errorRate: 0,
+    ragRate: 0.03,
+    toolRate: 0.03,
+    retryDelay: 0,
+  },
+  [MockScenario.NORMAL]: {
+    delayMin: 15,
+    delayMax: 45,
+    chunkMin: 3,
+    chunkMax: 10,
+    errorRate: 0,
+    ragRate: 0.05,
+    toolRate: 0.05,
+    retryDelay: 0,
+  },
+  [MockScenario.SLOW]: {
+    delayMin: 80,
+    delayMax: 200,
+    chunkMin: 1,
+    chunkMax: 4,
+    errorRate: 0,
+    ragRate: 0.08,
+    toolRate: 0.08,
+    retryDelay: 0,
+  },
+  [MockScenario.UNRELIABLE]: {
+    delayMin: 20,
+    delayMax: 150,
+    chunkMin: 1,
+    chunkMax: 8,
+    errorRate: 0.12,
+    ragRate: 0.06,
+    toolRate: 0.06,
+    retryDelay: 2000,
+  },
+}
+
+let _activeScenario = MockScenario.NORMAL
+
+export function setMockScenario(scenario) {
+  if (SCENARIO_CONFIG[scenario]) {
+    _activeScenario = scenario
+  }
+}
+
+export function getMockScenario() {
+  return _activeScenario
+}
+
+const ERROR_TYPES = [
+  { type: 'error', code: 500, message: 'Internal server error. The model provider encountered an issue.' },
+  { type: 'error', code: 429, message: 'Rate limit exceeded. Please wait before sending another request.' },
+  { type: 'error', code: 503, message: 'Service temporarily unavailable. The upstream provider is experiencing high load.' },
+  { type: 'error', code: 400, message: 'Bad request. The prompt was rejected by the content filter.' },
+  { type: 'network', message: 'Connection lost. Check your network and try again.' },
+  { type: 'timeout', message: 'Request timed out after 30s. The model took too long to respond.' },
+]
+
+function _randomDelay(cfg) {
+  return cfg.delayMin + Math.random() * (cfg.delayMax - cfg.delayMin)
+}
+
+function _randomChunkSize(cfg, remaining) {
+  return Math.min(cfg.chunkMin + Math.floor(Math.random() * (cfg.chunkMax - cfg.chunkMin + 1)), remaining)
+}
+
+export function simulateStreamResponse(convId, text, onEvent) {
+  const cfg = SCENARIO_CONFIG[_activeScenario]
   let i = 0
   let buffer = ''
   const toolCalls = []
+  const mockChunks = [
+    { text: 'Binary search trees support O(log n) insertion, deletion, and search operations on average.', score: 0.92, metadata: { filename: 'dsa_notes.md' } },
+    { text: 'Python implementation of BST with insert, search, inorder traversal methods.', score: 0.87, metadata: { filename: 'examples/bst.py' } },
+  ]
   let timer = null
   let resolveDone = null
   const done = new Promise((resolve) => { resolveDone = resolve })
+  let cancelled = false
+  let retryTimer = null
 
   function emit() {
+    if (cancelled) return
+
     if (i >= text.length) {
-      if (onDone) onDone(text, toolCalls, [])
       if (resolveDone) resolveDone()
       return
     }
 
-    const chunkSize = Math.min(3 + Math.floor(Math.random() * 8), text.length - i)
+    // Unreliable scenario: inject random errors mid-stream
+    if (cfg.errorRate > 0 && Math.random() < cfg.errorRate && i > 10) {
+      const err = ERROR_TYPES[Math.floor(Math.random() * ERROR_TYPES.length)]
+      onEvent({ type: 'mock_error', ...err })
+      onEvent({ type: 'error', code: err.code || 500, message: err.message })
+
+      // Simulate retry after delay
+      if (cfg.retryDelay > 0) {
+        onEvent({ type: 'log', level: 'warn', text: `Retrying after error (${err.type})...`, source: 'system' })
+        retryTimer = setTimeout(() => {
+          if (!cancelled) {
+            onEvent({ type: 'log', level: 'info', text: 'Retry succeeded, continuing stream', source: 'system' })
+            timer = setTimeout(emit, _randomDelay(cfg))
+          }
+        }, cfg.retryDelay)
+      } else {
+        if (resolveDone) resolveDone()
+      }
+      return
+    }
+
+    const chunkSize = _randomChunkSize(cfg, text.length - i)
     const chunk = text.slice(i, i + chunkSize)
     i += chunkSize
     buffer += chunk
-    if (onToken) onToken(buffer)
+    onEvent({ type: 'tokens', text: buffer })
 
-    if (Math.random() < 0.02 && toolCalls.length === 0) {
-      const tool = { tool: 'read_document', args: { path: 'src/main.py' }, status: 'running' }
-      if (onTool) onTool(tool)
-      setTimeout(() => {
-        tool.status = 'done'
-        tool.result = 'File contents loaded'
-        if (onTool) onTool(tool)
-        toolCalls.push(tool)
-      }, 300 + Math.random() * 400)
+    if (i > 30 && toolCalls.length === 0 && Math.random() < cfg.ragRate) {
+      onEvent({ type: 'rag_context', chunks: mockChunks })
+      onEvent({ type: 'log', level: 'info', text: 'Retrieved 2 chunks from knowledge base', source: 'rag' })
     }
 
-    const delay = 15 + Math.random() * 30
+    if (i > 30 && toolCalls.length === 0 && Math.random() < cfg.toolRate) {
+      const tool = { tool: 'read_document', args: { path: 'src/main.py' }, status: 'running' }
+      onEvent({ type: 'tool_event', tool: tool.tool, args: tool.args, status: tool.status, result: tool.result })
+      const toolDelay = 300 + Math.random() * 400
+      setTimeout(() => {
+        if (!cancelled) {
+          tool.status = 'done'
+          tool.result = 'File contents loaded'
+          onEvent({ type: 'tool_event', tool: tool.tool, args: tool.args, status: tool.status, result: tool.result })
+          onEvent({ type: 'log', level: 'info', text: 'Tool read_document completed', source: 'tool' })
+          toolCalls.push(tool)
+        }
+      }, toolDelay)
+    }
+
+    const delay = _randomDelay(cfg)
     timer = setTimeout(emit, delay)
   }
 
   emit()
-  return { cancel: () => { if (timer) clearTimeout(timer); if (resolveDone) resolveDone() }, done }
+  return {
+    cancel: () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      if (retryTimer) clearTimeout(retryTimer)
+      if (resolveDone) resolveDone()
+    },
+    done,
+  }
 }

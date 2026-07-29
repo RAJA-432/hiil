@@ -1,3 +1,6 @@
+import { useState, useMemo } from 'react'
+import ConversationItem from './ConversationItem'
+
 function formatDate(iso) {
   if (!iso) return ''
   const d = new Date(iso)
@@ -23,9 +26,10 @@ function groupByDate(conversations) {
   const lastWeek = new Date(today)
   lastWeek.setDate(lastWeek.getDate() - 7)
 
-  const groups = { today: [], yesterday: [], thisWeek: [], earlier: [] }
+  const groups = { pinned: [], today: [], yesterday: [], thisWeek: [], earlier: [] }
 
   for (const c of conversations) {
+    if (c.pinned) { groups.pinned.push(c); continue }
     const d = new Date(c.updated || c.created)
     if (d >= today) groups.today.push(c)
     else if (d >= yesterday) groups.yesterday.push(c)
@@ -34,6 +38,7 @@ function groupByDate(conversations) {
   }
 
   const labels = {
+    pinned: 'Pinned',
     today: 'Today',
     yesterday: 'Yesterday',
     thisWeek: 'This Week',
@@ -45,62 +50,74 @@ function groupByDate(conversations) {
     .map(([key, items]) => ({ label: labels[key], items }))
 }
 
-export default function ConversationList({ conversations, activeConversation, onSelect, onNew, onDelete }) {
-  const groups = groupByDate(conversations)
+export default function ConversationList({ conversations, activeConversation, onSelect, onNew, onDelete, onRename, tags, onAddTag, onRemoveTag, onTogglePin }) {
+  const [tagFilter, setTagFilter] = useState(null)
+
+  const allUsedTags = useMemo(() => {
+    const set = new Set()
+    Object.values(tags || {}).forEach(arr => arr.forEach(t => set.add(t)))
+    return [...set].sort()
+  }, [tags])
+
+  const filtered = useMemo(() => {
+    if (!tagFilter) return conversations
+    return conversations.filter(c => (tags[c.id] || []).includes(tagFilter))
+  }, [conversations, tagFilter, tags])
+
+  const groups = groupByDate(filtered)
 
   return (
     <div className="conversation-list">
-      <button
-        onClick={onNew}
-        style={{
-          width: '100%',
-          padding: '8px 10px',
-          marginBottom: 8,
-          background: 'var(--primary-dim)',
-          border: '1px solid var(--primary)',
-          borderRadius: 'var(--radius-sm)',
-          color: 'var(--primary)',
-          cursor: 'pointer',
-          fontSize: 13,
-          fontWeight: 500,
-        }}
-      >
+      <button className="conversation-new-btn" onClick={onNew} aria-label="New conversation">
         + New conversation
       </button>
 
+      {allUsedTags.length > 0 && (
+        <div className="conversation-tag-filters">
+          {allUsedTags.map(tag => (
+            <button
+              key={tag}
+              className={`tag-filter-btn ${tagFilter === tag ? 'active' : ''}`}
+              onClick={() => setTagFilter(tagFilter === tag ? null : tag)}
+            >
+              {tag}
+              {tagFilter === tag && ' ✕'}
+            </button>
+          ))}
+          {tagFilter && (
+            <button className="tag-filter-btn tag-filter-clear" onClick={() => setTagFilter(null)}>
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
+
       {groups.map((group) => (
         <div key={group.label}>
-          <div className="sidebar-section-header">{group.label}</div>
+          <div className="sidebar-section-header">
+            {group.label}
+            <span className="sidebar-section-count">{group.items.length}</span>
+          </div>
           {group.items.map((conv) => (
-            <div
+            <ConversationItem
               key={conv.id}
-              className={`conversation-item ${activeConversation?.id === conv.id ? 'active' : ''}`}
-              onClick={() => onSelect(conv)}
-            >
-              <span className="truncate">{conv.title}</span>
-              {onDelete && (
-                <button
-                  className="conversation-delete"
-                  onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
-                  title="Delete conversation"
-                  style={{
-                    marginLeft: 'auto', background: 'none', border: 'none',
-                    color: 'var(--text-dim)', cursor: 'pointer', padding: '0 4px',
-                    fontSize: 14, lineHeight: 1,
-                  }}
-                >
-                  ×
-                </button>
-              )}
-            </div>
+              conversation={conv}
+              active={activeConversation?.id === conv.id}
+              onSelect={onSelect}
+              onDelete={onDelete}
+              onRename={onRename}
+              tags={tags?.[conv.id] || []}
+              onAddTag={onAddTag}
+              onRemoveTag={onRemoveTag}
+              pinned={conv.pinned}
+              onTogglePin={onTogglePin}
+            />
           ))}
         </div>
       ))}
 
       {conversations.length === 0 && (
-        <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>
-          No conversations yet
-        </div>
+        <div className="conversation-empty">No conversations yet</div>
       )}
     </div>
   )

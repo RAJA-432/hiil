@@ -6,6 +6,7 @@ from fastapi.responses import RedirectResponse
 
 import vajra_gate.state as _state
 from vajra_gate.config import WORKSPACE_DIR
+from vajra_gate.models import HealthResponse, WorkspaceResponse
 
 _START_TIME = time.time()
 
@@ -17,23 +18,23 @@ async def hi():
     return "hi"
 
 
-@router.get("/health")
+@router.get("/health", response_model=HealthResponse)
 async def health():
     uptime_secs = time.time() - _START_TIME
-    return {
-        "status": "ok",
-        "version": "0.2.0",
-        "uptime_secs": round(uptime_secs, 1),
-        "chat_initialized": _state._chat is not None,
-    }
+    return HealthResponse(
+        status="ok",
+        version="0.2.0",
+        uptime_secs=round(uptime_secs, 1),
+        chat_initialized=_state._chat is not None,
+    )
 
 
-@router.get("/api/workspace")
+@router.get("/api/workspace", response_model=WorkspaceResponse)
 async def workspace():
-    return {
-        "name": os.path.basename(WORKSPACE_DIR),
-        "root": WORKSPACE_DIR,
-    }
+    return WorkspaceResponse(
+        name=os.path.basename(WORKSPACE_DIR),
+        root=WORKSPACE_DIR,
+    )
 
 
 @router.get("/")

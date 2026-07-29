@@ -5,7 +5,6 @@ import base64
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 if sys.platform == "win32":
     import win32crypt
@@ -23,20 +22,6 @@ except ImportError:
 
 _CRED_DIR = Path.home() / ".hiil"
 _CRED_FILE = _CRED_DIR / "credentials"
-
-
-def _get_fernet() -> Any:
-    if Fernet is None:
-        return None
-    key_file = _CRED_DIR / ".key"
-    if not key_file.exists():
-        _CRED_DIR.mkdir(parents=True, exist_ok=True)
-        key = Fernet.generate_key()
-        key_file.write_bytes(key)
-        key_file.chmod(0o600)
-    else:
-        key = key_file.read_bytes()
-    return Fernet(key)
 
 
 def _get_or_create_key() -> bytes | None:
@@ -132,19 +117,18 @@ def delete_api_key(provider: str) -> bool:
         return False
 
 
-async def async_load_api_key(provider: str) -> str | None:
-    """Load an API key asynchronously via the thread pool."""
+async def _run_async(sync_fn, *args):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, load_api_key, provider)
+    return await loop.run_in_executor(None, sync_fn, *args)
+
+
+async def async_load_api_key(provider: str) -> str | None:
+    return await _run_async(load_api_key, provider)
 
 
 async def async_save_api_key(provider: str, key: str) -> None:
-    """Save an API key asynchronously via the thread pool."""
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, save_api_key, provider, key)
+    await _run_async(save_api_key, provider, key)
 
 
 async def async_delete_api_key(provider: str) -> bool:
-    """Delete an API key asynchronously via the thread pool."""
-    loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, delete_api_key, provider)
+    return await _run_async(delete_api_key, provider)

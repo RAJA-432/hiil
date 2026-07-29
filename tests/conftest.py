@@ -42,6 +42,8 @@ def mock_openai():
     """Patches AsyncOpenAI in claude module, returns mock_client."""
     with patch("mcp_cli.services.claude.AsyncOpenAI") as mock_class:
         mock_client = MagicMock()
+        mock_client.chat = MagicMock()
+        mock_client.chat.completions = MagicMock()
         mock_client.chat.completions.create = AsyncMock()
         mock_class.return_value = mock_client
         yield mock_client
@@ -54,9 +56,9 @@ def claude_service():
         mock_client = MagicMock()
         mock_client.chat.completions.create = AsyncMock()
         mock_class.return_value = mock_client
-        from mcp_cli.services.claude import Claude
-        yield Claude(provider="openrouter", model="gpt-4", api_key="test-key")
+        from mcp_cli.services.claude import LLMClient
 
+        yield LLMClient(provider="openrouter", model="gpt-4", api_key="test-key")
 
 @pytest.fixture
 def ollama_service():
@@ -64,9 +66,9 @@ def ollama_service():
     with patch("mcp_cli.services.claude.AsyncOpenAI") as mock_class:
         mock_client = MagicMock()
         mock_class.return_value = mock_client
-        from mcp_cli.services.claude import Claude
-        yield Claude(provider="ollama", model="gemma4:31b-cloud", api_key="", base_url="http://localhost:11434/v1")
+        from mcp_cli.services.claude import LLMClient
 
+        yield LLMClient(provider="ollama", model="gemma4:31b-cloud", api_key="", base_url="http://localhost:11434/v1")
 
 @pytest.fixture
 def mock_httpx():

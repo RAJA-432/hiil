@@ -28,7 +28,6 @@ class VirtualBackend:
         "write_file",
         "edit_file",
         "list_directory",
-        "directory_tree",
         "move_file",
         "copy_file",
         "get_file_info",
@@ -148,10 +147,6 @@ class VirtualBackend:
                         "size": len(self._files[vpath]),
                     })
         return json.dumps(entries, indent=2)
-
-    def _handle_directory_tree(self, args: dict[str, Any]) -> str:
-        path = args.get("path", ".")
-        return self._handle_list_directory({"path": path})
 
     def _handle_get_file_info(self, args: dict[str, Any]) -> str:
         path = args.get("path", "")

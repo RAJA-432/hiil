@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import asyncio
-import sqlite3
-import threading
-import weakref
 from dataclasses import dataclass
 from datetime import datetime
 
 from mcp_cli.services.logging import get_logger
+from mcp_cli.services.sqlite_store import SqliteStore, asyncify
 
 logger = get_logger(__name__)
 
@@ -87,37 +84,24 @@ class UsageRecord:
         if not self.timestamp:
             self.timestamp = datetime.now().isoformat()
 
-class UsageTracker:
+class UsageTracker(SqliteStore):
+    _SCHEMA = [
+        """CREATE TABLE IF NOT EXISTS usage_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            model TEXT,
+            input_tokens INTEGER,
+            output_tokens INTEGER,
+            cost REAL,
+            timestamp TEXT,
+            session_id TEXT
+        )""",
+    ]
+
     def __init__(self, db_path: str = "chat_history.db"):
-        """Initialise the usage tracker with a SQLite backing store and in-memory session counters."""
-        self.db_path = db_path
         self._session_input: int = 0
         self._session_output: int = 0
         self._session_cost: float = 0.0
-        self._lock = threading.Lock()
-        self._conn: sqlite3.Connection | None = sqlite3.connect(db_path, check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._init_db()
-        self._finalizer = weakref.finalize(self, self._close_conn, self._conn, self._lock)
-
-    def _get_conn(self) -> sqlite3.Connection:
-        assert self._conn is not None
-        return self._conn
-
-    def _init_db(self):
-        conn = self._get_conn()
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS usage_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                model TEXT,
-                input_tokens INTEGER,
-                output_tokens INTEGER,
-                cost REAL,
-                timestamp TEXT,
-                session_id TEXT
-            )
-        """)
-        conn.commit()
+        super().__init__(db_path)
 
     def record(self, model: str, input_tokens: int, output_tokens: int, session_id: str = "default"):
         """Persist a usage record and update the in-memory session counters."""
@@ -174,40 +158,14 @@ class UsageTracker:
             for row in cursor.fetchall()
         ]
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-        return False
-
-    @staticmethod
-    def _close_conn(conn: sqlite3.Connection | None, lock: threading.Lock) -> None:
-        if conn is None:
-            return
-        with lock:
-            try:
-                conn.close()
-            except Exception:
-                logger.warning("Failed to close usage database connection")
-
-    def close(self):
-        """Close the database connection."""
-        if hasattr(self, "_finalizer"):
-            self._finalizer()
-        self._conn = None
-
+    @asyncify("record")
     async def async_record(self, model: str, input_tokens: int, output_tokens: int, session_id: str = "default"):
-        """Record usage asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self.record, model, input_tokens, output_tokens, session_id)
+        ...
 
+    @asyncify("total_summary")
     async def async_total_summary(self) -> dict:
-        """Return total summary asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.total_summary)
+        ...
 
+    @asyncify("history")
     async def async_history(self, limit: int = 20) -> list[dict]:
-        """Return usage history asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.history, limit)
+        ...

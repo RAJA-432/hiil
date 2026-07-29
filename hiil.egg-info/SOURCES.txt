@@ -37,6 +37,7 @@ mcp_cli/services/providers.py
 mcp_cli/services/rag.py
 mcp_cli/services/roots.py
 mcp_cli/services/server_manager.py
+mcp_cli/services/sqlite_store.py
 mcp_cli/services/streamer.py
 mcp_cli/services/tool_router.py
 mcp_cli/services/tool_runner.py

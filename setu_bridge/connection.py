@@ -132,7 +132,7 @@ class ManagedConnection:
     async def cleanup(self):
         try:
             await self._exit_stack.aclose()
-        except (RuntimeError, BaseExceptionGroup):
+        except BaseException:
             pass
         self._session = None
 

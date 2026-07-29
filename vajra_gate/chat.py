@@ -53,13 +53,34 @@ async def _stream_chat(chat, message: str):
 
 
 async def lekh_record(bus):
+    import vajra_gate.config as config
+
+    log_path = config.VAJRA_GATE_CHAT_LOG
+    file = None
+    if log_path:
+        try:
+            file = open(log_path, "a", encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Failed to open chat log %s: %s", log_path, exc)
+
     try:
-        async for _ in bus.events():
-            pass
+        async for event in bus.events():
+            if file is not None:
+                try:
+                    file.write(json.dumps(event) + "\n")
+                    file.flush()
+                except Exception:
+                    pass
     except (GeneratorExit, asyncio.CancelledError):
         pass
     except Exception:
         logger.warning("Failed to consume bus events (logging disabled)")
+    finally:
+        if file is not None:
+            try:
+                file.close()
+            except Exception:
+                pass
 
 
 async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
@@ -71,7 +92,10 @@ async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
         except Exception:
             logger.exception("Chat send failed")
         finally:
-            await bus.push_done()
+            try:
+                await bus.push_done()
+            except (GeneratorExit, asyncio.CancelledError, RuntimeError):
+                pass
 
     chat_task = asyncio.create_task(run_chat(), name="chat_send")
     log_task = asyncio.create_task(lekh_record(bus), name="chat_log")
@@ -90,5 +114,9 @@ async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
         for t in (chat_task, log_task):
             try:
                 await t
-            except (asyncio.CancelledError, Exception):
+            except (asyncio.CancelledError, GeneratorExit, RuntimeError):
+                pass
+            except BaseExceptionGroup:
+                pass
+            except Exception:
                 pass

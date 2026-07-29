@@ -20,11 +20,13 @@ class ContextManager:
         self.compact_count = 0
 
     def message_tokens(self, messages: list[dict[str, Any]]) -> int:
-        text = json.dumps([m.get("content", "") for m in messages])
+        text = json.dumps(messages)
         return count_tokens(text, self.claude.model)
 
-    def trim(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        budget = self.max_context_tokens
+    def trim(self, messages: list[dict[str, Any]], tools_token_count: int = 0) -> list[dict[str, Any]]:
+        budget = self.max_context_tokens - tools_token_count
+        if budget <= 0:
+            return messages[-2:] if len(messages) > 2 else messages
         if self.message_tokens(messages) <= budget:
             return messages
 

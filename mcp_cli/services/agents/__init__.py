@@ -5,8 +5,11 @@ from mcp_cli.services.agents.memory import AgentMemoryStore
 from mcp_cli.services.agents.middleware import AgentMiddleware, MiddlewarePipeline
 from mcp_cli.services.agents.models import AgentConfig, AgentResult, AgentState
 from mcp_cli.services.agents.permissions import FilesystemPermission, PermissionEnforcer
+from mcp_cli.services.agents.quote_calculator import QuoteCalculatorMiddleware
 from mcp_cli.services.agents.runner import AgentRunner
+from mcp_cli.services.agents.subagents import SUBAGENT_REGISTRY
 from mcp_cli.services.agents.summarization import SummarizationMiddleware
+from mcp_cli.services.agents.todo_middleware import TodoMiddleware
 
 __all__ = [
     "AgentConfig",
@@ -16,7 +19,10 @@ __all__ = [
     "AgentMiddleware",
     "MiddlewarePipeline",
     "CodeInterpreterMiddleware",
+    "QuoteCalculatorMiddleware",
     "SummarizationMiddleware",
+    "TodoMiddleware",
+    "SUBAGENT_REGISTRY",
     "ActionRequest",
     "ResumeDecision",
     "AgentInterruptError",

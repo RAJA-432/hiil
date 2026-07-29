@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from typing import Any
-
 from mcp_cli.commands.agent import handle_agent_cmd
 from mcp_cli.commands.key_cmds import handle_cmd_key
 from mcp_cli.commands.misc_cmds import (

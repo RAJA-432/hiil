@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
 
 from mcp_cli.services.chunker import chunk_by_tokens, extract_text
 from mcp_cli.services.logging import get_logger
 
 if TYPE_CHECKING:
-    from mcp_cli.services.claude import Claude
+    from mcp_cli.services.claude import LLMClient
     from mcp_cli.services.vector_store import VectorStore
+
 
 logger = get_logger(__name__)
 
@@ -15,7 +17,7 @@ _DEFAULT_NAMESPACE = "documents"
 
 
 class RagPipeline:
-    def __init__(self, claude: Claude, vector_store: VectorStore):
+    def __init__(self, claude: LLMClient, vector_store: VectorStore):
         self.claude = claude
         self.vector_store = vector_store
 
@@ -36,12 +38,12 @@ class RagPipeline:
         indexed = 0
         errors: list[str] = []
 
-        for i, chunk in enumerate(chunks):
+        async def _embed_and_index(i: int, chunk: dict) -> bool:
             key = f"{filename}#chunk_{i}"
             emb = await self.claude.embed(chunk["text"])
             if not emb:
                 errors.append(key)
-                continue
+                return False
             await self.vector_store.async_index(
                 namespace=namespace,
                 key=key,
@@ -49,7 +51,14 @@ class RagPipeline:
                 embedding=emb,
                 metadata={"filename": filename, "chunk_index": i, "source": filename},
             )
-            indexed += 1
+            return True
+
+        results = await asyncio.gather(*(
+            _embed_and_index(i, chunk) for i, chunk in enumerate(chunks)
+        ), return_exceptions=True)
+        for ok in results:
+            if ok is True:
+                indexed += 1
 
         result: dict[str, Any] = {
             "filename": filename,

@@ -1,18 +1,14 @@
 # Application Configuration
 settings:
-
-# Approved root directories for MCP filesystem access.
-# Tools like read_file, write_file, list_directory etc. will only operate
-# on paths that fall within these roots.  Paths are resolved at startup.
-roots:
-  - "."          # project root (default)
-
-settings:
   provider: "ollama"
   model: "gemma4:31b-cloud"
   api_key: ""
   base_url: "http://localhost:11434/v1"
   max_context_tokens: 200000  # auto-trim history when exceeded
+
+# Approved root directories for MCP filesystem access.
+roots:
+  - "."          # project root (default)
 
 # Default MCP Servers to load
 servers:
@@ -33,6 +29,11 @@ servers:
 
   - id: "everything"
     script: "@modelcontextprotocol/server-everything"
+    args: []
+    env: {}
+
+  - id: "mock_mail"
+    script: "setu_bridge.mock_mail"
     args: []
     env: {}
 

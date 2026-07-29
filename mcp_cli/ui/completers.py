@@ -1,11 +1,31 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from typing import Any
 
 from prompt_toolkit.completion import Completer, Completion
 
 from mcp_cli.locales import get as get_locale
+
+_COMMAND_COMPLETERS: dict[str, Callable] = {
+    "session": lambda self, p: self._session_id_completions(p),
+    "history": lambda self, p: self._session_id_completions(p),
+    "fork": lambda self, p: self._session_id_completions(p),
+    "model": lambda self, p: self._model_completions(p),
+    "provider": lambda self, p: self._provider_completions(p),
+    "theme": lambda self, p: self._theme_completions(p),
+    "unload": lambda self, p: self._server_id_completions(p),
+    "reload": lambda self, p: self._server_id_completions(p),
+    "rename": lambda self, p: iter([Completion("", display="<new_name>", display_meta="new session name")]),
+    "lang": lambda self, p: iter([Completion("", display="<lang>", display_meta="en / english")]),
+    "language": lambda self, p: iter([Completion("", display="<lang>", display_meta="en / english")]),
+    "search": lambda self, p: iter([Completion("", display="<query>", display_meta="search term")]),
+    "semsearch": lambda self, p: iter([Completion("", display="<query>", display_meta="semantic search term")]),
+    "ls": lambda self, p: iter([Completion("", display="<path>", display_meta="directory path (default: .)")]),
+    "roots": lambda self, p: iter([Completion("", display="", display_meta="list approved root directories")]),
+    "load": lambda self, p: iter([Completion("", display="<script>", display_meta="e.g. @modelcontextprotocol/server-*")]),
+}
 
 _SUBCOMMAND_META: dict[str, dict[str, str]] = {
     "key": {
@@ -72,16 +92,23 @@ class HiilCompleter(Completer):
             yield from self._command_completions(text)
             return
 
-    def _doc_completions(self, partial: str):
+    def _completions(self, candidates, partial, display_func=None, meta_func=None):
         lower = partial.lower()
-        for doc_id in getattr(self.chat, "doc_ids", []):
-            if lower in doc_id.lower():
+        for c in candidates:
+            if lower in c.lower():
                 yield Completion(
-                    doc_id,
+                    c,
                     start_position=-len(partial),
-                    display=f"@{doc_id}",
-                    display_meta="document",
+                    display=display_func(c) if display_func else c,
+                    display_meta=meta_func(c) if meta_func else "",
                 )
+
+    def _doc_completions(self, partial: str):
+        yield from self._completions(
+            getattr(self.chat, "doc_ids", []), partial,
+            display_func=lambda d: f"@{d}",
+            meta_func=lambda d: "document",
+        )
 
     def _command_completions(self, text: str):
         loc = get_locale()
@@ -95,42 +122,12 @@ class HiilCompleter(Completer):
         if space_idx >= 0 and eng_cmd:
             if eng_cmd in _SUBCOMMAND_META:
                 yield from self._subcommand_completions(eng_cmd, rest)
-            elif eng_cmd == "session":
-                yield from self._session_id_completions(rest)
-            elif eng_cmd == "history":
-                yield from self._session_id_completions(rest)
-            elif eng_cmd == "fork":
-                yield from self._session_id_completions(rest)
-            elif eng_cmd == "model":
-                yield from self._model_completions(rest)
-            elif eng_cmd == "provider":
-                yield from self._provider_completions(rest)
-            elif eng_cmd == "theme":
-                yield from self._theme_completions(rest)
-            elif eng_cmd == "unload":
-                yield from self._server_id_completions(rest)
-            elif eng_cmd == "reload":
-                yield from self._server_id_completions(rest)
-            elif eng_cmd == "rename":
-                yield Completion("", display="<new_name>", display_meta="new session name")
-            elif eng_cmd == "key":
-                yield from self._subcommand_completions(eng_cmd, rest)
-            elif eng_cmd == "agent":
-                yield from self._subcommand_completions(eng_cmd, rest)
-            elif eng_cmd in ("lang", "language"):
-                yield Completion("", display="<lang>", display_meta="en / english")
-            elif eng_cmd == "search":
-                yield Completion("", display="<query>", display_meta="search term")
-            elif eng_cmd == "semsearch":
-                yield Completion("", display="<query>", display_meta="semantic search term")
-            elif eng_cmd == "ls":
-                yield Completion("", display="<path>", display_meta="directory path (default: .)")
-            elif eng_cmd == "roots":
-                yield Completion("", display="", display_meta="list approved root directories")
-            elif eng_cmd == "load":
-                yield Completion("", display="<script>", display_meta="e.g. @modelcontextprotocol/server-*")
             else:
-                yield from self._tool_arg_completions(eng_cmd, rest)
+                completer = _COMMAND_COMPLETERS.get(eng_cmd)
+                if completer:
+                    yield from completer(self, rest)
+                else:
+                    yield from self._tool_arg_completions(eng_cmd, rest)
             return
 
         partial = cmd or after_slash
@@ -172,64 +169,42 @@ class HiilCompleter(Completer):
             sessions = self.chat.history.list_sessions()
         except Exception:
             sessions = []
-        lower = partial.lower()
-        for sid in sessions:
-            if lower in sid.lower():
-                marker = " *" if sid == self.chat.session_id else ""
-                yield Completion(
-                    sid,
-                    start_position=-len(partial),
-                    display=sid,
-                    display_meta=f"session{marker}",
-                )
+        yield from self._completions(
+            sessions, partial,
+            display_func=lambda s: s,
+            meta_func=lambda s: f"session{' *' if s == self.chat.session_id else ''}",
+        )
 
     def _model_completions(self, partial: str):
         cached = getattr(self, "_cached_models", [])
-        lower = partial.lower()
-        for model in cached:
-            if lower in model.lower():
-                yield Completion(
-                    model,
-                    start_position=-len(partial),
-                    display=model,
-                    display_meta="model",
-                )
+        yield from self._completions(
+            cached, partial,
+            display_func=lambda m: m,
+            meta_func=lambda m: "model",
+        )
         if not cached:
             yield Completion("", display="<model_name>", display_meta="type /models to list")
 
     def _provider_completions(self, partial: str):
-        lower = partial.lower()
-        for name in self._providers:
-            if lower in name.lower():
-                yield Completion(
-                    name,
-                    start_position=-len(partial),
-                    display=name,
-                    display_meta=self._providers_meta.get(name, ""),
-                )
+        yield from self._completions(
+            self._providers, partial,
+            display_func=lambda n: n,
+            meta_func=lambda n: self._providers_meta.get(n, ""),
+        )
 
     def _theme_completions(self, partial: str):
-        lower = partial.lower()
-        for name in self._themes:
-            if lower in name.lower():
-                marker = " *" if name == self.app._theme.name else ""
-                yield Completion(
-                    name,
-                    start_position=-len(partial),
-                    display=name,
-                    display_meta=f"theme{marker}",
-                )
+        yield from self._completions(
+            self._themes, partial,
+            display_func=lambda n: n,
+            meta_func=lambda n: f"theme{' *' if n == self.app._theme.name else ''}",
+        )
 
     def _server_id_completions(self, partial: str):
-        lower = partial.lower()
-        for sid in self.chat.clients:
-            if lower in sid.lower():
-                yield Completion(
-                    sid,
-                    start_position=-len(partial),
-                    display=sid,
-                    display_meta="MCP server",
-                )
+        yield from self._completions(
+            self.chat.clients, partial,
+            display_func=lambda s: s,
+            meta_func=lambda s: "MCP server",
+        )
 
     def _tool_arg_completions(self, tool_name: str, partial: str):
         loc = get_locale()

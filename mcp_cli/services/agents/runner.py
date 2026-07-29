@@ -126,9 +126,7 @@ class AgentRunner:
         self._state.pending_interrupt = None
 
         start = time.monotonic()
-        output = ""
-        error: str | None = None
-        final_status: Literal["completed", "failed", "waiting"] = "completed"
+        output, error, final_status = "", None, "completed"
 
         try:
             output = await asyncio.wait_for(
@@ -139,38 +137,16 @@ class AgentRunner:
             self._state.pending_interrupt = exc.action_requests
             self._state.status = "waiting"
             final_status = "waiting"
-            error = str(exc)
-            output = ""
+            error, output = str(exc), ""
         except TimeoutError:
             error = f"Agent timed out after {self.config.timeout_seconds}s"
             final_status = "failed"
             logger.warning("Agent %s: %s", self.agent_id, error)
         except Exception as exc:
-            error = str(exc)
-            final_status = "failed"
+            error, final_status = str(exc), "failed"
             logger.exception("Agent %s failed: %s", self.agent_id, error)
 
-        elapsed = time.monotonic() - start
-        self._state.last_active = datetime.now(UTC)
-        self._state.current_task_id = None
-        self._state.result = {"output": output}
-        self._state.status = final_status
-
-        result = AgentResult(
-            agent_id=self.agent_id,
-            status=final_status,
-            output=output,
-            total_tokens=self._state.total_tokens,
-            duration_seconds=round(elapsed, 2),
-            tool_calls_made=self._tool_calls_made,
-            error=error,
-            pending_interrupt=self._state.pending_interrupt,
-        )
-
-        if self.bus and final_status != "waiting":
-            await self.bus.push_done()
-
-        return result
+        return await self._finish_run(start, output, error, final_status)
 
     async def resume(self, decisions: list[ResumeDecision]) -> AgentResult:
         """Resume execution after a human-in-the-loop pause."""
@@ -183,9 +159,7 @@ class AgentRunner:
         self._resume_event.set()
 
         start = time.monotonic()
-        output = ""
-        error: str | None = None
-        final_status: Literal["completed", "failed", "waiting"] = "completed"
+        output, error, final_status = "", None, "completed"
 
         try:
             process_result = await self._process_decisions(decisions, pending)
@@ -203,20 +177,24 @@ class AgentRunner:
             self._state.pending_interrupt = exc.action_requests
             self._state.status = "waiting"
             final_status = "waiting"
-            error = str(exc)
-            output = ""
+            error, output = str(exc), ""
         except TimeoutError:
             error = f"Agent timed out after {self.config.timeout_seconds}s"
             final_status = "failed"
         except Exception as exc:
-            error = str(exc)
-            final_status = "failed"
+            error, final_status = str(exc), "failed"
 
+        return await self._finish_run(start, output, error, final_status)
+
+    async def _finish_run(
+        self, start: float, output: str, error: str | None,
+        final_status: Literal["completed", "failed", "waiting"],
+    ) -> AgentResult:
         elapsed = time.monotonic() - start
         self._state.last_active = datetime.now(UTC)
+        self._state.current_task_id = None
         self._state.result = {"output": output}
         self._state.status = final_status
-
         result = AgentResult(
             agent_id=self.agent_id,
             status=final_status,
@@ -227,10 +205,8 @@ class AgentRunner:
             error=error,
             pending_interrupt=self._state.pending_interrupt,
         )
-
         if self.bus and final_status != "waiting":
             await self.bus.push_done()
-
         return result
 
     async def stop(self) -> None:
@@ -351,28 +327,18 @@ class AgentRunner:
                 except Exception as exc:
                     logger.warning("Agent %s: Malformed tool arguments for %s. %s. Raw: %s",
                                    self.agent_id, name, exc, raw_args)
-                    results.append({
-                        "role": "tool",
-                        "tool_call_id": call.id,
-                        "content": (
-                            f"<tool_result name=\"{name}\">\n"
-                            f"[invalid-args] Failed to parse arguments for '{name}': {exc}\n"
-                            f"Raw input received: {raw_args[:500]}\n"
-                            f"Please provide valid JSON arguments for this tool and retry.\n"
-                            f"</tool_result>"
-                        ),
-                    })
+                    results.append(self._tool_result(call, name,
+                        f"[invalid-args] Failed to parse arguments for '{name}': {exc}\n"
+                        f"Raw input received: {raw_args[:500]}\n"
+                        f"Please provide valid JSON arguments for this tool and retry.",
+                    ))
                     continue
 
             # Check filesystem permissions before executing
             if self._perm_enforcer:
                 perm_err = self._perm_enforcer.inspect_tool_args(name, args)
                 if perm_err:
-                    results.append({
-                        "role": "tool",
-                        "tool_call_id": call.id,
-                        "content": perm_err,
-                    })
+                    results.append(self._tool_result(call, name, perm_err, raw=True))
                     continue
 
             # Check HITL gate
@@ -391,22 +357,14 @@ class AgentRunner:
             if self._middleware:
                 mw_handled, mw_result = await self._middleware.handle_tool(name, args)
                 if mw_handled:
-                    results.append({
-                        "role": "tool",
-                        "tool_call_id": call.id,
-                        "content": f"<tool_result name=\"{name}\">\n{mw_result}\n</tool_result>",
-                    })
+                    results.append(self._tool_result(call, name, mw_result))
                     continue
 
             # Virtual backend intercept
             if self._virtual_backend.can_handle(name):
                 vb_result = await asyncio.to_thread(self._virtual_backend.handle_tool, name, args)
                 if vb_result is not None:
-                    results.append({
-                        "role": "tool",
-                        "tool_call_id": call.id,
-                        "content": f"<tool_result name=\"{name}\">\n{vb_result}\n</tool_result>",
-                    })
+                    results.append(self._tool_result(call, name, vb_result))
                     continue
 
             if self.bus:
@@ -425,11 +383,7 @@ class AgentRunner:
             if self.bus:
                 await self.bus.push_tool_call(name, args, "done", result_text)
 
-            results.append({
-                "role": "tool",
-                "tool_call_id": call.id,
-                "content": f"<tool_result name=\"{name}\">\n{result_text}\n</tool_result>",
-            })
+            results.append(self._tool_result(call, name, result_text))
         return results
 
     async def _process_decisions(
@@ -498,7 +452,7 @@ class AgentRunner:
         for mp in self.config.memory_files:
             new_hash = (await asyncio.to_thread(self._memory.snapshot_hashes, self.agent_id, [mp])).get(mp, 0)
             old_hash = self._memory_snapshot.get(mp, 0)
-            if new_hash != old_hash:
+            if new_hash == old_hash:
                 content = await asyncio.to_thread(self._memory.read, self.agent_id, mp)
                 if content is not None:
                     logger.info("Memory file %s unchanged (snapshot match)", mp)
@@ -514,6 +468,16 @@ class AgentRunner:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _tool_result(call: Any, name: str, content: str, raw: bool = False) -> dict[str, Any]:
+        if raw:
+            return {"role": "tool", "tool_call_id": call.id, "content": content}
+        return {
+            "role": "tool",
+            "tool_call_id": call.id,
+            "content": f"<tool_result name=\"{name}\">\n{content}\n</tool_result>",
+        }
 
     @staticmethod
     def _normalize_message(message: Any) -> dict[str, Any]:

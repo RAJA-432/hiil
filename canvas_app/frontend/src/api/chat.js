@@ -9,16 +9,7 @@ export function sendMessage(conversationId, message, onEvent, onError, signal) {
     const reply =
       'I\'ll help you with that. Let me look into the relevant files first.\n\n```python\ndef example():\n    print("hello")\n```\n\nLet me know if you need any clarification.'
     addMockMessage(conversationId, 'assistant', '', [], [])
-    return simulateStreamResponse(conversationId, reply,
-      (text) => { onEvent({ type: 'tokens', text }) },
-      (tool) => onEvent({ type: 'tool_event', tool: tool.tool, args: tool.args, status: tool.status, result: tool.result }),
-      (final) => {
-        const msgs = getMockMessages(conversationId)
-        const last = msgs[msgs.length - 1]
-        if (last) last.content = final
-        onEvent({ type: 'done' })
-      },
-    )
+    return simulateStreamResponse(conversationId, reply, onEvent)
   }
 
   return apiStream('POST', `/api/chat?stream=1`, { message, session_id: conversationId, stream: true }, onEvent, onError, signal)
@@ -51,4 +42,14 @@ export async function renameConversation(id, title) {
     return true
   }
   return apiPost('/api/session/rename', { session_id: id, new_title: title })
+}
+
+export async function fetchUsage() {
+  if (USE_MOCK) return getMockUsage()
+  try {
+    const resp = await apiGet('/api/usage')
+    return resp || { session: null, total: null }
+  } catch {
+    return { session: null, total: null }
+  }
 }

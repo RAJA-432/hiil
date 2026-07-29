@@ -1,4 +1,4 @@
-import { marked } from '../Chat/markdown'
+import MarkdownRenderer from '../Chat/MarkdownRenderer'
 
 export default function MarkdownPreview({ content }) {
   return (
@@ -10,7 +10,8 @@ export default function MarkdownPreview({ content }) {
         lineHeight: 1.7,
         fontSize: 14,
       }}
-      dangerouslySetInnerHTML={{ __html: marked(content) }}
-    />
+    >
+      <MarkdownRenderer content={content} />
+    </div>
   )
 }

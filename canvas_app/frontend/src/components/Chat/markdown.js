@@ -19,17 +19,36 @@ function _is_safe_url(url) {
   }
 }
 
+function replaceEmojiShortcodes(text) {
+  const emojiMap = {
+    ':smile:': '😊', ':laughing:': '😂', ':wink:': '😉', ':heart:': '❤️',
+    ':thumbsup:': '👍', ':thumbsdown:': '👎', ':clap:': '👏', ':fire:': '🔥',
+    ':rocket:': '🚀', ':star:': '⭐', ':check:': '✅', ':x:': '❌',
+    ':warning:': '⚠️', ':bulb:': '💡', ':question:': '❓', ':info:': 'ℹ️',
+    ':gear:': '⚙️', ':lock:': '🔒', ':key:': '🔑', ':bug:': '🐛',
+    ':chart:': '📊', ':code:': '💻', ':file:': '📄', ':folder:': '📁',
+    ':search:': '🔍', ':link:': '🔗', ':mail:': '📧', ':pen:': '✍️',
+    ':sparkles:': '✨', ':tada:': '🎉', ':package:': '📦', ':book:': '📖',
+  }
+  return text.replace(/:[\w+-]+:/g, (match) => emojiMap[match] || match)
+}
+
 export function marked(text) {
   if (!text) return ''
 
   let html = escapeHtml(text)
 
+  html = replaceEmojiShortcodes(html)
+
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-    const langAttr = lang ? ` data-lang="${lang}"` : ''
-    return `<pre${langAttr}><code>${code}</code></pre>`
+    const langLabel = lang || 'code'
+    const encoded = encodeURIComponent(code)
+    return `<div class="code-block-wrapper"><div class="code-block-header"><span class="code-block-lang">${langLabel}</span><button class="code-block-copy" data-copy="${encoded}">Copy</button></div><pre><code>${code}</code></pre></div>`
   })
 
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
+
+  html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>')
 
   html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
     if (!_is_safe_url(src)) src = '#'
@@ -50,12 +69,31 @@ export function marked(text) {
 
   html = html.replace(/^-{3,}$/gm, '<hr />')
 
+  html = html.replace(/(?<![">])(https?:\/\/[^\s<]+)/g, (_, url) => {
+    return `<a href="${url}" target="_blank" rel="noopener">${url}</a>`
+  })
+
   const lines = html.split('\n')
   const result = []
   let inList = false
   let listType = null
 
   for (const line of lines) {
+    const taskMatch = line.match(/^(\s*[-*]\s+)\[(.)\]\s+(.*)/)
+    if (taskMatch) {
+      const checked = taskMatch[2] === 'x' || taskMatch[2] === 'X'
+      const content = taskMatch[3]
+      if (!inList || listType !== 'ul') {
+        if (inList) result.push(`</${listType}>`)
+        result.push('<ul class="task-list">')
+        inList = true
+        listType = 'ul'
+      }
+      const attr = checked ? ' checked=""' : ''
+      result.push(`<li class="task-list-item"><input type="checkbox" disabled${attr} />${content}</li>`)
+      continue
+    }
+
     if (line.startsWith('- ') || line.startsWith('* ')) {
       const content = line.slice(2)
       if (!inList || listType !== 'ul') {
@@ -88,6 +126,8 @@ export function marked(text) {
         result.push(`<h${level}>${content}</h${level}>`)
       } else if (/^>\s/.test(line)) {
         result.push(`<blockquote>${line.replace(/^>\s/, '')}</blockquote>`)
+      } else if (/^\|.+\|/.test(line)) {
+        result.push(`<p>${line}</p>`)
       } else {
         result.push(`<p>${line}</p>`)
       }

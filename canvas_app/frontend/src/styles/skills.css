@@ -1,0 +1,369 @@
+/* ─── Skills Panel ─── */
+
+.skills-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.skills-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 4px;
+}
+
+.skills-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.skills-panel-count {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.skills-panel-search {
+  padding: 6px 12px;
+}
+
+.skills-search-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.skills-search-input:focus {
+  border-color: var(--primary);
+}
+
+.skills-panel-categories {
+  display: flex;
+  gap: 4px;
+  padding: 4px 12px 8px;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.skills-cat-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 3px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 11px;
+  white-space: nowrap;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+
+.skills-cat-btn:hover {
+  border-color: var(--border-light);
+  color: var(--text);
+}
+
+.skills-cat-btn.active {
+  background: var(--primary-dim);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.skills-panel-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+
+/* ─── Skill Card ─── */
+
+.skill-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition);
+  position: relative;
+  background: var(--surface);
+}
+
+.skill-card:hover {
+  border-color: var(--border-light);
+  background: var(--surface-raised);
+}
+
+.skill-card-active {
+  border-color: var(--primary);
+  background: var(--primary-dim);
+}
+
+.skill-card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.skill-card-body {
+  flex: 1;
+}
+
+.skill-card-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.skill-card-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skill-card-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.skill-card-templates,
+.skill-card-tools {
+  background: var(--surface-raised);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.skill-card-active-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--primary);
+  background: var(--primary-dim);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.skills-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* ─── Skills Active Bar ─── */
+
+.skills-active-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.skills-active-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.skills-active-name {
+  font-weight: 500;
+}
+
+/* ─── Active Skill (toolbar) ─── */
+
+.active-skill {
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px !important;
+}
+
+.active-skill-icon {
+  font-size: 14px;
+}
+
+.active-skill-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ─── Connectors Panel ─── */
+
+.connectors-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.connectors-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 520px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+  animation: modal-in 0.15s ease-out;
+}
+
+.connectors-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.connectors-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.connectors-filters {
+  display: flex;
+  gap: 4px;
+  padding: 8px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.connectors-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 20px;
+}
+
+.connector-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+  gap: 12px;
+}
+
+.connector-item:hover {
+  background: var(--surface-raised);
+}
+
+.connector-enabled {
+  border-left: 2px solid var(--success);
+}
+
+.connector-info {
+  flex: 1;
+}
+
+.connector-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.connector-type {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  background: var(--surface-raised);
+  padding: 0 5px;
+  border-radius: 4px;
+}
+
+.connector-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.connector-toggle {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.connector-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.connector-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--border);
+  border-radius: 10px;
+  transition: all var(--transition);
+}
+
+.connector-toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: all var(--transition);
+}
+
+.connector-toggle input:checked + .connector-toggle-slider {
+  background: var(--primary);
+}
+
+.connector-toggle input:checked + .connector-toggle-slider::before {
+  transform: translateX(16px);
+}
+
+.connectors-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 13px;
+}

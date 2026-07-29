@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
 function TreeNode({ node, depth = 0, onOpenFile }) {
   const [expanded, setExpanded] = useState(depth < 1)
@@ -12,6 +12,13 @@ function TreeNode({ node, depth = 0, onOpenFile }) {
     }
   }
 
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleClick()
+    }
+  }, [isDir, expanded, node, onOpenFile])
+
   const icon = isDir ? (expanded ? '▼' : '▶') : '○'
 
   return (
@@ -20,12 +27,17 @@ function TreeNode({ node, depth = 0, onOpenFile }) {
         className="file-tree-item"
         style={{ paddingLeft: 8 + depth * 16 }}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        role="treeitem"
+        tabIndex={0}
+        aria-expanded={isDir ? expanded : undefined}
+        aria-label={node.name}
       >
-        <span className="icon">{icon}</span>
+        <span className="icon" aria-hidden="true">{icon}</span>
         <span className="truncate">{node.name}</span>
       </div>
       {isDir && expanded && node.children && (
-        <div className="file-tree-children">
+        <div className="file-tree-children" role="group">
           {node.children.map((child) => (
             <TreeNode key={child.path || child.name} node={child} depth={depth + 1} onOpenFile={onOpenFile} />
           ))}
@@ -38,7 +50,7 @@ function TreeNode({ node, depth = 0, onOpenFile }) {
 export default function FileTree({ tree, onOpenFile }) {
   if (!tree) {
     return (
-      <div className="file-tree">
+      <div className="file-tree" role="tree" aria-label="Workspace files">
         <div style={{ padding: 16, textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>
           Loading...
         </div>
@@ -47,7 +59,7 @@ export default function FileTree({ tree, onOpenFile }) {
   }
 
   return (
-    <div className="file-tree">
+    <div className="file-tree" role="tree" aria-label="Workspace files">
       <TreeNode node={tree} depth={0} onOpenFile={onOpenFile} />
     </div>
   )

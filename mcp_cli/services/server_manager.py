@@ -93,7 +93,6 @@ async def load_mcp_server(
             logging_callback=logging_callback,
         )
 
-    await asyncio.wait_for(client.connect(), timeout=30)
     return client
 
 
@@ -122,15 +121,20 @@ async def create_servers(
     Returns ``(doc_client, clients)``.
     """
     transport = transport or _DEFAULT_TRANSPORT
+    _CONNECT_TIMEOUT = 30
+
     try:
-        doc_client = await stack.enter_async_context(
-            await load_mcp_server(
-                "doc_server", "mcp_server",
-                transport=transport,
-                roots=roots,
-                sampling_callback=sampling_callback,
-                logging_callback=logging_callback,
-            )
+        doc_client = await asyncio.wait_for(
+            stack.enter_async_context(
+                await load_mcp_server(
+                    "doc_server", "mcp_server",
+                    transport=transport,
+                    roots=roots,
+                    sampling_callback=sampling_callback,
+                    logging_callback=logging_callback,
+                )
+            ),
+            timeout=_CONNECT_TIMEOUT,
         )
     except Exception as exc:
         logger.warning("doc server: %s", _exc_message(exc))
@@ -140,17 +144,20 @@ async def create_servers(
 
     async def _load_one(s_cfg: ServerConfig) -> tuple[str, SetuBridge] | None:
         try:
-            client = await stack.enter_async_context(
-                await load_mcp_server(
-                    s_cfg.id, s_cfg.script,
-                    args=s_cfg.args,
-                    env=s_cfg.env,
-                    command=s_cfg.command,
-                    transport=s_cfg.transport or transport,
-                    roots=roots,
-                    sampling_callback=sampling_callback,
-                    logging_callback=logging_callback,
-                )
+            client = await asyncio.wait_for(
+                stack.enter_async_context(
+                    await load_mcp_server(
+                        s_cfg.id, s_cfg.script,
+                        args=s_cfg.args,
+                        env=s_cfg.env,
+                        command=s_cfg.command,
+                        transport=s_cfg.transport or transport,
+                        roots=roots,
+                        sampling_callback=sampling_callback,
+                        logging_callback=logging_callback,
+                    )
+                ),
+                timeout=_CONNECT_TIMEOUT,
             )
             return s_cfg.id, client
         except Exception as exc:

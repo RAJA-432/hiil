@@ -15,7 +15,7 @@ from mcp.types import (
 
 from mcp_cli.config import load_settings
 from mcp_cli.services.chat import CliChat
-from mcp_cli.services.claude import Claude
+from mcp_cli.services.claude import LLMClient
 from mcp_cli.services.logging import get_logger
 from mcp_cli.services.roots import RootsManager
 from mcp_cli.services.server_manager import create_servers
@@ -24,7 +24,7 @@ logger = get_logger("factory")
 
 
 def _build_sampling_callback(
-    claude: Claude,
+    claude: LLMClient,
 ) -> Callable[[RequestContext, CreateMessageRequestParams], Coroutine[Any, Any, CreateMessageResult]]:
     """Return a sampling callback that delegates LLM inference to the *claude* service."""
 
@@ -59,7 +59,7 @@ async def create_chat(
 ) -> CliChat:
     settings, servers = await asyncio.to_thread(load_settings)
 
-    claude = Claude(
+    claude = LLMClient(
         provider=settings.provider,
         model=settings.model,
         api_key=settings.api_key,

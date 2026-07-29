@@ -38,6 +38,9 @@ check: ## Run lint + typecheck + test in sequence
 	$(MAKE) typecheck
 	$(MAKE) test
 
+generate-types: ## Generate TypeScript types from OpenAPI schema
+	python scripts/generate_types.py
+
 clean: ## Remove __pycache__, cache dirs, coverage, build artifacts
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	rm -rf .mypy_cache .pytest_cache .ruff_cache .coverage *.egg-info build dist

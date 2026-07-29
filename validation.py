@@ -1,8 +1,7 @@
-import httpx
 import asyncio
-import json
 import sys
-from typing import Dict, Any
+
+import httpx
 
 # Configuration - matches my_streamlit_app.py
 API_BASE = "http://127.0.0.1:8000"
@@ -49,11 +48,11 @@ class AppValidator:
                     resp = await client.get(f"{API_BASE}{ep}")
                     content_length = resp.headers.get("Content-Length")
                     actual_length = len(resp.content)
-                    
+
                     if content_length:
                         cl_val = int(content_length)
                         if cl_val != actual_length:
-                            self.log_result(f"Header Match {ep}", False, 
+                            self.log_result(f"Header Match {ep}", False,
                                            f"Expected {cl_val} bytes, got {actual_length}")
                             success_all = False
                         else:
@@ -68,18 +67,18 @@ class AppValidator:
     async def validate_all(self):
         print("🚀 Starting hiil Application Health Audit...")
         print(f"Target API: {API_BASE}")
-        
+
         connected = await self.check_connectivity()
         if not connected:
             print("\n🚨 CRITICAL: Backend is unreachable. Please start the API server first.")
             return
 
         header_ok = await self.check_content_length_issue()
-        
+
         print("\n--- 🏁 Final Report ---")
         print(f"Connectivity: {'🟢 OK' if connected else '🔴 FAIL'}")
         print(f"Response Integrity: {'🟢 OK' if header_ok else '🔴 FAIL (Content-Length mismatch found)'}")
-        
+
         if not header_ok:
             print("\n💡 Recommendation: Remove manual Content-Length headers in the FastAPI responses.")
 

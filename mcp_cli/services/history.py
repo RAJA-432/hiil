@@ -1,48 +1,25 @@
-import asyncio
-import sqlite3
-import threading
-import weakref
 from datetime import datetime
 from typing import Any
 
-from mcp_cli.services.logging import get_logger
-
-logger = get_logger(__name__)
+from mcp_cli.services.sqlite_store import SqliteStore, asyncify
 
 
-
-
-class ChatHistoryManager:
-    """Handles persistence of chat messages using a local SQLite database."""
+class ChatHistoryManager(SqliteStore):
+    _SCHEMA = [
+        """CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT,
+            role TEXT,
+            content TEXT,
+            timestamp TEXT
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_session ON messages(session_id)",
+    ]
 
     def __init__(self, db_path: str = "chat_history.db", max_sessions: int = 50):
-        """Open a SQLite-backed chat history store with session pruning."""
-        self.db_path = db_path
         self._max_sessions = max_sessions
-        self._lock = threading.Lock()
-        self._conn: sqlite3.Connection | None = sqlite3.connect(db_path, check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA synchronous=NORMAL")
-        self._init_db()
-        self._finalizer = weakref.finalize(self, self._close_conn, self._conn, self._lock)
-
-    def _get_conn(self) -> sqlite3.Connection:
-        assert self._conn is not None
-        return self._conn
-
-    def _init_db(self):
-        conn = self._get_conn()
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT,
-                role TEXT,
-                content TEXT,
-                timestamp TEXT
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_session ON messages(session_id)")
-        conn.commit()
+        super().__init__(db_path)
+        self._get_conn().execute("PRAGMA synchronous=NORMAL")
 
     def save_message(self, session_id: str, role: str, content: str):
         """Persist a chat message to the database."""
@@ -142,61 +119,34 @@ class ChatHistoryManager:
 
 
 
-    @staticmethod
-    def _close_conn(conn: sqlite3.Connection | None, lock: threading.Lock) -> None:
-        if conn is None:
-            return
-        with lock:
-            try:
-                conn.close()
-            except Exception:
-                logger.warning("Failed to close history database connection")
-
-    def close(self):
-        """Close the database connection."""
-        if hasattr(self, "_finalizer"):
-            self._finalizer()
-        self._conn = None
-
+    @asyncify("save_message")
     async def async_save_message(self, session_id: str, role: str, content: str):
-        """Save a message asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self.save_message, session_id, role, content)
+        ...
 
+    @asyncify("load_session")
     async def async_load_session(self, session_id: str) -> list[dict[str, Any]]:
-        """Load a session asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.load_session, session_id)
+        ...
 
+    @asyncify("list_sessions")
     async def async_list_sessions(self) -> list[str]:
-        """List sessions asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.list_sessions)
+        ...
 
+    @asyncify("delete_session")
     async def async_delete_session(self, session_id: str) -> None:
-        """Delete a session asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self.delete_session, session_id)
+        ...
 
+    @asyncify("search_messages")
     async def async_search_messages(self, session_id: str, query: str) -> list[dict[str, Any]]:
-        """Search messages asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.search_messages, session_id, query)
+        ...
 
+    @asyncify("rename_session")
     async def async_rename_session(self, old_id: str, new_id: str) -> bool:
-        """Rename a session asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.rename_session, old_id, new_id)
+        ...
 
+    @asyncify("fork_session")
     async def async_fork_session(self, source_id: str, target_id: str) -> int:
-        """Fork a session asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.fork_session, source_id, target_id)
+        ...
 
+    @asyncify("undo_last_messages")
     async def async_undo_last_messages(self, session_id: str, count: int = 2) -> int:
-        """Undo last messages asynchronously via the thread pool."""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.undo_last_messages, session_id, count)
-
-
-
+        ...

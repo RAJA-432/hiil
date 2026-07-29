@@ -21,7 +21,11 @@ async def main() -> None:
         await cli.run()
 
 
-if __name__ == "__main__":
+def _run_main() -> None:
     if sys.platform == "win32" and sys.version_info < (3, 14):
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    _run_main()

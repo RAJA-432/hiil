@@ -1,9 +1,10 @@
-export default function Spinner({ size = 14 }) {
+export default function Spinner({ size = 14, label = 'Loading' }) {
   return (
     <span
       className="spinner"
       style={{ width: size, height: size }}
-      aria-label="Loading"
+      role="status"
+      aria-label={label}
     />
   )
 }

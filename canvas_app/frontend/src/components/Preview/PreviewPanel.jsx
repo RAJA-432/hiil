@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import Spinner from '../Shared/Spinner'
+import DiffPreview from './DiffPreview'
 
 const MonacoPreview = lazy(() => import('./MonacoPreview'))
 const MarkdownPreview = lazy(() => import('./MarkdownPreview'))
@@ -8,9 +9,11 @@ const ImagePreview = lazy(() => import('./ImagePreview'))
 const LANGUAGES_MONACO = ['python', 'javascript', 'typescript', 'jsx', 'tsx', 'html', 'css', 'json', 'yaml', 'xml', 'sql', 'rust', 'go', 'java', 'cpp', 'c', 'shell', 'plaintext']
 const LANGUAGES_MARKDOWN = ['markdown', 'md']
 const LANGUAGES_IMAGE = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp']
+const LANGUAGES_DIFF = ['diff']
 
 function detectRenderer(language, filePath) {
   const ext = filePath?.split('.').pop()?.toLowerCase()
+  if (LANGUAGES_DIFF.includes(language)) return 'diff'
   if (LANGUAGES_IMAGE.includes(ext)) return 'image'
   if (LANGUAGES_MARKDOWN.includes(language)) return 'markdown'
   if (LANGUAGES_MONACO.includes(language)) return 'monaco'
@@ -50,6 +53,8 @@ export default function PreviewPanel({ filePath, content, language, loading, onC
             <MarkdownPreview content={content} />
           ) : renderer === 'image' ? (
             <ImagePreview filePath={filePath} />
+          ) : renderer === 'diff' ? (
+            <DiffPreview content={content} />
           ) : (
             <pre style={{ padding: 16, fontFamily: 'var(--font-mono)', fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflow: 'auto', height: '100%' }}>{content}</pre>
           )}
