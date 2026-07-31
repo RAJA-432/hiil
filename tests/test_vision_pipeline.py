@@ -41,11 +41,20 @@ class TestVisionModelDetection:
     def test_gemini_1_5_pro_is_vision(self):
         assert CliChat._is_vision_model("gemini-1.5-pro") is True
 
-    def test_gemma4_31b_cloud_not_vision(self):
-        assert CliChat._is_vision_model("gemma4:31b-cloud") is False
+    def test_gemma4_31b_cloud_is_vision(self):
+        assert CliChat._is_vision_model("gemma4:31b-cloud") is True
 
     def test_deepseek_chat_not_vision(self):
         assert CliChat._is_vision_model("deepseek-chat") is False
+
+    def test_gemma2_not_vision(self):
+        assert CliChat._is_vision_model("gemma2") is False
+
+    def test_gemma_2_27b_not_vision(self):
+        assert CliChat._is_vision_model("gemma-2-27b") is False
+
+    def test_gemma3_4b_is_vision(self):
+        assert CliChat._is_vision_model("gemma3:4b") is True
 
     def test_llama_3_1_8b_not_vision(self):
         assert CliChat._is_vision_model("llama-3.1-8b") is False

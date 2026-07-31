@@ -361,10 +361,17 @@ class CliChat:
         vision_keywords = ["vision", "gpt-4o", "gpt-4-turbo", "claude-3", "claude-4", "gemini-1.5", "gemini-2.0", "llava", "cogvlm", "qwen-vl", "internvl"]
         if any(kw in model_lower for kw in vision_keywords):
             return True
-        non_vision = ["gemma", "deepseek", "llama-3.1", "mixtral", "mistral"]
+        non_vision = ["gemma2", "gemma-2", "deepseek", "llama-3.1", "mixtral", "mistral"]
         if any(nm in model_lower for nm in non_vision):
             return False
         return True
+
+    async def _can_process_images(self) -> bool:
+        """Check whether the active model can process images."""
+        caps = await self.claude.model_capabilities(self.claude.model)
+        if caps:
+            return "vision" in caps
+        return self._is_vision_model(self.claude.model)
 
     async def send(
         self,
@@ -403,7 +410,7 @@ class CliChat:
         )
 
         # OCR fallback for non-vision models
-        if images and not self._is_vision_model(self.claude.model):
+        if images and not await self._can_process_images():
             from mcp_cli.services.ocr import extract_text_from_data_url, is_available
             if is_available():
                 ocr_texts = []

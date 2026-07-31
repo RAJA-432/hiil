@@ -74,6 +74,14 @@ npx vite build     # production build
 - **Token usage bar** — real-time context window % with color thresholds
 - **Export** — Download conversation as Markdown or JSON
 
+### OCR fallback
+
+Vision-capable models (e.g. `gemma4:31b-cloud` via Ollama) accept images directly. For text-only models, attached images are run through OCR to extract text — requires `pip install -e ".[ocr]"` (Pillow + pytesseract).
+
+Windows also needs the Tesseract system binary: `winget install UB-Mannheim.TesseractOCR` (or `choco install tesseract`). macOS/Linux: `brew install tesseract` / `apt install tesseract-ocr`.
+
+This is optional; without it, images to text-only models are gracefully skipped.
+
 ### Skills (Persona System)
 - **6 bundled personas** — Data Analyst, Code Reviewer, Writer, Architect, Researcher, General
 - **Prompt templates** — 3-4 curated prompts per skill, one-click insert into composer

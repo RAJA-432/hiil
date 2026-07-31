@@ -7,6 +7,7 @@ Both providers speak the OpenAI Chat Completions protocol, so we use the
 
 from __future__ import annotations
 
+import time
 from typing import Any, cast
 
 import httpx
@@ -55,6 +56,7 @@ class LLMClient:
         effective_key = api_key or "ollama-placeholder"
         self._client = AsyncOpenAI(api_key=effective_key, base_url=base_url, timeout=120)
         self._http_client = httpx.AsyncClient(timeout=30)
+        self._caps_cache: dict[tuple[str, str], tuple[float, list[str]]] = {}
 
     async def stream_chat(
         self,
@@ -292,6 +294,31 @@ class LLMClient:
         except Exception as exc:
             logger.warning("failed to list models from %s: %s", url, exc)
         return []
+
+    async def model_capabilities(self, model: str) -> list[str]:
+        """Return the capabilities advertised for the given Ollama model."""
+        if self.provider != "ollama":
+            return []
+        key = (self.base_url or "", model)
+        cached = self._caps_cache.get(key)
+        if cached and time.monotonic() - cached[0] < 300:
+            return list(cached[1])
+        url = self._api_path("tags")
+        try:
+            resp = await self._http_client.get(url, timeout=10)
+            resp.raise_for_status()
+            data = resp.json()
+            caps: list[str] = []
+            short = model.split("/")[-1]
+            for m in data.get("models", []):
+                if m.get("name") == model or m.get("id") == model or m.get("name") == short:
+                    caps = list(m.get("capabilities") or [])
+                    break
+            self._caps_cache[key] = (time.monotonic(), caps)
+            return caps
+        except Exception as exc:
+            logger.warning("failed to query model capabilities for %s: %s", model, exc)
+            return []
 
     async def shutdown(self):
         await self._http_client.aclose()
