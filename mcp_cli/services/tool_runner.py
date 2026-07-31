@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 
 from mcp_cli.services.frontier import is_sensitive_tool
 from mcp_cli.services.logging import get_logger
+from mcp_cli.services.moderation import sanitize_tool_result
 from mcp_cli.services.roots import RootsManager
 
 if TYPE_CHECKING:
@@ -47,11 +48,13 @@ class ToolRunner:
         tool_timeout: float = 30.0,
         roots_manager: RootsManager | None = None,
         max_concurrent: int = 4,
+        sanitize_results: bool = True,
     ):
         self.tools_by_name = tools_by_name
         self._tool_timeout = tool_timeout
         self.roots = roots_manager or RootsManager()
         self._semaphore = asyncio.Semaphore(max_concurrent)
+        self._sanitize_results = sanitize_results
 
     async def call_tool(self, name: str, args: dict[str, Any]) -> str:
         entry = self.tools_by_name.get(name)
@@ -75,6 +78,11 @@ class ToolRunner:
             except Exception as exc:
                 return f"Tool error: {exc}"
 
+    def _finalize_content(self, content: str) -> str:
+        if self._sanitize_results:
+            return sanitize_tool_result(content)
+        return content
+
     async def execute_tool_calls(
         self,
         tool_calls: list[Any],
@@ -92,7 +100,7 @@ class ToolRunner:
                 tool_results.append({
                     "role": "tool",
                     "tool_call_id": call.id,
-                    "content": f"<tool_result name=\"{name}\">\n[invalid-args] Failed to parse arguments for '{name}'.\nRaw input: {call.function.arguments}\n</tool_result>",
+                    "content": self._finalize_content(f"<tool_result name=\"{name}\">\n[invalid-args] Failed to parse arguments for '{name}'.\nRaw input: {call.function.arguments}\n</tool_result>"),
                 })
                 continue
             if on_tool_event:
@@ -106,7 +114,7 @@ class ToolRunner:
                     tool_results.append({
                         "role": "tool",
                         "tool_call_id": call.id,
-                        "content": f"<tool_result name=\"{name}\">\n{result_text}\n</tool_result>",
+                        "content": self._finalize_content(f"<tool_result name=\"{name}\">\n{result_text}\n</tool_result>"),
                     })
                     continue
             result_text = await self.call_tool(name, args)
@@ -115,6 +123,6 @@ class ToolRunner:
             tool_results.append({
                 "role": "tool",
                 "tool_call_id": call.id,
-                "content": f"<tool_result name=\"{name}\">\n{result_text}\n</tool_result>",
+                "content": self._finalize_content(f"<tool_result name=\"{name}\">\n{result_text}\n</tool_result>"),
             })
         return tool_results

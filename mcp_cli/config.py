@@ -44,6 +44,20 @@ class Settings:
     base_url: str | None
     max_context_tokens: int = 200_000
     roots: list[str] = field(default_factory=lambda: ["."])
+    enable_verification: bool = False
+    verifier_model: str = ""
+    enable_moderation: bool = False
+    moderation_deny_list: list[str] = field(default_factory=list)
+    vector_backend: str = "sqlite"
+
+def _as_bool(value: Any, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
 
 def load_settings(config_path: str = "config.yaml") -> tuple[Settings, list[ServerConfig]]:
     """
@@ -99,6 +113,13 @@ def load_settings(config_path: str = "config.yaml") -> tuple[Settings, list[Serv
         os.getenv("MAX_CONTEXT_TOKENS", settings_yaml.get("max_context_tokens", 200000))
     )
 
+    enable_verification = _as_bool(settings_yaml.get("enable_verification", False))
+    verifier_model = str(settings_yaml.get("verifier_model") or "")
+    enable_moderation = _as_bool(settings_yaml.get("enable_moderation", False))
+    moderation_yaml = settings_yaml.get("moderation_deny_list") or []
+    moderation_deny_list = [str(item) for item in moderation_yaml]
+    vector_backend = str(settings_yaml.get("vector_backend", "sqlite"))
+
     settings = Settings(
         provider=provider,
         model=model,
@@ -106,6 +127,11 @@ def load_settings(config_path: str = "config.yaml") -> tuple[Settings, list[Serv
         base_url=base_url,
         max_context_tokens=max_context_tokens,
         roots=[os.path.expanduser(r) for r in roots_yaml],
+        enable_verification=enable_verification,
+        verifier_model=verifier_model,
+        enable_moderation=enable_moderation,
+        moderation_deny_list=moderation_deny_list,
+        vector_backend=vector_backend,
     )
 
     # 3. Resolve Servers

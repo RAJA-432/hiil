@@ -1,0 +1,11 @@
+name: json_output
+description: Verifies the model returns schema-conformant JSON with no prose.
+prompt: >-
+  Return a single JSON object with exactly these keys: product (string),
+  price (number), in_stock (boolean). Do not include any text outside the JSON.
+min_score: 0.8
+expect_tool_use: false
+rubric:
+  - "Output parses as valid JSON."
+  - "JSON contains keys product, price, and in_stock with the correct types."
+  - "No prose or markdown fences around the JSON."

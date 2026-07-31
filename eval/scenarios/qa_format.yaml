@@ -1,0 +1,11 @@
+name: qa_format
+description: Plain question-answering smoke test for formatting and clarity.
+prompt: >-
+  Explain the difference between a list and a tuple in Python in two or three
+  clear sentences.
+min_score: 0.6
+expect_tool_use: false
+rubric:
+  - "Answer correctly explains the mutability difference between list and tuple."
+  - "Answer is a coherent, self-contained paragraph."
+  - "Answer does not request clarification or refuse to answer."

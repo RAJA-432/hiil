@@ -36,3 +36,6 @@ jobs:
 
       - name: test
         run: pytest tests/ -q
+
+      - name: eval golden smoke
+        run: python -m eval.runner --smoke

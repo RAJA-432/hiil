@@ -1,0 +1,4 @@
+{
+  "scenario": "qa_format",
+  "answer": "A list is mutable and its size can change after creation, while a tuple is immutable and cannot be modified once created."
+}

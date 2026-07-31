@@ -9,6 +9,7 @@ from mcp_cli.services.context_manager import ContextManager
 from mcp_cli.services.document_injector import DocumentInjector
 from mcp_cli.services.history import ChatHistoryManager
 from mcp_cli.services.logging import get_logger
+from mcp_cli.services.moderation import ModerationFilter
 from mcp_cli.services.notification_bus import NotificationBus
 from mcp_cli.services.rag import RagPipeline
 from mcp_cli.services.roots import RootsManager
@@ -17,6 +18,7 @@ from mcp_cli.services.streamer import Streamer
 from mcp_cli.services.tool_runner import ToolRunner, _mcp_tool_to_openai
 from mcp_cli.services.usage import UsageTracker, count_tokens
 from mcp_cli.services.vector_store import VectorStore
+from mcp_cli.services.verifier import Verifier
 
 if TYPE_CHECKING:
     from setu_bridge import SetuBridge
@@ -46,6 +48,11 @@ class CliChat:
         session_id: str = "default",
         max_context_tokens: int = 200_000,
         roots_manager: RootsManager | None = None,
+        *,
+        enable_verification: bool = False,
+        verifier_model: str | None = None,
+        enable_moderation: bool = False,
+        moderation_deny_list: list[str] | None = None,
     ):
         self.clients = clients
         self.claude = claude_service
@@ -69,6 +76,18 @@ class CliChat:
         self.response_format: dict[str, Any] | None = None
         self._correction_attempts = 0
         self.MAX_CORRECTION_ATTEMPTS = 2
+
+        self.enable_verification = enable_verification
+        self.verifier_model = verifier_model
+        self.enable_moderation = enable_moderation
+        self.moderation_deny_list = moderation_deny_list
+
+        self.verifier: Verifier | None = None
+        if self.enable_verification and self.claude is not None:
+            self.verifier = Verifier(self.claude, model=self.verifier_model)
+        self.moderation: ModerationFilter | None = None
+        if self.enable_moderation:
+            self.moderation = ModerationFilter(enabled=True, deny_list=self.moderation_deny_list)
 
         # Agent spawning
         self.agents: dict[str, AgentRunner] = {}
@@ -373,6 +392,116 @@ class CliChat:
             return "vision" in caps
         return self._is_vision_model(self.claude.model)
 
+    async def _moderate_output(self, text: str, bus: NotificationBus | None) -> str:
+        moderation = self.moderation
+        if moderation is None:
+            return text
+        try:
+            ok, reason = moderation.check_output(text)
+        except Exception:
+            return text
+        if ok:
+            return text
+        if bus:
+            await bus.push_log("warn", f"Output blocked by moderation ({reason}).")
+        return f"[blocked] Your message was flagged by moderation ({reason})."
+
+    async def _record_verifier_usage(self, answer: str, user_input: str, rag_context: str, tool_summary: str) -> None:
+        try:
+            prompt = f"User question:\n{user_input}"
+            if rag_context:
+                prompt += f"\n\nReference context:\n{rag_context}"
+            if tool_summary:
+                prompt += f"\n\nTool results:\n{tool_summary}"
+            prompt += f"\n\nAssistant answer:\n{answer}"
+            input_tokens = count_tokens(prompt, self.claude.model)
+            output_tokens = count_tokens(answer, self.claude.model)
+            await self.usage.async_record(self.claude.model, input_tokens, output_tokens, self.session_id)
+        except Exception as exc:
+            logger.debug("verifier usage recording failed: %s", exc)
+
+    async def _correction_retry(
+        self,
+        answer: str,
+        user_input: str,
+        issues: list[str],
+        bus: NotificationBus | None,
+    ) -> str:
+        if self._correction_attempts >= self.MAX_CORRECTION_ATTEMPTS:
+            return ""
+        self._correction_attempts += 1
+        issue_text = "\n".join(f"- {issue}" for issue in issues)
+        correction = (
+            "Your previous response was flagged by a verification pass. "
+            f"Address the following issues:\n{issue_text}"
+        )
+        retry_messages = [*self.messages, {"role": "user", "content": correction}]
+        try:
+            message, input_tokens, output_tokens = await self.streamer.chat(
+                retry_messages,
+                tools=self._openai_tools if self._openai_tools else None,
+            )
+            await self.usage.async_record(self.claude.model, input_tokens, output_tokens, self.session_id)
+            return message.content or ""
+        except Exception as exc:
+            logger.warning("verifier correction retry failed, returning original answer: %s", exc)
+            return ""
+
+    async def _verify_answer(
+        self,
+        answer: str,
+        user_input: str,
+        rag_context: str,
+        tool_used: bool,
+        tool_summary: str,
+        bus: NotificationBus | None,
+    ) -> str:
+        verifier = self.verifier
+        if verifier is None or not (tool_used or rag_context):
+            return answer
+        try:
+            verdict = await verifier.verify(
+                answer,
+                user_input,
+                rag_context=rag_context,
+                tool_summary=tool_summary,
+            )
+            await self._record_verifier_usage(answer, user_input, rag_context, tool_summary)
+            if verdict.valid:
+                if bus:
+                    await bus.push_log("info", "Verified by critique pass.")
+                return answer
+            if verdict.revised:
+                if bus:
+                    await bus.push_log("info", "Verified by critique pass.")
+                    await bus.push_log("warn", "Answer revised by verifier.")
+                    await bus.push_log("info", f"Original answer: {answer}")
+                return verdict.revised
+            if verdict.issues:
+                retried = await self._correction_retry(answer, user_input, verdict.issues, bus)
+                if retried:
+                    if bus:
+                        await bus.push_log("info", "Verified by critique pass.")
+                    return retried
+            if bus:
+                await bus.push_log("info", "Verified by critique pass.")
+            return answer
+        except Exception as exc:
+            logger.warning("verification failed, returning original answer: %s", exc)
+            return answer
+
+    async def _finalize_output(
+        self,
+        answer: str,
+        user_input: str,
+        rag_context: str,
+        tool_used: bool,
+        tool_summary: str,
+        bus: NotificationBus | None,
+    ) -> str:
+        final = await self._verify_answer(answer, user_input, rag_context, tool_used, tool_summary, bus)
+        return await self._moderate_output(final, bus)
+
     async def send(
         self,
         user_input: str,
@@ -387,17 +516,28 @@ class CliChat:
         self._correction_attempts = 0
         user_input = self._sanitize_input(user_input)
 
+        if self.moderation is not None:
+            try:
+                ok, reason = self.moderation.check_input(user_input)
+            except Exception:
+                ok, reason = True, ""
+            if not ok:
+                if bus:
+                    await bus.push_log("warn", f"Input blocked by moderation ({reason}).")
+                return f"[blocked] Your message was flagged by moderation ({reason})."
+
         if bus:
             await bus.push_log("info", "Processing your request...")
 
         augmented = await self.doc_injector.resolve(user_input)
 
+        rag_context = ""
         try:
             rag_results = await self.rag.retrieve(user_input, top_k=3, min_score=0.25)
             if rag_results:
-                ctx = self.rag.format_context(rag_results)
+                rag_context = self.rag.format_context(rag_results)
                 augmented = (
-                    f"Relevant knowledge base context:\n{ctx}\n\n"
+                    f"Relevant knowledge base context:\n{rag_context}\n\n"
                     f"User question: {augmented}"
                 )
                 if bus:
@@ -444,12 +584,16 @@ class CliChat:
         tools_tokens = count_tokens(json.dumps(tools), self.claude.model) if tools else 0
         self.messages = self.context.trim(self.messages, tools_tokens)
         iterations = 0
+        tool_used = False
+        tool_events: list[str] = []
         while True:
             iterations += 1
             if iterations > self._max_tool_iterations:
                 if bus:
                     await bus.push_log("warn", f"Stopped after {self._max_tool_iterations} tool iterations.")
-                return f"[stopped] Maximum tool calls ({self._max_tool_iterations}) reached."
+                return await self._moderate_output(
+                    f"[stopped] Maximum tool calls ({self._max_tool_iterations}) reached.", bus,
+                )
 
             if bus:
                 await bus.push_log("info", f"Calling LLM (iteration {iterations})...")
@@ -481,10 +625,18 @@ class CliChat:
             if not tool_calls:
                 is_valid, err = self._validate_output(message.content or "")
                 if is_valid:
+                    final_answer = await self._finalize_output(
+                        message.content or "",
+                        user_input,
+                        rag_context,
+                        tool_used,
+                        "\n".join(tool_events),
+                        bus,
+                    )
                     if bus:
                         await bus.push_log("info", "Response complete.")
                         await bus.push_done()
-                    return message.content or ""
+                    return final_answer
 
                 logger.warning("output validation failed: %s", err)
                 _inc_validation_error()
@@ -503,13 +655,28 @@ class CliChat:
                     })
                     continue
 
+                final_answer = await self._finalize_output(
+                    message.content or "",
+                    user_input,
+                    rag_context,
+                    tool_used,
+                    "\n".join(tool_events),
+                    bus,
+                )
                 if bus:
                     await bus.push_log("warn", "Max correction attempts reached, returning raw output.")
                     await bus.push_done()
-                return message.content or ""
+                return final_answer
 
             if bus:
                 await bus.push_log("info", f"Executing {len(tool_calls)} tool(s)...")
+
+            tool_used = True
+            for tc in tool_calls:
+                fn = getattr(tc, "function", None)
+                name = getattr(fn, "name", None) or getattr(tc, "name", "") or "tool"
+                args = getattr(fn, "arguments", None) or ""
+                tool_events.append(f"{name}({args})" if args else name)
 
             tool_results = await self.tool_runner.execute_tool_calls(
                 tool_calls,

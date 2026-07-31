@@ -1,0 +1,11 @@
+name: rag
+description: Verifies answers are grounded in the knowledge base context when available.
+prompt: >-
+  Based on the knowledge base, what deployment modes does this project
+  support and which is recommended for production?
+min_score: 0.6
+expect_tool_use: false
+rubric:
+  - "Answer references the knowledge base context in its reasoning."
+  - "Answer names the supported deployment modes accurately."
+  - "Answer states a recommended mode for production."

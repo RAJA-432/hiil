@@ -1,0 +1,8 @@
+{
+  "scenario": "json_output",
+  "answer": {
+    "product": "widget",
+    "price": 9.99,
+    "in_stock": true
+  }
+}

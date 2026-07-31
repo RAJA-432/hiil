@@ -4,7 +4,7 @@ import json
 import math
 import struct
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from mcp_cli.services.logging import get_logger
 from mcp_cli.services.sqlite_store import SqliteStore, asyncify
@@ -107,6 +107,24 @@ class IVFIndex:
 
         candidates.sort(key=lambda x: x[0], reverse=True)
         return [k for _, k in candidates[:limit]]
+
+
+class VectorBackend(Protocol):
+    """Duck-type interface shared by all vector store backends."""
+
+    def index(self, namespace: str, key: str, text: str, embedding: list[float], metadata: dict | None = None) -> None: ...
+    def delete(self, namespace: str, key: str) -> bool: ...
+    def delete_namespace(self, namespace: str) -> int: ...
+    def list_keys(self, namespace: str) -> list[str]: ...
+    def search(self, query_embedding: list[float], namespace: str = "default", limit: int = 5, batch_size: int = _BATCH_SIZE) -> list[dict[str, Any]]: ...
+    def search_page(self, query_embedding: list[float], namespace: str = "default", offset: int = 0, limit: int = 20) -> list[dict[str, Any]]: ...
+    def count(self, namespace: str = "default") -> int: ...
+    def close(self) -> None: ...
+
+    async def async_list_keys(self, namespace: str) -> list[str]: ...
+    async def async_index(self, namespace: str, key: str, text: str, embedding: list[float], metadata: dict | None = None) -> None: ...
+    async def async_delete(self, namespace: str, key: str) -> bool: ...
+    async def async_search(self, query_embedding: list[float], namespace: str = "default", limit: int = 5, batch_size: int = _BATCH_SIZE) -> list[dict[str, Any]]: ...
 
 
 class VectorStore(SqliteStore):
@@ -269,3 +287,16 @@ class VectorStore(SqliteStore):
     @asyncify("search")
     async def async_search(self, query_embedding: list[float], namespace: str = "default", limit: int = 5, batch_size: int = _BATCH_SIZE) -> list[dict[str, Any]]:
         return []
+
+
+def create_vector_store(backend: str = "sqlite", db_path: str | None = None) -> VectorBackend:
+    """Construct a vector store backend, falling back to sqlite when faiss is unavailable."""
+    if backend == "faiss":
+        try:
+            from mcp_cli.services.vector_store_faiss import FaissVectorBackend
+        except ImportError:
+            pass
+        else:
+            if FaissVectorBackend.is_available():
+                return FaissVectorBackend(db_path=db_path)
+    return VectorStore(db_path=db_path)

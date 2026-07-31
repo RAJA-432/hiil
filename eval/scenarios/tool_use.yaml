@@ -1,0 +1,13 @@
+name: tool_use
+description: Requires calling a tool to answer, verifying tool orchestration.
+prompt: >-
+  Use the get_current_weather tool to fetch today's temperature in Tokyo and
+  report the value in your answer.
+min_score: 0.7
+expect_tool_use: true
+allowed_tools:
+  - get_current_weather
+rubric:
+  - "Assistant invokes the get_current_weather tool before answering."
+  - "Final answer cites the temperature returned by the tool."
+  - "Answer is grounded in the tool result, not hallucinated."

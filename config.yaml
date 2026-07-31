@@ -5,6 +5,11 @@ settings:
   api_key: ""
   base_url: "http://localhost:11434/v1"
   max_context_tokens: 200000  # auto-trim history when exceeded
+  enable_verification: false    # critique-pass answer verification (opt-in)
+  verifier_model: ""            # empty = use the main model for verification
+  enable_moderation: false      # input/output moderation filter (opt-in)
+  moderation_deny_list: []      # extra terms the moderation filter should block
+  vector_backend: "sqlite"      # vector store backend: "sqlite" or "faiss" (faiss requires the optional package)
 
 # Approved root directories for MCP filesystem access.
 roots:

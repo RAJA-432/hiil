@@ -4,7 +4,7 @@ import asyncio
 import os
 from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import AsyncExitStack
-from typing import Any
+from typing import Any, cast
 
 from mcp.shared.context import RequestContext
 from mcp.types import (
@@ -19,6 +19,7 @@ from mcp_cli.services.claude import LLMClient
 from mcp_cli.services.logging import get_logger
 from mcp_cli.services.roots import RootsManager
 from mcp_cli.services.server_manager import create_servers
+from mcp_cli.services.vector_store import VectorStore, create_vector_store
 
 logger = get_logger("factory")
 
@@ -98,7 +99,18 @@ async def create_chat(
         claude_service=claude,
         max_context_tokens=settings.max_context_tokens,
         roots_manager=roots_manager,
+        enable_verification=settings.enable_verification,
+        verifier_model=settings.verifier_model or None,
+        enable_moderation=settings.enable_moderation,
+        moderation_deny_list=list(settings.moderation_deny_list or []),
     )
+
+    if settings.vector_backend != "sqlite":
+        original = chat.vector_store
+        store = create_vector_store(settings.vector_backend)
+        chat.vector_store = store
+        chat.rag.vector_store = cast(VectorStore, store)
+        original.close()
 
     await chat.initialize()
     return chat
