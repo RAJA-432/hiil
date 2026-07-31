@@ -1,0 +1,62 @@
+name: 🐛 Bug report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in the details below.
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Which version or commit hash are you running?
+      placeholder: e.g. 292e10f or v0.2.0
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to trigger the bug.
+      placeholder: |
+        1. Go to ...
+        2. Click on ...
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, Node version, provider/model.
+      placeholder: |
+        - OS: Windows 11
+        - Python: 3.14
+        - Node: 22
+        - Model: gemma4:31b-cloud
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part is affected?
+      options:
+        - Backend (vajra_gate / mcp_cli)
+        - Frontend (canvas_app)
+        - MCP tools (veda_engine / setu_bridge)
+        - CLI
+        - Docker
+        - Other
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Any relevant logs, error output, or screenshots.

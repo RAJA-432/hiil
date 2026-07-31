@@ -143,3 +143,11 @@ Edit `config.yaml` for provider, model, MCP servers, root dirs. Env vars in `.en
 ## Built-in MCP Tools
 
 `read_text_resource`, `read_dir`, `search_resources`, `glob`, `grep` — workspace fileops (path-traversal guarded). `read_document`, `edit_document` — stored document CRUD. `web_search`, `web_fetch` — DuckDuckGo + SSRF-protected fetch. `summarize` — delegates to LLM. `list_roots` — approved root dirs.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for setup,
+branching, and commit conventions. This project follows the
+[Contributor Covenant](CODE_OF_CONDUCT.md). Report security issues via
+[SECURITY.md](SECURITY.md), and use the
+[issue templates](.github/ISSUE_TEMPLATE/) for bugs and feature requests.
