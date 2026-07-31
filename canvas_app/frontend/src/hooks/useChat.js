@@ -100,11 +100,11 @@ export function useChat(conversationId, onUndoPush) {
     if (!cid || !text.trim() || !mountedRef.current) return
     const msgId = `temp-${Date.now()}`
     const stream = runStream(text, images, msgId, overrideConvId)
-    try { await stream.done } catch {}
+    await stream.done.catch(() => {})
     if (mountedRef.current) {
       setStreaming(false)
       setStreamingText('')
-      try { await loadMessages(cid) } catch {}
+      await loadMessages(cid).catch(() => {})
     }
   }, [conversationId, loadMessages, runStream])
 
@@ -137,11 +137,11 @@ export function useChat(conversationId, onUndoPush) {
     }
     const msgId = `temp-${Date.now()}`
     const stream = runStream(newText, null, msgId)
-    try { await stream.done } catch {}
+    await stream.done.catch(() => {})
     if (mountedRef.current) {
       setStreaming(false)
       setStreamingText('')
-      try { await loadMessages() } catch {}
+      await loadMessages().catch(() => {})
     }
   }, [conversationId, messages, loadMessages, runStream, onUndoPush])
 

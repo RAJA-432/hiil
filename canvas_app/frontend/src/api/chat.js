@@ -1,7 +1,5 @@
-const USE_MOCK = (import.meta.env.VITE_USE_MOCK || 'false') === 'true'
-
-import { apiGet, apiStream, apiPost, apiDelete } from './client'
-import { getMockConversations, getMockMessages, addMockMessage, simulateStreamResponse } from './mock'
+import { apiGet, apiStream, apiPost } from './client'
+import { USE_MOCK, getMockConversations, getMockMessages, addMockMessage, addMockConversation, deleteMockConversation, getMockUsage, simulateStreamResponse } from './mocks'
 
 export function sendMessage(conversationId, message, images, onEvent, onError, signal) {
   if (USE_MOCK) {

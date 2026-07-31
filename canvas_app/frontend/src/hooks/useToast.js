@@ -13,9 +13,9 @@ export function useToast() {
   }, [])
 
   const add = useCallback((message, type = 'info', duration = 4000) => {
+    const id = ++toastId
     setToasts(prev => {
       if (prev.some(t => t.message === message && t.type === type)) return prev
-      const id = ++toastId
       timersRef.current[id] = setTimeout(() => remove(id), duration)
       return [...prev, { id, message, type }]
     })

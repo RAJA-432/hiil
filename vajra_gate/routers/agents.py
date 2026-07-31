@@ -1,11 +1,12 @@
 import asyncio
 import json
+from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from mcp_cli.services.agents import AgentConfig
-from mcp_cli.services.agents.interrupts import ResumeDecision
+from mcp_cli.services.agents.interrupts import DecisionType, ResumeDecision
 from mcp_cli.services.notification_bus import NotificationBus
 from vajra_gate.auth import get_current_user
 from vajra_gate.chat import _require_chat
@@ -117,7 +118,7 @@ async def resume_agent(request: Request, agent_id: str, body: ResumeRequest, use
     if not body.decisions:
         raise HTTPException(status_code=400, detail="At least one decision required")
 
-    decisions = [ResumeDecision(type=d.type, edited_action=d.edited_action, message=d.message) for d in body.decisions]
+    decisions = [ResumeDecision(type=cast(DecisionType, d.type), edited_action=d.edited_action, message=d.message) for d in body.decisions]
     result = await runner.resume(decisions)
     return result.model_dump()
 

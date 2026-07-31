@@ -11,7 +11,7 @@ import {
   addMockConversation,
   deleteMockConversation,
   simulateStreamResponse,
-} from '../api/mock'
+} from '../api/mocks'
 
 vi.mock('../api/chat', () => ({
   sendMessage: vi.fn(() => ({

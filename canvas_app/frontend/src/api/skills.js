@@ -1,6 +1,5 @@
-const USE_MOCK = (import.meta.env.VITE_USE_MOCK || 'false') === 'true'
-
 import { apiGet, apiPost } from './client'
+import { USE_MOCK } from './mocks'
 
 const MOCK_SKILLS = [
   {

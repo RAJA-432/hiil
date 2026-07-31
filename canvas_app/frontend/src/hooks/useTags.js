@@ -10,7 +10,7 @@ function loadTags() {
 }
 
 function saveTags(tags) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tags)) } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tags)) } catch { /* best-effort persistence */ }
 }
 
 export function useTags() {

@@ -63,10 +63,10 @@ async def status(request: Request, user: str = Depends(get_current_user)):
     chat = await _require_chat(request)
     s = chat.get_status()
     return StatusResponse(
-        session_id=s.get("session_id"),
+        session_id=s.get("session"),
         model=s.get("model"),
-        message_count=s.get("message_count", 0),
-        tool_count=s.get("tool_count", 0),
+        message_count=s.get("messages", 0),
+        tool_count=s.get("tools", 0),
     )
 
 

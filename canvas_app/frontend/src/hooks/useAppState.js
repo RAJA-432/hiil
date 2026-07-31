@@ -15,7 +15,7 @@ export function useAppState(initialModel) {
     loadFileTree()
       .then(() => setFileTreeError(null))
       .catch(err => { console.error('Failed to load file tree:', err); toastError('Failed to load file tree'); setFileTreeError(err.message || 'Failed to load file tree') })
-  }, [])
+  }, [loadFileTree, toastError])
 
   const handleSwitchModel = useCallback(async (modelId) => {
     try {

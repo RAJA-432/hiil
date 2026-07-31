@@ -9,10 +9,6 @@ export function useAgents() {
   const [agentRunning, setAgentRunning] = useState(false)
   const streamRef = useRef(null)
 
-  useEffect(() => {
-    loadAgents()
-  }, [])
-
   const loadAgents = useCallback(async () => {
     setLoading(true)
     try {
@@ -24,6 +20,8 @@ export function useAgents() {
       setLoading(false)
     }
   }, [])
+
+  useEffect(() => { loadAgents() }, [loadAgents])
 
   const handleCreateAgent = useCallback(async (config) => {
     const agent = await createAgent(config)
@@ -67,9 +65,7 @@ export function useAgents() {
       streamRef.current.cancel()
       streamRef.current = null
     }
-    try {
-      await stopAgent(agentId)
-    } catch { }
+    await stopAgent(agentId).catch(() => {})
     setAgentRunning(false)
     setAgents(prev => prev.map(a =>
       a.agent_id === agentId ? { ...a, status: 'idle' } : a

@@ -2,7 +2,7 @@ services:
   hiil:
     build: .
     ports:
-      - "7860:7860"
+      - "8000:8000"
     environment:
       - HIIL_WEBUI_USERNAME=${HIIL_WEBUI_USERNAME:-}
       - HIIL_WEBUI_PASSWORD=${HIIL_WEBUI_PASSWORD:-}

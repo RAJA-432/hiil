@@ -7,7 +7,6 @@ from mcp_cli.services.vector_store import VectorStore
 __all__ = [
     "CliChat",
     "LLMClient",
-    "Claude",
     "UsageTracker",
     "UsageRecord",
     "ChatHistoryManager",

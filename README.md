@@ -40,7 +40,7 @@ hiil/
 ├── setu_bridge/            # MCP client wrapper
 ├── config.yaml             # Provider, model, server, root config
 ├── setup.ps1               # One-command setup
-└── tests/                  # 84 tests (unit + shared fixtures)
+└── tests/                  # 86 tests (unit + shared fixtures)
 ```
 
 ## Testing
@@ -55,13 +55,19 @@ make format        # ruff format --check
 make format-fix    # ruff format
 make typecheck     # mypy static analysis
 make check         # lint + typecheck + test (CI pipeline)
+
+# Frontend
+cd canvas_app/frontend
+npx vitest run     # 21 tests
+npx eslint src/    # lint
+npx vite build     # production build
 ```
 
 ## Web UI Features
 
 ### Chat
 - **SSE streaming** with real-time token rendering and blinking cursor
-- **Multimodal input** — paste images from clipboard, drag-drop files, file picker
+- **Multimodal input** — paste images from clipboard, drag-drop files, file picker; vision models receive the image directly, non-vision models get OCR-extracted text
 - **Message actions** — copy, retry, edit (inline textarea + re-run), delete with undo
 - **Conversation search** — full-text search within active conversation (Ctrl+F)
 - **Inline charts** — detect pipe tables in messages → render SVG bar chart

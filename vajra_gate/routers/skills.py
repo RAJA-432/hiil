@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 
 import vajra_gate.state as _state
@@ -6,7 +8,7 @@ from vajra_gate.schemas.output_schemas import SKILL_OUTPUT_SCHEMAS
 
 router = APIRouter()
 
-SKILLS = [
+SKILLS: list[dict[str, Any]] = [
     {
         "id": "data-analyst",
         "name": "Data Analyst",

@@ -1,7 +1,5 @@
-const USE_MOCK = (import.meta.env.VITE_USE_MOCK || 'false') === 'true'
-
 import { apiGet, apiPost } from './client'
-import { getMockModels } from './mock'
+import { USE_MOCK, getMockModels } from './mocks'
 
 export async function listModels() {
   if (USE_MOCK) return getMockModels()

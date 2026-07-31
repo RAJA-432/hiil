@@ -40,7 +40,8 @@ py-modules = ["main"]
 packages = [
     "mcp_cli", "mcp_cli.ui", "mcp_cli.commands", "mcp_cli.services",
     "setu_bridge",
-    "vajra_gate",
+    "vajra_gate", "vajra_gate.middleware", "vajra_gate.routers", "vajra_gate.schemas",
+    "vajra_gate.services", "vajra_gate.tools",
     "veda_engine", "veda_engine.storage", "veda_engine.tools", "veda_engine.resources",
 
 ]

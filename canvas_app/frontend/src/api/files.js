@@ -1,7 +1,5 @@
-const USE_MOCK = (import.meta.env.VITE_USE_MOCK || 'false') === 'true'
-
 import { apiGet } from './client'
-import { getMockFileTree, getMockFileContent } from './mock'
+import { USE_MOCK, getMockFileTree, getMockFileContent } from './mocks'
 
 export async function readFile(path) {
   if (USE_MOCK) return { path, content: getMockFileContent(path), language: detectLanguage(path), size: getMockFileContent(path).length }
