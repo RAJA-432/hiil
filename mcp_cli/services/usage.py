@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from functools import lru_cache
 
 from mcp_cli.services.logging import get_logger
 from mcp_cli.services.sqlite_store import SqliteStore, asyncify
@@ -42,6 +43,28 @@ def _detect_family(model: str) -> str:
             return key
     return "gpt-4o"
 
+def _encoding_for_model(model: str) -> str:
+    m = model.lower()
+    if "gpt-4" in m or "gpt-3" in m:
+        return "cl100k_base"
+    if "text-embedding" in m:
+        return "cl100k_base"
+    if "davinci" in m or "curie" in m or "babbage" in m or "ada" in m:
+        return "p50k_base"
+    if "gpt-2" in m:
+        return "gpt2"
+    return "cl100k_base"
+
+@lru_cache(maxsize=1024)
+def _count_text_tokens(text: str, model: str) -> int:
+    try:
+        import tiktoken
+        encoding_name = _encoding_for_model(model)
+        enc = tiktoken.get_encoding(encoding_name)
+        return len(enc.encode(text))
+    except Exception:
+        return max(1, len(text) // 4)
+
 def count_tokens(text: str | list | dict, model: str = "gpt-4o") -> int:
     """Count tokens in text, content arrays, or dicts.
 
@@ -58,26 +81,8 @@ def count_tokens(text: str | list | dict, model: str = "gpt-4o") -> int:
                 total += count_tokens(str(item), model)
         return total
     if isinstance(text, dict):
-        return count_tokens(json.dumps(text), model)
-    try:
-        import tiktoken
-        encoding_name = _encoding_for_model(model)
-        enc = tiktoken.get_encoding(encoding_name)
-        return len(enc.encode(text))
-    except Exception:
-        return max(1, len(text) // 4)
-
-def _encoding_for_model(model: str) -> str:
-    m = model.lower()
-    if "gpt-4" in m or "gpt-3" in m:
-        return "cl100k_base"
-    if "text-embedding" in m:
-        return "cl100k_base"
-    if "davinci" in m or "curie" in m or "babbage" in m or "ada" in m:
-        return "p50k_base"
-    if "gpt-2" in m:
-        return "gpt2"
-    return "cl100k_base"
+        return count_tokens(json.dumps(text, sort_keys=True), model)
+    return _count_text_tokens(text, model)
 
 def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
     """Estimate the USD cost for a given model and token counts based on known pricing."""

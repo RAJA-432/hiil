@@ -30,26 +30,35 @@ class ContextManager:
         budget = self.max_context_tokens - tools_token_count
         if budget <= 0:
             return messages[-2:] if len(messages) > 2 else messages
-        if self.message_tokens(messages) <= budget:
+
+        counts = [count_tokens(m.get("content", ""), self.claude.model) for m in messages]
+        total_tokens = sum(counts)
+        if total_tokens <= budget:
             return messages
 
         self.compact_count += 1
         summary_text = f"[compacted #{self.compact_count}: msgs trimmed]"
         target = budget - count_tokens(summary_text, self.claude.model)
 
+        suffix = [0] * (len(messages) + 1)
+        for i in range(len(messages)):
+            suffix[i + 1] = suffix[i] + counts[len(messages) - 1 - i]
+
         lo, hi = 2, len(messages)
         best = 2
         while lo <= hi:
             mid = (lo + hi) // 2
-            if self.message_tokens(messages[-mid:]) <= target:
+            if suffix[mid] <= target:
                 best = mid
                 lo = mid + 1
             else:
                 hi = mid - 1
 
         trimmed = messages[-best:]
+        trimmed_counts = counts[len(messages) - best:]
+        total_tokens = sum(trimmed_counts)
 
-        total_tokens = self.message_tokens(trimmed)
+        truncated = False
         for _ in range(100):
             if total_tokens <= target:
                 break
@@ -64,13 +73,15 @@ class ContextManager:
             c = largest.get("content", "")
             if not c:
                 if len(trimmed) > 2:
+                    total_tokens -= trimmed_counts[0]
                     trimmed.pop(0)
-                    total_tokens = self.message_tokens(trimmed)
+                    trimmed_counts.pop(0)
                 break
             if isinstance(c, list):
                 if len(trimmed) > 2:
+                    total_tokens -= trimmed_counts[0]
                     trimmed.pop(0)
-                    total_tokens = self.message_tokens(trimmed)
+                    trimmed_counts.pop(0)
                 break
             c_json = json.dumps(c)
             c_tokens = count_tokens(c_json, self.claude.model)
@@ -81,23 +92,36 @@ class ContextManager:
             target_chars = max(1, int(target_tokens_c * char_ratio))
             if target_chars >= len(c):
                 break
-            truncated = c[:target_chars]
-            last_space = truncated.rfind(" ")
+            truncated = True
+            trunc_content = c[:target_chars]
+            last_space = trunc_content.rfind(" ")
             if last_space > 0:
-                truncated = truncated[:last_space]
-            largest["content"] = truncated
+                trunc_content = trunc_content[:last_space]
+            largest["content"] = trunc_content
             new_json = json.dumps(largest["content"])
             new_tokens = count_tokens(new_json, self.claude.model)
             total_tokens += new_tokens - c_tokens
+            for i, m in enumerate(trimmed):
+                if m is largest:
+                    trimmed_counts[i] = new_tokens
+                    break
 
         summary_text = f"[compacted #{self.compact_count}: kept {len(trimmed)} of {len(messages)} msgs]"
         result = trimmed
         result.insert(0, {"role": "system", "content": summary_text})
 
-        if self.message_tokens(result) > budget:
-            while len(result) > 2 and self.message_tokens(result) > budget:
+        if truncated:
+            cur_counts = [count_tokens(m.get("content", ""), self.claude.model) for m in result]
+        else:
+            cur_counts = [count_tokens(summary_text, self.claude.model)] + trimmed_counts
+        total_tokens = sum(cur_counts)
+
+        if total_tokens > budget:
+            while len(result) > 2 and total_tokens > budget:
+                total_tokens -= cur_counts[1]
                 result.pop(1)
-            if self.message_tokens(result) > budget:
+                cur_counts.pop(1)
+            if total_tokens > budget:
                 last = result[-1]
                 c = last.get("content", "")
                 if isinstance(c, str) and c:

@@ -11,11 +11,16 @@ export function useChat(conversationId, onUndoPush) {
   const cancelRef = useRef(null)
   const mountedRef = useRef(false)
   const streamRef = useRef(null)
+  const messagesRef = useRef(messages)
 
   useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false }
   }, [])
+
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   useEffect(() => {
     setRagChunks([])
@@ -59,7 +64,7 @@ export function useChat(conversationId, onUndoPush) {
             const copy = [...prev]
             const last = copy[copy.length - 1]
             if (last && last.role === 'assistant') {
-              last.tool_calls = [...toolCalls]
+              copy[copy.length - 1] = { ...last, tool_calls: [...toolCalls] }
             }
             return copy
           })
@@ -72,7 +77,7 @@ export function useChat(conversationId, onUndoPush) {
             const copy = [...prev]
             const last = copy[copy.length - 1]
             if (last && last.role === 'assistant') {
-              last.rag_chunks = [...chunks]
+              copy[copy.length - 1] = { ...last, rag_chunks: [...chunks] }
             }
             return copy
           })
@@ -120,10 +125,11 @@ export function useChat(conversationId, onUndoPush) {
 
   const editMessage = useCallback(async (msg, newText) => {
     if (!mountedRef.current || !conversationId) return
-    const msgIndex = messages.findIndex(m => m.id === msg.id)
+    const current = messagesRef.current
+    const msgIndex = current.findIndex(m => m.id === msg.id)
     if (msgIndex === -1) return
-    const snapshot = [...messages]
-    const msgsToKeep = messages.slice(0, msgIndex)
+    const snapshot = [...current]
+    const msgsToKeep = current.slice(0, msgIndex)
     setMessages(msgsToKeep)
     setRagChunks([])
     setActivityLogs([])
@@ -143,20 +149,22 @@ export function useChat(conversationId, onUndoPush) {
       setStreamingText('')
       await loadMessages().catch(() => {})
     }
-  }, [conversationId, messages, loadMessages, runStream, onUndoPush])
+  }, [conversationId, loadMessages, runStream, onUndoPush])
 
   const deleteMessage = useCallback((id) => {
-    const msg = messages.find(m => m.id === id)
-    setMessages(prev => prev.filter(m => m.id !== id))
-    if (onUndoPush && msg) {
-      onUndoPush({
-        type: 'delete-message',
-        message: 'Message deleted',
-        data: { id, message: msg, messages: [...messages] },
-        undo: (data) => { setMessages(data.messages) },
-      })
-    }
-  }, [messages, onUndoPush])
+    setMessages(prev => {
+      const msg = prev.find(m => m.id === id)
+      if (onUndoPush && msg) {
+        onUndoPush({
+          type: 'delete-message',
+          message: 'Message deleted',
+          data: { id, message: msg, messages: [...prev] },
+          undo: (data) => { setMessages(data.messages) },
+        })
+      }
+      return prev.filter(m => m.id !== id)
+    })
+  }, [onUndoPush])
 
   return { messages, streaming, streamingText, ragChunks, activityLogs, error, send, stop, loadMessages, setMessages, editMessage, deleteMessage }
 }

@@ -27,7 +27,7 @@ router = APIRouter()
 
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat_api(request: Request, body: ChatRequest, user: str = Depends(get_current_user)):
-    chat = await _require_chat(request)
+    chat = await _require_chat(request, session_id=body.session_id)
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
@@ -85,7 +85,7 @@ async def set_model(request: Request, body: ModelSetRequest, user: str = Depends
 
 @router.get("/api/usage", response_model=UsageResponse)
 async def get_usage(request: Request, session_id: str | None = None, user: str = Depends(get_current_user)):
-    chat = await _require_chat(request)
+    chat = await _require_chat(request, session_id=session_id)
     if session_id:
         session = await chat.usage.async_session_summary_for(session_id)
     else:

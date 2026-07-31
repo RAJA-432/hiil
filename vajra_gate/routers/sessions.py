@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 
+import vajra_gate.state as _state
 from vajra_gate.auth import get_current_user
 from vajra_gate.chat import _require_chat
 from vajra_gate.models import (
@@ -74,20 +75,25 @@ async def get_history(request: Request, session_id: str, user: str = Depends(get
 
 @router.post("/api/session/new", response_model=SessionNewResponse)
 async def new_session(request: Request, user: str = Depends(get_current_user)):
-    chat = await _require_chat(request)
-    sid = chat.new_session()
+    await _require_chat(request)
+    pool = _state._get_pool()
+    sid = await pool.new_session()
+    _state._chat = await pool.get(pool.active)
     return SessionNewResponse(session_id=sid)
 
 
 @router.post("/api/session/switch", response_model=SessionSwitchResponse)
 async def switch_session(request: Request, body: SessionSwitchRequest, user: str = Depends(get_current_user)):
-    chat = await _require_chat(request)
     sid = body.session_id
     if not sid:
         raise HTTPException(status_code=400, detail="session_id required")
+    chat = await _require_chat(request, session_id=sid)
     msgs = await chat.history.async_load_session(sid)
     chat.session_id = sid
     chat.messages = msgs
+    pool = _state._get_pool()
+    await pool.set_active(sid)
+    _state._chat = chat
     return SessionSwitchResponse(session_id=sid, messages=len(msgs))
 
 
@@ -111,4 +117,5 @@ async def delete_session(request: Request, body: SessionDeleteRequest, user: str
     if not sid:
         raise HTTPException(status_code=400, detail="session_id required")
     await chat.history.async_delete_session(sid)
+    await _state._get_pool().evict(sid)
     return SessionDeleteResponse(deleted=sid)

@@ -16,7 +16,7 @@ Security updates are provided for the latest release and the latest commit on
 Please **do not** open a public GitHub issue for security vulnerabilities.
 
 To report a vulnerability, email the maintainer at
-`RAJA-432 <[your-contact-email]>` with the subject
+`RAJA-432 <rajashekarreddythumu55@gmail.com>` with the subject
 `[hiil security] <short description>`.
 
 Please include:

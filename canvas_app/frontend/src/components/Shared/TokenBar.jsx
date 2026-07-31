@@ -1,14 +1,47 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchUsage } from '../../api/chat'
+
+const FETCH_DEBOUNCE_MS = 1500
 
 export default function TokenBar({ messages, maxTokens = 128000, sessionId }) {
   const [usage, setUsage] = useState(null)
+  const mountedRef = useRef(true)
+  const timerRef = useRef(null)
+  const activeSessionRef = useRef(null)
+  const skipDebounceRef = useRef(false)
 
   useEffect(() => {
-    let mounted = true
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (timerRef.current) clearTimeout(timerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
     setUsage(null)
-    fetchUsage(sessionId).then(u => { if (mounted) setUsage(u) }).catch(() => {})
-    return () => { mounted = false }
+    if (!sessionId) return
+    skipDebounceRef.current = true
+    activeSessionRef.current = sessionId
+    fetchUsage(sessionId).then(u => {
+      if (mountedRef.current && activeSessionRef.current === sessionId) setUsage(u)
+    }).catch(() => {})
+  }, [sessionId])
+
+  useEffect(() => {
+    if (!sessionId || !messages || messages.length === 0) return
+    if (skipDebounceRef.current) {
+      skipDebounceRef.current = false
+      return
+    }
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      if (!mountedRef.current || activeSessionRef.current !== sessionId) return
+      fetchUsage(sessionId).then(u => {
+        if (mountedRef.current && activeSessionRef.current === sessionId) setUsage(u)
+      }).catch(() => {})
+    }, FETCH_DEBOUNCE_MS)
   }, [sessionId, messages])
 
   const estimateTokens = (text) => Math.ceil((text || '').length / 4)

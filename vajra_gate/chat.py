@@ -13,19 +13,21 @@ async def _mcp_logging_callback(params: Any) -> None:
 
 
 async def _init_chat():
-    if _state._chat is not None:
-        return _state._chat
-    from contextlib import AsyncExitStack
-
-    from mcp_cli.services.factory import create_chat
-    _state._chat_stack = AsyncExitStack()
-    _state._chat = await create_chat(_state._chat_stack, logging_callback=_mcp_logging_callback)
+    pool = _state._get_pool()
+    if _state._chat is None:
+        await pool.init(logging_callback=_mcp_logging_callback)
+        _state._chat_stack = pool
+    _state._chat = await pool.get(pool.active)
     return _state._chat
 
 
-async def _require_chat(request):
+async def _require_chat(request, session_id: str | None = None):
     try:
-        return await _init_chat()
+        pool = _state._get_pool()
+        if session_id:
+            return await pool.get(session_id)
+        await _init_chat()
+        return _state._chat
     except Exception as exc:
         from fastapi import HTTPException
         raise HTTPException(status_code=500, detail=f"Chat init failed: {exc}")

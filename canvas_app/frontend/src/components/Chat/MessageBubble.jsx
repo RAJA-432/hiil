@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { memo, useState, useCallback, useRef, useEffect } from 'react'
 import KaryaCall from './KaryaCall'
 import MessageActions from './MessageActions'
 import MessageTimestamp from './MessageTimestamp'
@@ -6,7 +6,7 @@ import InlineChart from './InlineChart'
 import MarkdownRenderer from './MarkdownRenderer'
 import { sendFeedback } from '../../api/chat'
 
-export default function MessageBubble({ message, onOpenFile, onRetry, onDelete, onCopy, onEdit }) {
+function MessageBubble({ message, onOpenFile, onRetry, onDelete, onCopy, onEdit }) {
   const { role, content, tool_calls: toolCalls, timestamp, id } = message
   const [rating, setRating] = useState(0)
   const [editing, setEditing] = useState(false)
@@ -152,3 +152,5 @@ export default function MessageBubble({ message, onOpenFile, onRetry, onDelete, 
     </div>
   )
 }
+
+export default memo(MessageBubble)

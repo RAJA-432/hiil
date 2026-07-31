@@ -13,7 +13,7 @@ from mcp.types import (
     TextContent,
 )
 
-from mcp_cli.config import load_settings
+from mcp_cli.config import Settings, load_settings
 from mcp_cli.services.chat import CliChat
 from mcp_cli.services.claude import LLMClient
 from mcp_cli.services.logging import get_logger
@@ -64,10 +64,52 @@ def _build_sampling_callback(
     return _sample
 
 
-async def create_chat(
+class ChatBuilder:
+    """Builds isolated CliChat instances that reuse one set of MCP servers."""
+
+    def __init__(
+        self,
+        settings: Settings,
+        claude: LLMClient,
+        roots_manager: RootsManager,
+        doc_client: Any,
+        clients: dict[str, Any],
+    ) -> None:
+        self._settings = settings
+        self._claude = claude
+        self._roots_manager = roots_manager
+        self._doc_client = doc_client
+        self._clients = clients
+
+    async def create(self, session_id: str = "default") -> CliChat:
+        chat = CliChat(
+            doc_client=self._doc_client,
+            clients=self._clients,
+            claude_service=self._claude,
+            max_context_tokens=self._settings.max_context_tokens,
+            roots_manager=self._roots_manager,
+            enable_verification=self._settings.enable_verification,
+            verifier_model=self._settings.verifier_model or None,
+            enable_moderation=self._settings.enable_moderation,
+            moderation_deny_list=list(self._settings.moderation_deny_list or []),
+            session_id=session_id,
+        )
+
+        if self._settings.vector_backend != "sqlite":
+            original = chat.vector_store
+            store = create_vector_store(self._settings.vector_backend)
+            chat.vector_store = store
+            chat.rag.vector_store = cast(VectorStore, store)
+            original.close()
+
+        await chat.initialize()
+        return chat
+
+
+async def create_chat_factory(
     stack: AsyncExitStack,
     logging_callback: Callable[[Any], Awaitable[Any]] | None = None,
-) -> CliChat:
+) -> ChatBuilder:
     settings, servers = await asyncio.to_thread(load_settings)
 
     claude = LLMClient(
@@ -93,24 +135,18 @@ async def create_chat(
         logging_callback=cb,
     )
 
-    chat = CliChat(
+    return ChatBuilder(
+        settings=settings,
+        claude=claude,
+        roots_manager=roots_manager,
         doc_client=doc_client,
         clients=clients,
-        claude_service=claude,
-        max_context_tokens=settings.max_context_tokens,
-        roots_manager=roots_manager,
-        enable_verification=settings.enable_verification,
-        verifier_model=settings.verifier_model or None,
-        enable_moderation=settings.enable_moderation,
-        moderation_deny_list=list(settings.moderation_deny_list or []),
     )
 
-    if settings.vector_backend != "sqlite":
-        original = chat.vector_store
-        store = create_vector_store(settings.vector_backend)
-        chat.vector_store = store
-        chat.rag.vector_store = cast(VectorStore, store)
-        original.close()
 
-    await chat.initialize()
-    return chat
+async def create_chat(
+    stack: AsyncExitStack,
+    logging_callback: Callable[[Any], Awaitable[Any]] | None = None,
+) -> CliChat:
+    builder = await create_chat_factory(stack, logging_callback=logging_callback)
+    return await builder.create()
