@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel
 
 
-class OutputFormat(str, Enum):
+class OutputFormat(StrEnum):
     markdown = "markdown"
     json = "json"
     code = "code"

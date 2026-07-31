@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -408,7 +408,7 @@ class TestCompatibility:
 
     def test_iso8601_timestamp_format(self):
         """LLM-FMT-COM-004 — ISO 8601 timestamps are parseable."""  # noqa: E501
-        ts = datetime.now(timezone.utc).isoformat()
+        ts = datetime.now(UTC).isoformat()
         parsed = datetime.fromisoformat(ts)
         assert parsed.tzinfo is not None
 
