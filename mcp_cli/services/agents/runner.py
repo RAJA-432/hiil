@@ -74,6 +74,7 @@ class AgentRunner:
 
         self._messages: list[dict[str, Any]] = []
         self._tool_calls_made = 0
+        self._summarized_archive: list[dict[str, Any]] = []
 
         # Build the tool router from parent's tool registry
         self.tool_router = ToolRouter(
@@ -110,6 +111,11 @@ class AgentRunner:
     @property
     def messages(self) -> list[dict[str, Any]]:
         return self._messages
+
+    @property
+    def summarized_archive(self) -> list[dict[str, Any]]:
+        """Raw messages replaced by summarization, retained for auditing."""
+        return list(self._summarized_archive)
 
     @property
     def virtual_files(self) -> dict[str, str]:
@@ -275,7 +281,13 @@ class AgentRunner:
                     (m for m in self._middleware._middleware if isinstance(m, SummarizationMiddleware)),
                     None,
                 )
-            if summary_mw is not None and summary_mw.should_summarize(self._messages):
+            if summary_mw is not None:
+                token_threshold = summary_mw.token_threshold
+                if token_threshold <= 0 and self.config.token_budget > 0:
+                    token_threshold = int(self.config.token_budget * 0.85)
+                    summary_mw.token_threshold = token_threshold
+                total_tokens = self._state.total_tokens if token_threshold > 0 else None
+            if summary_mw is not None and summary_mw.should_summarize(self._messages, total_tokens=total_tokens):
                 summary_prompt = getattr(summary_mw, '_summary_prompt', 'Summarize the following conversation:')
                 summary_prompt_content = summary_prompt + "\n\n" + "\n".join(
                     f"{m.get('role', '?')}: {str(m.get('content', ''))[:200]}"
@@ -286,11 +298,17 @@ class AgentRunner:
                         [{"role": "user", "content": summary_prompt_content}],
                     )
                     summary_text = getattr(summary_msg, "content", "") or ""
+                    self._summarized_archive.extend(list(self._messages))
                     self._messages = summary_mw.build_summary_messages(
                         self._messages, summary_text,
                     )
+                    summary_mw.mark_summarized()
                     if self.bus:
-                        await self.bus.push_log("info", f"Context summarised ({len(summary_text)} chars)")
+                        await self.bus.push_log(
+                            "info",
+                            f"Context summarised ({len(summary_text)} chars, "
+                            f"{len(self._summarized_archive)} raw messages archived)",
+                        )
                 except Exception as exc:
                     if self.bus:
                         await self.bus.push_log("warn", f"Summarization failed: {exc}")

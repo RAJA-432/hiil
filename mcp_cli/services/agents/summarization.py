@@ -8,26 +8,43 @@ from mcp_cli.services.agents.models import register_middleware
 
 @register_middleware
 class SummarizationMiddleware(AgentMiddleware):
-    """Auto-compresses conversation history when the message count exceeds
-    a threshold.
+    """Auto-compresses conversation history when the message count or token
+    usage exceeds a threshold.
 
     Simulates deepagents' built-in ``SummarizationMiddleware``: when the
-    message list grows past ``max_messages`` the oldest messages are
+    message list grows past ``max_messages`` (or, when ``token_threshold``
+    is set, past that many cumulative tokens) the oldest messages are
     condensed into a single summary message, keeping recent turns intact.
 
     Unlike the deepagents version which fires at 85 % of the model's real
-    context window, this one uses a simple message-count threshold for
-    predictable behaviour and easy testing.
+    context window, the count trigger uses a simple message-count threshold
+    for predictable behaviour and easy testing. Token-based triggering is
+    available via ``token_threshold`` (``0`` = disabled), e.g. 85 % of the
+    configured ``AgentConfig.token_budget``.
     """
 
-    def __init__(self, max_messages: int = 30, summary_prompt: str = ""):
+    def __init__(
+        self,
+        max_messages: int = 30,
+        summary_prompt: str = "",
+        token_threshold: int = 0,
+    ):
         self._max_messages = max_messages
+        self._token_threshold = token_threshold
         self._summary_prompt = summary_prompt or (
             "Condense the following conversation into a concise summary "
             "that preserves all factual information, decisions, and "
             "user preferences. Omit greetings and pleasantries."
         )
         self._has_summarized = False
+
+    @property
+    def token_threshold(self) -> int:
+        return self._token_threshold
+
+    @token_threshold.setter
+    def token_threshold(self, value: int) -> None:
+        self._token_threshold = value
 
     # ------------------------------------------------------------------
     # Middleware API
@@ -37,9 +54,24 @@ class SummarizationMiddleware(AgentMiddleware):
         self._has_summarized = False
         return messages
 
-    def should_summarize(self, messages: list[dict[str, Any]]) -> bool:
+    def should_summarize(
+        self,
+        messages: list[dict[str, Any]],
+        total_tokens: int | None = None,
+    ) -> bool:
+        if self._has_summarized:
+            return False
         non_system = [m for m in messages if m.get("role") != "system"]
-        return len(non_system) > self._max_messages and not self._has_summarized
+        if len(non_system) > self._max_messages:
+            return True
+        return (
+            self._token_threshold > 0
+            and total_tokens is not None
+            and total_tokens > self._token_threshold
+        )
+
+    def mark_summarized(self) -> None:
+        self._has_summarized = True
 
     def build_summary_messages(
         self,
