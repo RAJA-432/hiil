@@ -44,13 +44,24 @@ class ChatHistoryManager(SqliteStore):
             )
             return [{"id": row[0], "role": row[1], "content": row[2] or "", "timestamp": row[3]} for row in cursor.fetchall()]
 
-    def list_sessions(self) -> list[str]:
-        """Return all session ids ordered by most recent activity."""
+    def list_sessions(self, limit: int | None = None, offset: int = 0) -> list[str]:
+        """Return session ids ordered by most recent activity, with optional pagination."""
         conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT session_id FROM messages GROUP BY session_id ORDER BY MAX(timestamp) DESC"
-        )
+        query = "SELECT session_id FROM messages GROUP BY session_id ORDER BY MAX(timestamp) DESC"
+        params: list[int] = []
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+            query += " OFFSET ?"
+            params.append(offset)
+        cursor = conn.execute(query, params)
         return [row[0] for row in cursor.fetchall()]
+
+    def count_sessions(self) -> int:
+        """Return the total number of sessions."""
+        conn = self._get_conn()
+        cursor = conn.execute("SELECT COUNT(DISTINCT session_id) FROM messages")
+        return cursor.fetchone()[0]
 
     def delete_session(self, session_id: str) -> None:
         """Delete all messages for a session."""
@@ -147,7 +158,11 @@ class ChatHistoryManager(SqliteStore):
         ...
 
     @asyncify("list_sessions")
-    async def async_list_sessions(self) -> list[str]:
+    async def async_list_sessions(self, limit: int | None = None, offset: int = 0) -> list[str]:
+        ...
+
+    @asyncify("count_sessions")
+    async def async_count_sessions(self) -> int:
         ...
 
     @asyncify("delete_session")

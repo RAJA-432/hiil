@@ -32,7 +32,7 @@ export default function Toolbar() {
   }, [checkHealth])
 
   return (
-    <>
+    <header role="banner">
       <div className="toolbar">
         <button className="toolbar-btn toolbar-hamburger" onClick={toggleSidebar} aria-label="Open navigation menu">
           ☰
@@ -82,6 +82,6 @@ export default function Toolbar() {
         <span className={`status-dot ${connected ? 'connected' : 'disconnected'}`} />
         <span>{connected ? 'Connected' : 'Disconnected'}</span>
       </div>
-    </>
+    </header>
   )
 }

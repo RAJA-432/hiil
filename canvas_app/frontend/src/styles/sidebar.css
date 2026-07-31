@@ -128,7 +128,7 @@
   background: var(--primary-dim);
   border: 1px solid var(--primary);
   border-radius: var(--radius-sm);
-  color: var(--primary);
+  color: #fff;
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;

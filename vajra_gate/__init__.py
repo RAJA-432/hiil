@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from vajra_gate.config import VAJRA_GATE_LOG_JSON, VAJRA_GATE_LOG_LEVEL
@@ -44,6 +45,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(AccessLogMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
@@ -76,6 +78,19 @@ app.include_router(sessions_router)
 app.include_router(skills_router)
 app.include_router(files_router)
 app.include_router(misc_router)
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+
+class CacheControlMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response: Response = await call_next(request)
+        if request.url.path.startswith("/canvas/assets/") and "immutable" not in response.headers.get("Cache-Control", ""):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return response
+
+app.add_middleware(CacheControlMiddleware)
 
 CANVAS_DIST = os.path.join(os.path.dirname(__file__), "..", "canvas_app", "frontend", "dist")
 if os.path.isdir(CANVAS_DIST):

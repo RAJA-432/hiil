@@ -137,7 +137,7 @@ async def create_servers(
             timeout=_CONNECT_TIMEOUT,
         )
     except Exception as exc:
-        logger.warning("doc server: %s", _exc_message(exc))
+        logger.debug("doc server: %s", _exc_message(exc))
         doc_client = None
 
     other_cfgs = [s for s in servers_config if s.script != "mcp_server"]

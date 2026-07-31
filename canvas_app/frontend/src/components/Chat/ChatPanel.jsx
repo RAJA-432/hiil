@@ -66,7 +66,7 @@ export default function ChatPanel({ onOpenFile, onCopy }) {
   const hasTransparency = (ragChunks && ragChunks.length > 0) || (activityLogs && activityLogs.length > 0)
 
   return (
-    <div className="chat-panel">
+    <main role="main" id="main-content" className="chat-panel">
       <SystemPromptBar activeSkill={activeSkill} />
       <div className="chat-panel-header">
         <TokenBar messages={messages} />
@@ -157,6 +157,6 @@ export default function ChatPanel({ onOpenFile, onCopy }) {
       </div>
 
       <ScrollToBottom containerRef={messagesRef} />
-    </div>
+    </main>
   )
 }

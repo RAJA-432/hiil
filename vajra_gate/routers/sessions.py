@@ -42,9 +42,15 @@ async def list_sessions(request: Request, user: str = Depends(get_current_user))
 
 
 @router.get("/api/conversations", response_model=ConversationListResponse)
-async def list_conversations(request: Request, user: str = Depends(get_current_user)):
+async def list_conversations(
+    request: Request,
+    limit: int = 50,
+    offset: int = 0,
+    user: str = Depends(get_current_user),
+):
     chat = await _require_chat(request)
-    sids = await chat.history.async_list_sessions()
+    total = await chat.history.async_count_sessions()
+    sids = await chat.history.async_list_sessions(limit=limit, offset=offset)
     convs = []
     for sid in sids:
         created = _parse_session_ts(sid)
@@ -59,7 +65,7 @@ async def list_conversations(request: Request, user: str = Depends(get_current_u
             message_count=len(msgs),
         ))
     convs.sort(key=lambda c: c.created, reverse=True)
-    return ConversationListResponse(conversations=convs)
+    return ConversationListResponse(conversations=convs, total=total)
 
 
 @router.get("/api/history/{session_id}", response_model=HistoryResponse)

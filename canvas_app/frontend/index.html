@@ -5,9 +5,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>hiil</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>△</text></svg>" />
+    <link rel="manifest" href="/canvas/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="hiil — private AI assistant running local LLMs on your desktop." />
+    <meta name="theme-color" content="#0d0d0d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f5f5" media="(prefers-color-scheme: light)" />
+    <meta property="og:title" content="hiil" />
+    <meta property="og:description" content="Private AI assistant. Local LLMs. Your data stays on your machine." />
+    <meta property="og:type" content="website" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script>
+      window.__HTML_ERROR_FALLBACK = function() {
+        document.getElementById('root').innerHTML =
+          '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;flex-direction:column;gap:12px;padding:20px;text-align:center;background:#0d0d0d;color:#e0e0e0">' +
+          '<h2 style="font-size:18px;margin:0">Something went wrong</h2>' +
+          '<p style="font-size:14px;color:#888;margin:0">hiil encountered an error during startup.</p>' +
+          '<button onclick="location.reload()" style="padding:8px 20px;border-radius:6px;border:1px solid #333;background:#1a1a1a;color:#e0e0e0;cursor:pointer;font-size:14px">Reload</button>' +
+          '</div>';
+      };
+      window.addEventListener('error', window.__HTML_ERROR_FALLBACK);
+      window.addEventListener('unhandledrejection', window.__HTML_ERROR_FALLBACK);
+    </script>
+    <script>
+      (function() {
+        var theme = localStorage.getItem('theme');
+        if (theme === 'light') document.documentElement.classList.add('light');
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <noscript>
+        <div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;padding:20px;text-align:center">
+          <p>hiil requires JavaScript to run. Please enable JavaScript in your browser settings.</p>
+        </div>
+      </noscript>
+      <div id="splash" style="display:flex;align-items:center;justify-content:center;height:100vh;background:var(--bg,#0d0d0d);color:var(--text,#e0e0e0);font-family:system-ui,sans-serif;flex-direction:column;gap:16px">
+        <div class="splash-spinner" style="width:32px;height:32px;border:3px solid var(--border,#222);border-top-color:var(--primary,#4a9eff);border-radius:50%;animation:spin .8s linear infinite"></div>
+        <span style="font-size:14px;color:var(--text-muted,#666)">Loading hiil…</span>
+      </div>
+    </div>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -117,6 +117,8 @@ export default function Composer({ streaming, onSend, onStop, onInsertTemplate, 
   return (
     <div
       className={`composer ${dragging ? 'composer-dragging' : ''}`}
+      role="form"
+      aria-label="Message composer"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

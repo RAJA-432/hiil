@@ -187,6 +187,7 @@ class ConversationItem(BaseModel):
 
 class ConversationListResponse(BaseModel):
     conversations: list[ConversationItem]
+    total: int
 
 
 class HistoryResponse(BaseModel):

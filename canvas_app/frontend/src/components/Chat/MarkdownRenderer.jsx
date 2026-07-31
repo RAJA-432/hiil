@@ -1,7 +1,4 @@
-import { useCallback } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import rehypeRaw from 'rehype-raw'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { replaceEmojiShortcodes } from '../../utils/emoji'
 
 const _ALLOWED_URI_SCHEMES = new Set(['http', 'https', 'mailto', 'file'])
@@ -74,12 +71,29 @@ function Table({ children }) {
 }
 
 export default function MarkdownRenderer({ content }) {
+  const [MD, setMD] = useState(null)
+  const [plugins, setPlugins] = useState(null)
   const processed = replaceEmojiShortcodes(content || '')
 
+  useEffect(() => {
+    Promise.all([
+      import('react-markdown'),
+      import('remark-gfm'),
+      import('rehype-raw'),
+    ]).then(([md, gfm, raw]) => {
+      setMD(() => md.default)
+      setPlugins({ remarkGfm: gfm.default, rehypeRaw: raw.default })
+    })
+  }, [])
+
+  if (!MD || !plugins) {
+    return <Fragment>{processed}</Fragment>
+  }
+
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeRaw]}
+    <MD
+      remarkPlugins={[plugins.remarkGfm]}
+      rehypePlugins={[plugins.rehypeRaw]}
       components={{
         code({ node, inline, className, children, ...props }) {
           if (!inline) {
@@ -94,6 +108,6 @@ export default function MarkdownRenderer({ content }) {
       }}
     >
       {processed}
-    </ReactMarkdown>
+    </MD>
   )
 }

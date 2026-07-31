@@ -27,7 +27,7 @@ export default function PreviewPanel({ filePath, content, language, loading, onC
   const renderer = detectRenderer(language, filePath)
 
   return (
-    <div className="preview-panel">
+    <div className="preview-panel" role="complementary" aria-label="File preview">
       <div className="preview-header">
         <div className="preview-header-title">
           <span>{fileName}</span>

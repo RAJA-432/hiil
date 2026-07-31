@@ -1,8 +1,10 @@
-@import './base.css';
-@import './toolbar.css';
-@import './sidebar.css';
-@import './chat.css';
-@import './composer.css';
-@import './preview.css';
-@import './skills.css';
-@import './shared.css';
+@layer reset, base, components, utilities;
+
+@import './base.css' layer(base);
+@import './toolbar.css' layer(components);
+@import './sidebar.css' layer(components);
+@import './chat.css' layer(components);
+@import './composer.css' layer(components);
+@import './preview.css' layer(components);
+@import './skills.css' layer(components);
+@import './shared.css' layer(components);

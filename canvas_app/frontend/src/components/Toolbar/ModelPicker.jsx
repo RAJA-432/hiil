@@ -2,6 +2,7 @@ export default function ModelPicker({ models, activeModel, onSwitch, loading }) 
   return (
     <div className="model-picker">
       <select
+        aria-label="Select model"
         value={activeModel}
         onChange={(e) => onSwitch(e.target.value)}
         disabled={loading}
