@@ -121,7 +121,7 @@ async def create_servers(
     Returns ``(doc_client, clients)``.
     """
     transport = transport or _DEFAULT_TRANSPORT
-    _CONNECT_TIMEOUT = 30
+    _connect_timeout = 30
 
     try:
         doc_client = await asyncio.wait_for(
@@ -134,7 +134,7 @@ async def create_servers(
                     logging_callback=logging_callback,
                 )
             ),
-            timeout=_CONNECT_TIMEOUT,
+            timeout=_connect_timeout,
         )
     except Exception as exc:
         logger.debug("doc server: %s", _exc_message(exc))
@@ -157,7 +157,7 @@ async def create_servers(
                         logging_callback=logging_callback,
                     )
                 ),
-                timeout=_CONNECT_TIMEOUT,
+                timeout=_connect_timeout,
             )
             return s_cfg.id, client
         except Exception as exc:

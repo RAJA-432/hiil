@@ -189,9 +189,6 @@ async def delete_cron(job_id: str, user: str = Depends(get_current_user)):
 # ---------------------------------------------------------------------------
 
 
-_FAKE_TOOL_RESULTS: dict[str, str] = {}
-
-
 @router.get("/mcp/tools")
 async def mcp_list_tools():
     return {

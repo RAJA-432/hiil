@@ -1,103 +1,106 @@
 import logging
-import mimetypes
 import os
-from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import PlainTextResponse, Response
 
 from vajra_gate.config import WORKSPACE_DIR
-from vajra_gate.models import FileItem
+from vajra_gate.models import (
+    FileCreateDirRequest,
+    FileDeleteRequest,
+    FileItem,
+    FileOperationResponse,
+    FileRenameRequest,
+    FileWriteRequest,
+)
+from vajra_gate.services.filesystem import FileSystem
 
 logger = logging.getLogger("vajra_gate")
 
 router = APIRouter()
 
-
-def _safe_resolve(path: str) -> str:
-    resolved = os.path.realpath(os.path.join(WORKSPACE_DIR, path))
-    if not resolved.startswith(os.path.realpath(WORKSPACE_DIR)):
-        raise HTTPException(status_code=403, detail="Path traversal denied")
-    return resolved
+fs = FileSystem(WORKSPACE_DIR)
 
 
-def _rel_path(safe_path: str) -> str:
-    return os.path.relpath(safe_path, WORKSPACE_DIR).replace(os.sep, "/")
+def _to_fileitem(data: dict) -> FileItem:
+    return FileItem(
+        name=data["name"],
+        type=data["type"],
+        path=data["path"],
+        size=data.get("size", 0),
+        children=[_to_fileitem(c) for c in data["children"]] if data.get("children") else None,
+    )
 
 
-def _build_tree(safe_path: str, max_depth: int = 5, depth: int = 0) -> FileItem:
-    name = os.path.basename(safe_path) or safe_path
-    if not os.path.isdir(safe_path):
-        stat = os.stat(safe_path)
-        return FileItem(name=name, type="file", path=_rel_path(safe_path), size=stat.st_size)
-    if depth >= max_depth:
-        return FileItem(name=name, type="dir", path=_rel_path(safe_path), children=[])
+def _handle_fs_error(func):
     try:
-        entries = sorted(os.listdir(safe_path), key=lambda x: (not os.path.isdir(os.path.join(safe_path, x)), x.lower()))
+        return func()
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except PermissionError:
-        return FileItem(name=name, type="dir", path=_rel_path(safe_path), children=[])
-    children = []
-    for entry in entries:
-        full = os.path.join(safe_path, entry)
-        child = _build_tree(full, max_depth, depth + 1)
-        children.append(child)
-    return FileItem(name=name, type="dir", path=_rel_path(safe_path), children=children)
+        raise HTTPException(status_code=403, detail="Permission denied")
+    except IsADirectoryError:
+        raise HTTPException(status_code=400, detail="Is a directory")
+    except OSError as e:
+        logger.exception("Filesystem error")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        logger.exception("Internal error")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/api/files/{path:path}")
 async def read_file(path: str):
-    safe_path = _safe_resolve(path)
-    if not os.path.isfile(safe_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    try:
-        stat = os.stat(safe_path)
-        mime_type, _ = mimetypes.guess_type(safe_path)
-        if mime_type and not mime_type.startswith("text/"):
-            with open(safe_path, "rb") as f:
-                raw_bytes = f.read()
-            return Response(
-                content=raw_bytes,
-                media_type=mime_type or "application/octet-stream",
-                headers={
-                    "X-File-Path": path,
-                    "X-File-Size": str(stat.st_size),
-                    "X-File-MTime": str(datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()),
-                },
-            )
-        with open(safe_path, encoding="utf-8", errors="replace") as f:
-            raw_text = f.read()
-        return PlainTextResponse(
-            raw_text,
-            headers={
-                "X-File-Path": path,
-                "X-File-Size": str(stat.st_size),
-                "X-File-MTime": str(datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()),
-            },
-        )
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Permission denied")
+    def _read():
+        content, media_type, headers = fs.read_file(path)
+        if isinstance(content, bytes):
+            return Response(content=content, media_type=media_type or "application/octet-stream", headers=headers)
+        return PlainTextResponse(content, headers=headers)
+    return _handle_fs_error(_read)
 
 
 @router.get("/api/list", response_model=FileItem)
 async def list_directory(dir: str = Query(".", description="Directory path"), recursive: bool = Query(False, description="Return full recursive tree")):
-    safe_path = _safe_resolve(dir)
-    if not os.path.isdir(safe_path):
-        raise HTTPException(status_code=404, detail="Directory not found")
-    try:
+    def _list():
         if recursive:
-            return _build_tree(safe_path, max_depth=10)
-        entries = sorted(os.listdir(safe_path), key=lambda x: (not os.path.isdir(os.path.join(safe_path, x)), x.lower()))
-        items = []
-        for name in entries:
-            full = os.path.join(safe_path, name)
-            stat = os.stat(full)
-            is_dir = os.path.isdir(full)
-            items.append(FileItem(
-                name=name,
-                type="dir" if is_dir else "file",
-                path=_rel_path(full),
-                size=0 if is_dir else stat.st_size,
-            ))
-        return FileItem(name=os.path.basename(safe_path) or dir, type="dir", path=_rel_path(safe_path), children=items)
-    except PermissionError:
-        raise HTTPException(status_code=403, detail="Permission denied")
+            data = fs.build_tree(dir, max_depth=10)
+            if data is None:
+                raise HTTPException(status_code=404, detail="Directory not found or ignored")
+            return _to_fileitem(data)
+        items = fs.list_dir(dir)
+        safe = fs.resolve(dir)
+        name = os.path.basename(safe) or dir
+        return FileItem(name=name, type="dir", path=fs.relpath(safe), children=[_to_fileitem(i) for i in items])
+    return _handle_fs_error(_list)
+
+
+@router.put("/api/files", response_model=FileOperationResponse)
+async def write_file(req: FileWriteRequest):
+    def _write():
+        path = fs.write_file(req.path, req.content)
+        return FileOperationResponse(success=True, path=path, message="File written")
+    return _handle_fs_error(_write)
+
+
+@router.post("/api/dirs", response_model=FileOperationResponse)
+async def create_directory(req: FileCreateDirRequest):
+    def _mkdir():
+        path = fs.create_dir(req.path)
+        return FileOperationResponse(success=True, path=path, message="Directory created")
+    return _handle_fs_error(_mkdir)
+
+
+@router.delete("/api/files", response_model=FileOperationResponse)
+async def delete_file(req: FileDeleteRequest):
+    def _delete():
+        path = fs.delete(req.path)
+        return FileOperationResponse(success=True, path=path, message="Deleted")
+    return _handle_fs_error(_delete)
+
+
+@router.post("/api/files/rename", response_model=FileOperationResponse)
+async def rename_file(req: FileRenameRequest):
+    def _rename():
+        new_path, old_path = fs.rename(req.path, req.new_path)
+        return FileOperationResponse(success=True, path=new_path, message=f"Renamed from {old_path}")
+    return _handle_fs_error(_rename)

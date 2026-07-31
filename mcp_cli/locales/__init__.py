@@ -39,12 +39,12 @@ def register(locale: Locale) -> None:
 
 def set_lang(lang: str) -> str | None:
     global _current
-    l = _locales.get(lang)
-    if l is None:
+    loc = _locales.get(lang)
+    if loc is None:
         return None
-    _current = l
+    _current = loc
     save_lang_pref(lang)
-    return l.label
+    return loc.label
 
 
 def get() -> Locale:
@@ -61,10 +61,10 @@ def available() -> list[str]:
 
 
 def available_labels() -> list[str]:
-    return [l.label for l in _locales.values()]
+    return [loc.label for loc in _locales.values()]
 
 
-from mcp_cli.locales.en import ENGLISH
+from mcp_cli.locales.en import ENGLISH  # noqa: E402
 
 register(ENGLISH)
 

@@ -9,7 +9,14 @@ _START_TIME = time.time()
 _counts: dict[tuple[str, str, str], int] = defaultdict(int)  # (method, path, status)
 _chat_total: int = 0
 _agent_runs: int = 0
+_validation_errors_total: int = 0
 _lock = Lock()
+
+
+def inc_validation_error(skill_id: str = "unknown") -> None:
+    global _validation_errors_total
+    with _lock:
+        _validation_errors_total += 1
 
 
 def inc_request(method: str, path: str, status: int) -> None:
@@ -53,6 +60,10 @@ def generate() -> str:
         "# HELP hiil_agent_runs_total Total agent runs",
         "# TYPE hiil_agent_runs_total counter",
         f"hiil_agent_runs_total {_agent_runs}",
+        "",
+        "# HELP hiil_validation_errors_total Total LLM outputs that failed schema validation",
+        "# TYPE hiil_validation_errors_total counter",
+        f"hiil_validation_errors_total {_validation_errors_total}",
         "",
     ]
     return "\n".join(lines) + "\n"

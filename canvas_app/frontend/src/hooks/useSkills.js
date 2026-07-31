@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { listSkills, activateSkill } from '../api/skills'
+import { listSkills, activateSkill, getOutputSchema } from '../api/skills'
 
 const ICON_MAP = {
   chart: '📊',
@@ -47,6 +47,9 @@ export function useSkills() {
         const found = skills.find(s => s.id === skillId)
         if (found) setActiveSkill(found)
       }
+      getOutputSchema(skillId).then(schema => {
+        if (schema) console.log(`[output-schema] ${skillId}:`, schema)
+      }).catch(err => console.warn('Failed to fetch output schema:', err))
     } catch (err) {
       console.error('Failed to activate skill:', err)
       throw err

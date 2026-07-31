@@ -4,9 +4,11 @@ import MessageActions from './MessageActions'
 import MessageTimestamp from './MessageTimestamp'
 import InlineChart from './InlineChart'
 import MarkdownRenderer from './MarkdownRenderer'
+import { sendFeedback } from '../../api/chat'
 
 export default function MessageBubble({ message, onOpenFile, onRetry, onDelete, onCopy, onEdit }) {
-  const { role, content, tool_calls: toolCalls, timestamp } = message
+  const { role, content, tool_calls: toolCalls, timestamp, id } = message
+  const [rating, setRating] = useState(0)
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState(content || '')
   const editRef = useRef(null)
@@ -35,6 +37,13 @@ export default function MessageBubble({ message, onOpenFile, onRetry, onDelete, 
       }).catch(() => {})
     }
   }, [onOpenFile])
+
+  const handleFeedback = useCallback((value) => {
+    const next = rating === value ? 0 : value
+    setRating(next)
+    const sessionId = id || 'default'
+    sendFeedback(sessionId, next, { message_id: sessionId, was_helpful: next === 1 })
+  }, [rating, id])
 
   const handleStartEdit = useCallback(() => {
     setEditValue(content || '')
@@ -100,6 +109,30 @@ export default function MessageBubble({ message, onOpenFile, onRetry, onDelete, 
 
       <div className="message-meta">
         <MessageTimestamp timestamp={timestamp} />
+        {role === 'assistant' && (
+          <div className="feedback-buttons">
+            <button
+              className={`feedback-btn ${rating === 1 ? 'feedback-active' : ''}`}
+              onClick={() => handleFeedback(1)}
+              aria-label="Like this response"
+              title="Helpful"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={rating === 1 ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+              </svg>
+            </button>
+            <button
+              className={`feedback-btn ${rating === -1 ? 'feedback-active' : ''}`}
+              onClick={() => handleFeedback(-1)}
+              aria-label="Dislike this response"
+              title="Not helpful"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill={rating === -1 ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+              </svg>
+            </button>
+          </div>
+        )}
         <MessageActions
           message={message}
           onRetry={onRetry}

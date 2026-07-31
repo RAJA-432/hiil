@@ -1,9 +1,9 @@
-from __future__ import annotations
-
 """
 A2A (Agent-to-Agent) — simple protocol for agents to discover and
 communicate with each other via an in-memory message bus.
 """
+
+from __future__ import annotations
 
 import time
 import uuid

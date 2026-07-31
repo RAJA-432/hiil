@@ -14,8 +14,6 @@
     <meta property="og:title" content="hiil" />
     <meta property="og:description" content="Private AI assistant. Local LLMs. Your data stays on your machine." />
     <meta property="og:type" content="website" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <script>
       window.__HTML_ERROR_FALLBACK = function() {
         document.getElementById('root').innerHTML =
@@ -34,6 +32,22 @@
         if (theme === 'light') document.documentElement.classList.add('light');
       })();
     </script>
+    <script type="application/webmcp+json">
+      {
+        "version": "1.0",
+        "forms": [
+          {
+            "name": "message-composer",
+            "description": "Compose and send messages to the AI assistant",
+            "fields": [
+              { "name": "message-input", "label": "Message", "type": "text", "required": true },
+              { "name": "send-button", "label": "Send message", "type": "button" }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="preload" href="/src/styles/index.css" as="style" />
   </head>
   <body>
     <div id="root">

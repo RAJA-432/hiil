@@ -119,6 +119,9 @@ export default function Composer({ streaming, onSend, onStop, onInsertTemplate, 
       className={`composer ${dragging ? 'composer-dragging' : ''}`}
       role="form"
       aria-label="Message composer"
+      data-webmcp-form="message-composer"
+      data-webmcp-form-version="1.0"
+      data-webmcp-form-description="Compose and send messages to the AI assistant"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -161,6 +164,9 @@ export default function Composer({ streaming, onSend, onStop, onInsertTemplate, 
         onPaste={handlePaste}
         placeholder={streaming ? 'Generating...' : 'Ask anything... (Shift+Enter for new line, paste images)'}
         aria-label="Message input"
+        data-webmcp-field="message-input"
+        data-webmcp-field-label="Message"
+        data-webmcp-field-type="text"
         rows={1}
         disabled={streaming}
       />
@@ -181,6 +187,9 @@ export default function Composer({ streaming, onSend, onStop, onInsertTemplate, 
           onClick={handleSend}
           disabled={!hasContent}
           aria-label="Send message"
+          data-webmcp-field="send-button"
+          data-webmcp-field-label="Send message"
+          data-webmcp-field-type="button"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="22" y1="2" x2="11" y2="13" />

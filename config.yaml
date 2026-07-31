@@ -37,6 +37,11 @@ servers:
     args: []
     env: {}
 
+  - id: "refiner"
+    script: "vajra_gate.tools.refiner"
+    args: []
+    env: {}
+
   # Web UI authentication: set HIIL_WEBUI_USERNAME and HIIL_WEBUI_PASSWORD env vars
   # API keys: use `hiil key set <provider> <key>` or MODEL_API_KEY env var instead of plaintext below
   # pdf-server uses HTTP/SSE transport (not stdio) — skipped for now

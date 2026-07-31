@@ -61,6 +61,7 @@ class LLMClient:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         max_tokens: int | None = 8192,
+        response_format: dict[str, Any] | None = None,
     ):
         """Stream a chat completion, yielding content chunks and tool calls."""
         kwargs: dict[str, Any] = {
@@ -73,6 +74,8 @@ class LLMClient:
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
+        if response_format:
+            kwargs["response_format"] = response_format
 
         response = await self._client.chat.completions.create(**kwargs)
 
@@ -126,12 +129,15 @@ class LLMClient:
         self,
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> Any:
         """
         Send a chat completion request.
 
         `messages` is a list of OpenAI-style message dicts.
         `tools` is an optional list of OpenAI-style function-tool dicts.
+        `response_format` is an optional dict (e.g. ``{"type": "json_object"}``
+        or ``{"type": "json_schema", "json_schema": {...}}``).
 
         Returns an OpenAI `ChatCompletionMessage` (with `.content` and
         `.tool_calls`). Some OpenAI-compatible proxies return a plain string
@@ -145,6 +151,8 @@ class LLMClient:
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
+        if response_format:
+            kwargs["response_format"] = response_format
 
         response = await self._client.chat.completions.create(**kwargs)
 
@@ -204,13 +212,26 @@ class LLMClient:
         """Return the current provider and model as a dict."""
         return {"provider": self.provider, "model": self.model}
 
-    def system_prompt(self) -> str:
-        """Generate the system prompt including current provider and model."""
-        return (
+    def system_prompt(self, format_instructions: str | None = None) -> str:
+        """Generate the system prompt including current provider and model.
+
+        ``format_instructions`` is an optional block of output-format
+        guidance appended to the base prompt (e.g. schema rules,
+        required structure, style constraints).  When provided the LLM
+        is told to follow it before the generic instruction.
+        """
+        base = (
             f"You are an AI assistant with access to MCP tools. "
-            f"Current provider: {self.provider}. Current model: {self.model}. "
-            f"Respond helpfully and use tools when appropriate."
+            f"Current provider: {self.provider}. Current model: {self.model}."
         )
+        if format_instructions:
+            return (
+                f"{base}\n\n"
+                f"## Output Format Requirements\n"
+                f"{format_instructions}\n\n"
+                f"Respond helpfully and use tools when appropriate."
+            )
+        return f"{base} Respond helpfully and use tools when appropriate."
 
     def _api_path(self, path: str) -> str:
         if self.provider == "ollama":

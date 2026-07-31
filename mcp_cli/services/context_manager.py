@@ -20,8 +20,11 @@ class ContextManager:
         self.compact_count = 0
 
     def message_tokens(self, messages: list[dict[str, Any]]) -> int:
-        text = json.dumps(messages)
-        return count_tokens(text, self.claude.model)
+        total = 0
+        for msg in messages:
+            content = msg.get("content", "")
+            total += count_tokens(content, self.claude.model)
+        return total
 
     def trim(self, messages: list[dict[str, Any]], tools_token_count: int = 0) -> list[dict[str, Any]]:
         budget = self.max_context_tokens - tools_token_count
@@ -57,9 +60,14 @@ class ContextManager:
             ]
             if not candidates:
                 candidates = trimmed
-            largest = max(candidates, key=lambda m: len(m.get("content", "")))
+            largest = max(candidates, key=lambda m: len(m.get("content", "")) if isinstance(m.get("content", ""), str) else len(json.dumps(m.get("content", ""))))
             c = largest.get("content", "")
             if not c:
+                if len(trimmed) > 2:
+                    trimmed.pop(0)
+                    total_tokens = self.message_tokens(trimmed)
+                break
+            if isinstance(c, list):
                 if len(trimmed) > 2:
                     trimmed.pop(0)
                     total_tokens = self.message_tokens(trimmed)
@@ -92,7 +100,7 @@ class ContextManager:
             if self.message_tokens(result) > budget:
                 last = result[-1]
                 c = last.get("content", "")
-                if c:
+                if isinstance(c, str) and c:
                     half = len(c) // 2
                     last["content"] = c[:half]
         return result

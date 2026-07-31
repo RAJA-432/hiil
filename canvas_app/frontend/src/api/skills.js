@@ -119,3 +119,41 @@ export function getActiveSkill() {
   if (USE_MOCK) return MOCK_SKILLS.find(s => s.id === _mockActiveId) || MOCK_SKILLS.find(s => s.id === 'general')
   return null
 }
+
+const MOCK_OUTPUT_SCHEMAS = {
+  'data-analyst': {
+    skill_id: 'data-analyst',
+    output: {
+      type: 'object',
+      properties: {
+        analysis: { type: 'string', description: 'Written analysis summary' },
+        code: { type: 'string', description: 'Python/pandas code if applicable' },
+        chart_spec: { type: 'object', description: 'Vega-Lite chart specification if applicable' },
+      },
+    },
+  },
+  'code-reviewer': {
+    skill_id: 'code-reviewer',
+    output: {
+      type: 'object',
+      properties: {
+        review: { type: 'string', description: 'Code review summary' },
+        issues: { type: 'array', items: { type: 'object' }, description: 'List of issues found' },
+      },
+    },
+  },
+  'general': {
+    skill_id: 'general',
+    output: { type: 'string', description: 'Free-form assistant response' },
+  },
+}
+
+export async function listOutputSchemas() {
+  if (USE_MOCK) return MOCK_OUTPUT_SCHEMAS
+  return (await apiGet('/api/skills/output-schemas')).schemas || {}
+}
+
+export async function getOutputSchema(skillId) {
+  if (USE_MOCK) return MOCK_OUTPUT_SCHEMAS[skillId] || null
+  return apiGet(`/api/skills/output-schemas/${skillId}`)
+}

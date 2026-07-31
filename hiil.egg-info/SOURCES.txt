@@ -33,6 +33,7 @@ mcp_cli/services/frontier.py
 mcp_cli/services/history.py
 mcp_cli/services/logging.py
 mcp_cli/services/notification_bus.py
+mcp_cli/services/ocr.py
 mcp_cli/services/providers.py
 mcp_cli/services/rag.py
 mcp_cli/services/roots.py
@@ -63,6 +64,9 @@ setu_bridge/mock_mail.py
 setu_bridge/prompts.py
 setu_bridge/resources.py
 setu_bridge/tools.py
+tests/test_global_standards_refinement.py
+tests/test_output_schemas.py
+tests/test_vision_pipeline.py
 vajra_gate/__init__.py
 vajra_gate/__main__.py
 vajra_gate/a2a.py

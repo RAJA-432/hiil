@@ -103,7 +103,7 @@ async def create_thread(request: Request, body: ThreadCreateRequest | None = Non
     chat = await _require_chat(request)
     sid = chat.new_session()
     if body and body.metadata:
-        await chat.history.async_rename_session(sid, str(body.metadata))
+        pass
     return ThreadCreateResponse(thread_id=sid)
 
 
@@ -237,37 +237,22 @@ async def run_thread_wait(
     if not user_input:
         raise HTTPException(status_code=400, detail="input.messages required")
 
-    bus: Any = None
-    events: list[dict] = []
+    run_id = f"run_{uuid.uuid4().hex[:12]}"
     try:
-        from mcp_cli.services.notification_bus import NotificationBus
-        bus = NotificationBus()
-        async for event in bus.events():
-            events.append(event)
-
-        run_id = f"run_{uuid.uuid4().hex[:12]}"
-        result = await chat.send(user_input, notification_bus=bus)
+        result = await chat.send(user_input)
         return RunWaitResponse(
             run_id=run_id,
             thread_id=thread_id,
             status="completed",
             output={"reply": result},
-            events=events,
         )
     except Exception as exc:
         return RunWaitResponse(
-            run_id=run_id or f"run_{uuid.uuid4().hex[:12]}",
+            run_id=run_id,
             thread_id=thread_id,
             status="failed",
             output={"error": str(exc)},
-            events=events,
         )
-    finally:
-        if bus:
-            while bus._queues:
-                q = bus._queues.pop()
-                while not q.empty():
-                    q.get_nowait()
 
 
 # ---------------------------------------------------------------------------

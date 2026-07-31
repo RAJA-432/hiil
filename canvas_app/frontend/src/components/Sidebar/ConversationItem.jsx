@@ -27,12 +27,7 @@ export default function ConversationItem({ conversation, active, onSelect, onDel
     if (title !== (conversation.title || '')) {
       onRename?.(conversation.id, title)
     }
-  }, [editTitle, conversation, onRename])
-
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Enter') handleSave()
-    if (e.key === 'Escape') setEditing(false)
-  }, [handleSave])
+  }, [editTitle])
 
   const handleDelete = useCallback((e) => {
     e.stopPropagation()
@@ -42,7 +37,7 @@ export default function ConversationItem({ conversation, active, onSelect, onDel
   const handleConfirmDelete = useCallback(() => {
     setConfirmOpen(false)
     onDelete?.(conversation.id)
-  }, [conversation.id, onDelete])
+  }, [onDelete])
 
   const handleCancelDelete = useCallback(() => {
     setConfirmOpen(false)
@@ -51,7 +46,19 @@ export default function ConversationItem({ conversation, active, onSelect, onDel
   const handlePin = useCallback((e) => {
     e.stopPropagation()
     onTogglePin?.(conversation.id)
-  }, [conversation.id, onTogglePin])
+  }, [onTogglePin])
+
+  const handleSelect = useCallback((e) => {
+    e.stopPropagation()
+    onSelect?.(conversation.id)
+  }, [onSelect])
+
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onSelect?.(conversation.id)
+    }
+  }, [onSelect])
 
   if (editing) {
     return (
@@ -62,28 +69,42 @@ export default function ConversationItem({ conversation, active, onSelect, onDel
           value={editTitle}
           onChange={e => setEditTitle(e.target.value)}
           onBlur={handleSave}
-          onKeyDown={handleKeyDown}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handleSave()
+            if (e.key === 'Escape') setEditing(false)
+          }}
         />
       </div>
     )
   }
 
+  const title = conversation.title || 'Untitled'
+
   return (
     <div
       className={`conversation-item ${active ? 'active' : ''} ${pinned ? 'pinned' : ''}`}
-      onClick={() => onSelect(conversation)}
-      onDoubleClick={handleDoubleClick}
-      role="button"
-      tabIndex={0}
-      aria-selected={active}
-      aria-label={conversation.title || 'Untitled'}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(conversation) } }}
+      onClick={handleSelect}
     >
-      <button className="conversation-pin" onClick={handlePin} aria-label={pinned ? 'Unpin conversation' : 'Pin conversation'}>
+      <button
+        className="conversation-pin"
+        aria-label={pinned ? 'Unpin conversation' : 'Pin conversation'}
+        onClick={handlePin}
+      >
         {pinned ? '📌' : '📍'}
       </button>
-      <div className="conversation-item-body">
-        <span className="conversation-item-title">{conversation.title || 'Untitled'}</span>
+      <div
+        className="conversation-item-title"
+        role="button"
+        tabIndex={0}
+        aria-label={title}
+        aria-pressed={active}
+        onClick={handleSelect}
+        onDoubleClick={handleDoubleClick}
+        onKeyDown={handleKeyDown}
+      >
+        {title}
+      </div>
+      <div className="conversation-item-meta">
         <TagManager
           conversationId={conversation.id}
           tags={tags}
@@ -91,7 +112,13 @@ export default function ConversationItem({ conversation, active, onSelect, onDel
           onRemoveTag={onRemoveTag}
         />
       </div>
-      <button className="conversation-item-delete" onClick={handleDelete} aria-label="Delete conversation">✕</button>
+      <button
+        className="conversation-item-delete"
+        onClick={handleDelete}
+        aria-label="Delete conversation"
+      >
+        ✕
+      </button>
       <ConfirmDialog
         isOpen={confirmOpen}
         title="Delete conversation?"

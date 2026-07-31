@@ -50,23 +50,23 @@ class IVFIndex:
         if not _HAS_NUMPY or len(embeddings) < max(self.n_clusters, self.min_vectors):
             return False
 
-        X = np.array(embeddings, dtype=np.float32)
-        n = X.shape[0]
+        x = np.array(embeddings, dtype=np.float32)
+        n = x.shape[0]
         k = min(self.n_clusters, n)
 
         rng = np.random.default_rng()
         idx = rng.choice(n, k, replace=False)
-        centroids = X[idx].copy()
+        centroids = x[idx].copy()
 
         for _ in range(10):
-            dists = np.linalg.norm(X[:, np.newaxis] - centroids[np.newaxis, :], axis=2)
+            dists = np.linalg.norm(x[:, np.newaxis] - centroids[np.newaxis, :], axis=2)
             labels = np.argmin(dists, axis=1)
 
             new_centroids = centroids.copy()
             for i in range(k):
                 mask = labels == i
                 if np.any(mask):
-                    new_centroids[i] = X[mask].mean(axis=0)
+                    new_centroids[i] = x[mask].mean(axis=0)
 
             if np.allclose(centroids, new_centroids):
                 centroids = new_centroids
@@ -202,15 +202,15 @@ class VectorStore(SqliteStore):
                     f"SELECT key, text, embedding, metadata FROM vectors WHERE namespace=? AND key IN ({placeholders})",  # noqa: S608
                     (namespace, *candidate_keys),
                 ).fetchall()
-                scored = []
+                fast_scored: list[tuple[float, str, str, dict]] = []
                 for key, text, emb_raw, meta_json in rows:
                     emb = _decode_embedding(emb_raw)
                     score = self._cosine_similarity(query_embedding, emb)
-                    scored.append((score, key, text, json.loads(meta_json)))
-                scored.sort(key=lambda x: x[0], reverse=True)
+                    fast_scored.append((score, key, text, json.loads(meta_json)))
+                fast_scored.sort(key=lambda x: x[0], reverse=True)
                 return [
                     {"key": k, "text": t, "score": round(s, 4), "metadata": m}
-                    for s, k, t, m in scored[:limit]
+                    for s, k, t, m in fast_scored[:limit]
                 ]
 
         # Fallback: brute-force (full table scan)
@@ -256,7 +256,7 @@ class VectorStore(SqliteStore):
 
     @asyncify("list_keys")
     async def async_list_keys(self, namespace: str) -> list[str]:
-        ...
+        return []
 
     @asyncify("index")
     async def async_index(self, namespace: str, key: str, text: str, embedding: list[float], metadata: dict | None = None) -> None:
@@ -264,8 +264,8 @@ class VectorStore(SqliteStore):
 
     @asyncify("delete")
     async def async_delete(self, namespace: str, key: str) -> bool:
-        ...
+        return False
 
     @asyncify("search")
     async def async_search(self, query_embedding: list[float], namespace: str = "default", limit: int = 5, batch_size: int = _BATCH_SIZE) -> list[dict[str, Any]]:
-        ...
+        return []

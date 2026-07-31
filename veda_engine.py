@@ -12,7 +12,7 @@ import sys
 _dir = os.path.dirname(os.path.abspath(__file__))
 sys.path = [p for p in sys.path if os.path.abspath(p) != _dir]
 
-from veda_engine.main import mcp
+from veda_engine.main import mcp  # noqa: E402
 
 if __name__ == "__main__":
     mcp.run()

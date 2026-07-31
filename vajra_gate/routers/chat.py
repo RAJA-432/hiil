@@ -34,7 +34,7 @@ async def chat_api(request: Request, body: ChatRequest, user: str = Depends(get_
     accept = request.headers.get("Accept", "")
     if "text/event-stream" in accept or request.query_params.get("stream") == "1":
         return StreamingResponse(
-            _stream_chat(chat, body.message),
+            _stream_chat(chat, body.message, session_id=body.session_id, images=body.images),
             media_type="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
@@ -43,7 +43,7 @@ async def chat_api(request: Request, body: ChatRequest, user: str = Depends(get_
     def on_chunk(c: str):
         nonlocal full_reply
         full_reply += c
-    reply = await asyncio.wait_for(chat.send(body.message, on_chunk=on_chunk), timeout=_GLOBAL_CHAT_TIMEOUT)
+    reply = await asyncio.wait_for(chat.send(body.message, on_chunk=on_chunk, images=body.images), timeout=_GLOBAL_CHAT_TIMEOUT)
     return ChatResponse(reply=reply or full_reply)
 
 

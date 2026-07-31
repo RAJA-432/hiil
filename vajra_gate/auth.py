@@ -10,8 +10,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 _SECRET: str = os.getenv("HIIL_JWT_SECRET") or ""
 if not _SECRET:
-    import hashlib
-    _SECRET = hashlib.sha256(b"hiil-jwt-fallback-secret-do-not-use-in-production").hexdigest()
+    import secrets
+    _SECRET = secrets.token_hex(32)
+    import logging
+    logging.getLogger("vajra_gate.auth").warning("HIIL_JWT_SECRET not set — generated ephemeral secret; tokens invalidated on restart")
 _ALGORITHM = "HS256"
 _ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 

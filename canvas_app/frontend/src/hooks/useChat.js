@@ -23,27 +23,26 @@ export function useChat(conversationId, onUndoPush) {
     setError(null)
   }, [conversationId])
 
-  const loadMessages = useCallback(async () => {
-    if (!conversationId) { setMessages([]); return }
-    const msgs = await loadConversationMessages(conversationId)
+  const loadMessages = useCallback(async (overrideConvId) => {
+    const cid = overrideConvId || conversationId
+    if (!cid) { setMessages([]); return }
+    const msgs = await loadConversationMessages(cid)
     if (mountedRef.current) setMessages(msgs)
   }, [conversationId])
 
-  const runStream = useCallback((text, images, msgId) => {
+  const runStream = useCallback((text, images, msgId, overrideConvId) => {
+    const cid = overrideConvId || conversationId
     const toolCalls = []
     const chunks = []
     const logs = []
     const abortController = new AbortController()
-    const body = images?.length > 0
-      ? JSON.stringify({ text, images: images.map(i => i.dataUrl) })
-      : text
 
     setStreaming(true)
     setStreamingText('')
     setError(null)
     setMessages(prev => [...prev, { id: msgId, role: 'user', content: text, images, timestamp: new Date().toISOString(), tool_calls: [], artifacts: [] }])
 
-    const stream = sendMessage(conversationId, body,
+    const stream = sendMessage(cid, text, images,
       (event) => {
         if (!mountedRef.current) return
         if (event.type === 'tokens') {
@@ -96,15 +95,16 @@ export function useChat(conversationId, onUndoPush) {
     return stream
   }, [conversationId])
 
-  const send = useCallback(async (text, images) => {
-    if (!conversationId || !text.trim() || !mountedRef.current) return
+  const send = useCallback(async (text, images, overrideConvId) => {
+    const cid = overrideConvId || conversationId
+    if (!cid || !text.trim() || !mountedRef.current) return
     const msgId = `temp-${Date.now()}`
-    const stream = runStream(text, images, msgId)
+    const stream = runStream(text, images, msgId, overrideConvId)
     try { await stream.done } catch {}
     if (mountedRef.current) {
       setStreaming(false)
       setStreamingText('')
-      try { await loadMessages() } catch {}
+      try { await loadMessages(cid) } catch {}
     }
   }, [conversationId, loadMessages, runStream])
 

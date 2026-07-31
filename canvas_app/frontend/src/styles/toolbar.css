@@ -1,7 +1,6 @@
 /* ─── Toolbar ─── */
 
 .toolbar {
-  grid-area: toolbar;
   display: flex;
   align-items: center;
   gap: 12px;

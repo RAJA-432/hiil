@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback } from 'react'
 import { useSettings } from '../hooks/useSettings'
 import { useAppState } from '../hooks/useAppState'
+import { useAgents } from '../hooks/useAgents'
 
 const UIContext = createContext(null)
 
@@ -15,11 +16,14 @@ export function UIProvider({ children }) {
   })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [agentCreateOpen, setAgentCreateOpen] = useState(false)
+  const [agentToRun, setAgentToRun] = useState(null)
 
   const toggleSidebar = useCallback(() => setSidebarOpen(prev => !prev), [])
   const togglePreview = useCallback(() => setPreviewOpen(prev => !prev), [])
 
   const appState = useAppState(settings.model)
+  const agentState = useAgents()
 
   const value = {
     settings, updateSettings,
@@ -30,7 +34,10 @@ export function UIProvider({ children }) {
     tourOpen, setTourOpen,
     sidebarOpen, setSidebarOpen, toggleSidebar,
     previewOpen, setPreviewOpen, togglePreview,
+    agentCreateOpen, setAgentCreateOpen,
+    agentToRun, setAgentToRun,
     ...appState,
+    ...agentState,
   }
 
   return <UIContext.Provider value={value}>{children}</UIContext.Provider>

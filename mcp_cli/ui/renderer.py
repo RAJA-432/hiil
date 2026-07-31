@@ -137,7 +137,7 @@ class MarkdownRenderer:
     def _render_code_block(self, code: str, lang: str) -> str:
         p = self._palette
         lines = code.rstrip("\n").split("\n")
-        width = max((len(l) for l in lines), default=0)
+        width = max((len(line) for line in lines), default=0)
         width = min(width + 4, 80)
 
         sep = p["border"] + "─" * width + RS

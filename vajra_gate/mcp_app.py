@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 MCP-over-HTTP — wraps hiil's API as MCP tools mounted under ``/mcp``.
 
@@ -10,11 +8,16 @@ Exposes:
 - ``hiil_list_agents`` — list running agents
 - ``hiil_create_agent`` — spawn a new agent
 - ``hiil_run_agent`` — run an agent with input
+- Resources for per-skill output schemas (``output-schema://{skill_id}``)
 """
+
+from __future__ import annotations
 
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+
+from vajra_gate.schemas.output_schemas import SKILL_OUTPUT_SCHEMAS
 
 mcp = FastMCP("hiil-mcp")
 
@@ -51,6 +54,29 @@ async def hiil_list_threads() -> str:
     chat = _chat()
     sids = await chat.history.async_list_sessions()
     return json.dumps({"threads": sids}, indent=2)
+
+
+@mcp.resource("output-schema://{skill_id}")
+async def get_output_schema_resource(skill_id: str) -> str:
+    """JSON Schema for a skill's expected LLM output format.
+
+    Args:
+        skill_id: The skill identifier (e.g. ``data-analyst``, ``code-reviewer``).
+    """
+    import json
+    schema = SKILL_OUTPUT_SCHEMAS.get(skill_id)
+    if schema is None:
+        raise ValueError(f"No output schema for skill '{skill_id}'")
+    return json.dumps(schema.model_dump(), indent=2)
+
+
+@mcp.resource("output-schema://list")
+async def list_output_schemas_resource() -> str:
+    """List all available output schemas with their skill IDs."""
+    import json
+    return json.dumps({
+        "schemas": [s.model_dump() for s in SKILL_OUTPUT_SCHEMAS.values()]
+    }, indent=2)
 
 
 @mcp.tool()

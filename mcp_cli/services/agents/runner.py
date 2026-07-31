@@ -126,7 +126,8 @@ class AgentRunner:
         self._state.pending_interrupt = None
 
         start = time.monotonic()
-        output, error, final_status = "", None, "completed"
+        output, error = "", None
+        final_status: Literal["completed", "failed", "waiting"] = "completed"
 
         try:
             output = await asyncio.wait_for(
@@ -159,7 +160,8 @@ class AgentRunner:
         self._resume_event.set()
 
         start = time.monotonic()
-        output, error, final_status = "", None, "completed"
+        output, error = "", None
+        final_status: Literal["completed", "failed", "waiting"] = "completed"
 
         try:
             process_result = await self._process_decisions(decisions, pending)
@@ -357,7 +359,7 @@ class AgentRunner:
             if self._middleware:
                 mw_handled, mw_result = await self._middleware.handle_tool(name, args)
                 if mw_handled:
-                    results.append(self._tool_result(call, name, mw_result))
+                    results.append(self._tool_result(call, name, mw_result or ""))
                     continue
 
             # Virtual backend intercept

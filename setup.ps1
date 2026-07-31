@@ -10,5 +10,5 @@ if ($Dev) {
 } else {
     npm run build --silent
     Pop-Location
-    uvicorn vajra_gate:app --reload --port 8000
+    python -m uvicorn vajra_gate:app --reload --port 8000
 }

@@ -21,14 +21,15 @@ class Streamer:
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]] | None = None,
         on_chunk: Any = None,
+        response_format: dict[str, Any] | None = None,
     ) -> tuple[ChatCompletionMessage, int, int]:
         input_text = json.dumps([m.get("content", "") for m in messages])
         from mcp_cli.services.usage import count_tokens
         input_tokens = count_tokens(input_text, self.claude.model)
 
         if on_chunk:
-            return await self._stream(messages, tools, on_chunk, input_tokens)
-        message = await self.claude.chat(messages, tools=tools)
+            return await self._stream(messages, tools, on_chunk, input_tokens, response_format)
+        message = await self.claude.chat(messages, tools=tools, response_format=response_format)
         output_text = message.content or ""
         output_tokens = count_tokens(output_text, self.claude.model)
         return message, input_tokens, output_tokens
@@ -39,12 +40,13 @@ class Streamer:
         tools: list[dict[str, Any]] | None,
         on_chunk: Any,
         input_tokens: int,
+        response_format: dict[str, Any] | None = None,
     ) -> tuple[ChatCompletionMessage, int, int]:
         from mcp_cli.services.usage import count_tokens
         content_parts: list[str] = []
         streamed_tool_calls: list[ChatCompletionMessageToolCall] = []
         try:
-            async for kind, data in self.claude.stream_chat(messages, tools=tools):
+            async for kind, data in self.claude.stream_chat(messages, tools=tools, response_format=response_format):
                 if kind == "content":
                     content_parts.append(data)
                     on_chunk(data)
@@ -61,7 +63,7 @@ class Streamer:
                     )
         except Exception:
             logger.exception("streaming failed, falling back to non-streaming")
-            message = await self.claude.chat(messages, tools=tools)
+            message = await self.claude.chat(messages, tools=tools, response_format=response_format)
             output_text = message.content or ""
             output_tokens = count_tokens(output_text, self.claude.model)
             return message, input_tokens, output_tokens

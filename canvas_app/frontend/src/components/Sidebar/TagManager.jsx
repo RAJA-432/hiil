@@ -35,7 +35,7 @@ export default function TagManager({ conversationId, tags, onAddTag, onRemoveTag
             <button className="tag-remove" onClick={() => onRemoveTag(conversationId, tag)}>✕</button>
           </span>
         ))}
-        <button className="tag-add-btn" onClick={() => setOpen(!open)}>+</button>
+        <button className="tag-add-btn" onClick={() => setOpen(!open)} aria-label="Add tag">+</button>
       </div>
       {open && (
         <div className="tag-input-popup">

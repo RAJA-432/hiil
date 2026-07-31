@@ -16,7 +16,7 @@ async def handle_cmd_model(rest: str, chat, app=None) -> tuple[bool, str]:
             return True, "\n".join(lines)
         return True, f"Current model: {chat.claude.model} (no model list available)"
     reply = chat.claude.update_model(rest.strip())
-    chat.refresh_system_prompt()
+    await chat.refresh_system_prompt()
     return True, reply
 
 
@@ -48,7 +48,7 @@ async def handle_cmd_provider(rest: str, chat, app=None) -> tuple[bool, str]:
     chat.claude.update_provider(provider, api_key, base_url)
     if chat.claude.model == "gpt-4o" or provider == "ollama":
         chat.claude.model = cfg["default_model"]
-    chat.refresh_system_prompt()
+    await chat.refresh_system_prompt()
     lines = [f"Switched to provider '{provider}' (model: {chat.claude.model})."]
     try:
         models = await chat.claude.list_models()

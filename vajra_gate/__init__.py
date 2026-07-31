@@ -6,16 +6,32 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
+import vajra_gate.state as _state  # noqa: F401 -- imported for side effects (init state)
 from vajra_gate.config import VAJRA_GATE_LOG_JSON, VAJRA_GATE_LOG_LEVEL
 from vajra_gate.middleware.logging_middleware import AccessLogMiddleware, setup_vajra_gate_logger
+from vajra_gate.middleware.rate_limit import RateLimitMiddleware
+from vajra_gate.routers import (
+    agents_router,
+    auth_router,
+    chat_router,
+    files_router,
+    knowledge_router,
+    langgraph_router,
+    misc_router,
+    phase_c_router,
+    rewards_router,
+    search_router,
+    sessions_router,
+    skills_router,
+)
 
 setup_vajra_gate_logger(log_json=VAJRA_GATE_LOG_JSON, log_level=VAJRA_GATE_LOG_LEVEL)
 logger = logging.getLogger("vajra_gate")
-
-import vajra_gate.state as _state  # noqa: F401 -- imported for side effects (init state)
-from vajra_gate.middleware.rate_limit import RateLimitMiddleware
 
 
 @asynccontextmanager
@@ -49,23 +65,7 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(AccessLogMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
-
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver,testclient").split(","))
-
-from vajra_gate.routers import (
-    agents_router,
-    auth_router,
-    chat_router,
-    files_router,
-    knowledge_router,
-    langgraph_router,
-    misc_router,
-    phase_c_router,
-    search_router,
-    sessions_router,
-    skills_router,
-)
 
 app.include_router(agents_router)
 app.include_router(auth_router)
@@ -73,14 +73,12 @@ app.include_router(chat_router)
 app.include_router(knowledge_router)
 app.include_router(langgraph_router)
 app.include_router(phase_c_router)
+app.include_router(rewards_router)
 app.include_router(search_router)
 app.include_router(sessions_router)
 app.include_router(skills_router)
 app.include_router(files_router)
 app.include_router(misc_router)
-
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
 
 
 class CacheControlMiddleware(BaseHTTPMiddleware):

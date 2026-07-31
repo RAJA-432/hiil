@@ -23,7 +23,7 @@ const STEPS = [
   },
   {
     title: '🖼 Paste Images',
-    description: 'Paste screenshots or drag images into the composer. The AI can analyze them.',
+    description: 'Paste screenshots or drag images into the composer. The AI can analyze them (requires a vision-capable model).',
     icon: '🖼',
   },
   {

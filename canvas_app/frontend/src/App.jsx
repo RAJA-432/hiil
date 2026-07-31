@@ -9,6 +9,8 @@ import Composer from './components/Composer/Composer'
 import ToastContainer from './components/Shared/ToastContainer'
 const SettingsModal = lazy(() => import('./components/Shared/SettingsModal'))
 const ShortcutsModal = lazy(() => import('./components/Shared/ShortcutsModal'))
+const AgentCreateModal = lazy(() => import('./components/Agents/AgentCreateModal'))
+const AgentRunModal = lazy(() => import('./components/Agents/AgentRunModal'))
 import ResizablePanel from './components/Shared/ResizablePanel'
 import PromptTemplatePicker from './components/Skills/PromptTemplatePicker'
 import UndoSnackbar from './components/Shared/UndoSnackbar'
@@ -16,7 +18,7 @@ const ConnectorsPanel = lazy(() => import('./components/Skills/ConnectorsPanel')
 import WelcomeTour from './components/Shared/WelcomeTour'
 
 function AppInner() {
-  const { settings, updateSettings, sidebarView, setSidebarView, settingsOpen, setSettingsOpen, shortcutsOpen, setShortcutsOpen, connectorsOpen, setConnectorsOpen, tourOpen, setTourOpen, selectedFile, fileContent, fileLanguage, fileLoading, toasts, removeToast, toastSuccess, toastError, activeSkill, handleSwitchModel, handleSelectSkill, openFile, closeFile } = useUIContext()
+  const { settings, updateSettings, sidebarView, setSidebarView, settingsOpen, setSettingsOpen, shortcutsOpen, setShortcutsOpen, connectorsOpen, setConnectorsOpen, tourOpen, setTourOpen, selectedFile, fileContent, fileLanguage, fileLoading, toasts, removeToast, toastSuccess, toastError, activeSkill, handleSwitchModel, handleSelectSkill, openFile, closeFile, agents, createAgent, agentRun, agentEvents, agentRunning, resumeAgent, closeRun, stopAgent, agentCreateOpen, setAgentCreateOpen, agentToRun, setAgentToRun } = useUIContext()
   const { conversations, streaming, handleNewConversation, handleSend, handleStop, undoItems, dismissUndo, handleUndo, handleCopy } = useChatContext()
 
   useEffect(() => {
@@ -50,12 +52,12 @@ function AppInner() {
     <div className={layoutClass} style={style}>
       <a href="#main-content" className="skip-link" style={{position:'absolute',top:-100,left:8,zIndex:9999,padding:'8px 16px',background:'var(--surface)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'0 0 var(--radius-sm) var(--radius-sm)',textDecoration:'none',fontSize:13}}>Skip to content</a>
       <Toolbar />
-      <ResizablePanel side="left" defaultWidth={settings.sidebarWidth} minWidth={180} maxWidth={500} onWidthChange={(w) => updateSettings({ sidebarWidth: w })}>
+      <ResizablePanel side="left" defaultWidth={settings.sidebarWidth} minWidth={180} maxWidth={500} onWidthChange={(w) => updateSettings({ sidebarWidth: w })} gridArea="sidebar">
         <Sidebar />
       </ResizablePanel>
       <ChatPanel onOpenFile={openFile} onCopy={handleCopy} />
       {selectedFile && (
-        <ResizablePanel side="right" defaultWidth={settings.previewWidth} minWidth={240} maxWidth={800} onWidthChange={(w) => updateSettings({ previewWidth: w })}>
+        <ResizablePanel side="right" defaultWidth={settings.previewWidth} minWidth={240} maxWidth={800} onWidthChange={(w) => updateSettings({ previewWidth: w })} gridArea="preview">
           <Suspense fallback={<div className="preview-loading">Loading preview...</div>}>
             <PreviewPanel filePath={selectedFile} content={fileContent} language={fileLanguage} loading={fileLoading} onClose={closeFile} theme={settings.theme} />
           </Suspense>
@@ -68,6 +70,24 @@ function AppInner() {
       {tourOpen && <WelcomeTour onComplete={() => setTourOpen(false)} />}
       <Suspense fallback={null}><SettingsModal /></Suspense>
       <Suspense fallback={null}><ShortcutsModal /></Suspense>
+      <Suspense fallback={null}>
+        <AgentCreateModal
+          open={agentCreateOpen}
+          onClose={() => setAgentCreateOpen(false)}
+          onCreate={createAgent}
+        />
+      </Suspense>
+      <Suspense fallback={null}>
+        <AgentRunModal
+          open={!!agentToRun}
+          onClose={() => { setAgentToRun(null); closeRun() }}
+          agent={agentToRun}
+          events={agentEvents}
+          running={agentRunning}
+          onRun={(agentId, input) => runAgent(agentId, input)}
+          onResume={resumeAgent}
+        />
+      </Suspense>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import re
 from urllib.parse import urlparse
 
@@ -41,8 +42,6 @@ async def web_search(
 
     return f"Web search results for '{query}':\n\n" + "\n\n".join(snippets)
 
-
-import ipaddress
 
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 _BLOCKED_HOSTS = frozenset({

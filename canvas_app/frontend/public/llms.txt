@@ -1,0 +1,14 @@
+# hiil
+
+A private AI assistant running local LLMs on your desktop. Provides chat, code editing, file search, and workspace management through a canvas-based interface.
+
+## Agent Capabilities
+
+- Send and receive chat messages
+- Read and edit files in the workspace
+- Search files, conversations, and skills
+- Manage conversations (create, rename, delete, pin)
+- Insert prompt templates
+- Attach images to messages
+- Switch between AI models
+- Configure system prompt and settings

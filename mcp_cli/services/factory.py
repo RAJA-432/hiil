@@ -35,12 +35,22 @@ def _build_sampling_callback(
         messages = []
         for msg in params.messages:
             role = msg.role
-            text = ""
             if hasattr(msg.content, "text"):
-                text = msg.content.text
+                messages.append({"role": role, "content": msg.content.text})
+            elif isinstance(msg.content, list):
+                parts = []
+                for part in msg.content:
+                    if hasattr(part, "text"):
+                        parts.append({"type": "text", "text": part.text})
+                    elif hasattr(part, "data") and hasattr(part, "mimeType"):
+                        parts.append({"type": "image_url", "image_url": {"url": f"data:{part.mimeType};base64,{part.data}"}})
+                    else:
+                        parts.append({"type": "text", "text": str(part)})
+                messages.append({"role": role, "content": parts})
             elif isinstance(msg.content, TextContent):
-                text = msg.content.text
-            messages.append({"role": role, "content": text})
+                messages.append({"role": role, "content": msg.content.text})
+            else:
+                messages.append({"role": role, "content": str(msg.content)})
 
         response = await claude.chat(messages)
         content = getattr(response, "content", "") or ""

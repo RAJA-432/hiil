@@ -40,7 +40,7 @@ hiil/
 ├── setu_bridge/            # MCP client wrapper
 ├── config.yaml             # Provider, model, server, root config
 ├── setup.ps1               # One-command setup
-└── tests/                  # 61 tests (unit + shared fixtures)
+└── tests/                  # 84 tests (unit + shared fixtures)
 ```
 
 ## Testing

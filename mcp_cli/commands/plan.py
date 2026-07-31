@@ -25,7 +25,7 @@ async def handle_plan_cmd(chat, app) -> str:
         return "Model selection cancelled."
 
     chat.claude.update_model(selected)
-    chat.refresh_system_prompt()
+    await chat.refresh_system_prompt()
     return f"Switched to model '{selected}' for planning."
 
 

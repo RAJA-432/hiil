@@ -117,7 +117,7 @@ async def resume_agent(request: Request, agent_id: str, body: ResumeRequest, use
     if not body.decisions:
         raise HTTPException(status_code=400, detail="At least one decision required")
 
-    decisions = [ResumeDecision(action=d.action, args=d.args) for d in body.decisions]
+    decisions = [ResumeDecision(type=d.type, edited_action=d.edited_action, message=d.message) for d in body.decisions]
     result = await runner.resume(decisions)
     return result.model_dump()
 

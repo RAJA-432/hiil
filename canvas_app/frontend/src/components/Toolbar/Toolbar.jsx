@@ -32,7 +32,7 @@ export default function Toolbar() {
   }, [checkHealth])
 
   return (
-    <header role="banner">
+    <header role="banner" style={{ gridArea: 'toolbar', display: 'flex', flexDirection: 'column' }}>
       <div className="toolbar">
         <button className="toolbar-btn toolbar-hamburger" onClick={toggleSidebar} aria-label="Open navigation menu">
           ☰
@@ -78,10 +78,10 @@ export default function Toolbar() {
           {settings.theme === 'dark' ? '☀' : '☾'}
         </button>
       </div>
-      <div className="status-bar">
+      <footer className="status-bar">
         <span className={`status-dot ${connected ? 'connected' : 'disconnected'}`} />
         <span>{connected ? 'Connected' : 'Disconnected'}</span>
-      </div>
+      </footer>
     </header>
   )
 }

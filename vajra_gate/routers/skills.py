@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 
 import vajra_gate.state as _state
 from vajra_gate.models import ActivateSkillRequest, SkillActivateResponse, SkillInfo, SkillsListResponse
+from vajra_gate.schemas.output_schemas import SKILL_OUTPUT_SCHEMAS
 
 router = APIRouter()
 
@@ -123,12 +124,37 @@ async def activate_skill(body: ActivateSkillRequest):
 
     chat = _state._chat
     if chat is not None:
-        prompt_text = skill["systemPrompt"] or chat.claude.system_prompt()
+        schema = SKILL_OUTPUT_SCHEMAS.get(body.skill_id)
+        fmt_instructions = schema.instructions if schema else None
+        prompt_text = skill["systemPrompt"] or chat.claude.system_prompt(format_instructions=fmt_instructions)
         for i, m in enumerate(chat.messages):
             if m.get("role") == "system":
                 chat.messages[i] = {"role": "system", "content": prompt_text}
                 break
         else:
             chat.messages.insert(0, {"role": "system", "content": prompt_text})
+        if schema and schema.json_schema:
+            chat.response_format = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": f"{schema.skill_id}_output",
+                    "schema": schema.json_schema,
+                },
+            }
+        else:
+            chat.response_format = None
 
     return SkillActivateResponse(success=True, skill=SkillInfo(**skill))
+
+
+@router.get("/api/skills/output-schemas")
+async def list_output_schemas():
+    return {"schemas": [s.model_dump() for s in SKILL_OUTPUT_SCHEMAS.values()]}
+
+
+@router.get("/api/skills/output-schemas/{skill_id}")
+async def get_output_schema(skill_id: str):
+    schema = SKILL_OUTPUT_SCHEMAS.get(skill_id)
+    if schema is None:
+        raise HTTPException(status_code=404, detail=f"No output schema for skill '{skill_id}'")
+    return schema.model_dump()

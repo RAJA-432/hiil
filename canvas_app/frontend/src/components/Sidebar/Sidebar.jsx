@@ -2,12 +2,12 @@ import { useState, useRef, lazy, Suspense } from 'react'
 import { useUIContext } from '../../context/UIContext'
 import { useChatContext } from '../../context/ChatContext'
 import ConversationList from './ConversationList'
-import FileTree from './FileTree'
 import SearchPanel from '../Shared/SearchPanel'
 const SkillsPanel = lazy(() => import('../Skills/SkillsPanel'))
+const AgentPanel = lazy(() => import('../Agents/AgentPanel'))
 
 export default function Sidebar() {
-  const { sidebarOpen, setSidebarOpen, sidebarView, setSidebarView, fileTree, fileTreeError, skills, activeSkill, skillsLoading, openFile, handleSelectSkill } = useUIContext()
+  const { sidebarOpen, setSidebarOpen, sidebarView, setSidebarView, skills, activeSkill, skillsLoading, handleSelectSkill, agents, agentsLoading, agentRunning, createAgent, runAgent, stopAgent, setAgentCreateOpen, setAgentToRun } = useUIContext()
   const { conversations, activeConversation, conversationsLoading, tags, addTag, removeTag, handleSelectConversation, handleNewConversation, handleDeleteConversation, handleRenameConversation, handleTogglePin, loadMoreConversations, hasMore, loadingMore } = useChatContext()
   const [searchValue, setSearchValue] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -28,7 +28,7 @@ export default function Sidebar() {
   return (
     <>
       <div className={`sidebar-overlay ${sidebarOpen ? 'open' : ''}`} onClick={() => setSidebarOpen(false)} />
-      <div className={`sidebar ${sidebarOpen ? 'mobile-open' : ''}`} role="navigation" aria-label="Sidebar">
+      <nav className={`sidebar ${sidebarOpen ? 'mobile-open' : ''}`} aria-label="Sidebar">
         <div className="sidebar-search">
           <input
             ref={inputRef}
@@ -51,6 +51,7 @@ export default function Sidebar() {
             aria-selected={sidebarView === 'conversations'}
             aria-controls="panel-conversations"
             aria-label="Conversations"
+            id="tab-conversations"
           >
             💬
           </button>
@@ -62,20 +63,23 @@ export default function Sidebar() {
             aria-selected={sidebarView === 'skills'}
             aria-controls="panel-skills"
             aria-label="Skills"
+            id="tab-skills"
           >
             🧠
           </button>
           <button
-            className={`toolbar-btn ${sidebarView === 'files' ? 'active' : ''}`}
-            onClick={() => { setSearchOpen(false); setSidebarView('files') }}
-            title="Files"
+            className={`toolbar-btn ${sidebarView === 'agents' ? 'active' : ''}`}
+            onClick={() => { setSearchOpen(false); setSidebarView('agents') }}
+            title="Agents"
             role="tab"
-            aria-selected={sidebarView === 'files'}
-            aria-controls="panel-files"
-            aria-label="Files"
+            aria-selected={sidebarView === 'agents'}
+            aria-controls="panel-agents"
+            aria-label="Agents"
+            id="tab-agents"
           >
-            📁
+            🤖
           </button>
+
         </div>
 
         {sidebarView === 'search' && searchOpen ? (
@@ -97,9 +101,17 @@ export default function Sidebar() {
               />
             </Suspense>
           </div>
-        ) : sidebarView === 'files' ? (
-          <div id="panel-files" role="tabpanel" aria-labelledby="tab-files">
-            <FileTree tree={fileTree} onOpenFile={openFile} error={fileTreeError} />
+        ) : sidebarView === 'agents' ? (
+          <div id="panel-agents" role="tabpanel" aria-labelledby="tab-agents">
+            <Suspense fallback={<div className="sidebar-loading" style={{padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)'}}>Loading agents…</div>}>
+              <AgentPanel
+                agents={agents}
+                loading={agentsLoading}
+                onRun={(agent) => setAgentToRun(agent)}
+                onStop={stopAgent}
+                onCreate={() => setAgentCreateOpen(true)}
+              />
+            </Suspense>
           </div>
         ) : (
           <div id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations">
@@ -121,7 +133,7 @@ export default function Sidebar() {
             />
           </div>
         )}
-      </div>
+      </nav>
     </>
   )
 }

@@ -31,12 +31,11 @@ async def _require_chat(request):
         raise HTTPException(status_code=500, detail=f"Chat init failed: {exc}")
 
 
-async def _stream_chat(chat, message: str):
+async def _stream_chat(chat, message: str, session_id: str = "default", images: list[str] | None = None):
     from mcp_cli.services.notification_bus import NotificationBus
 
     bus = NotificationBus()
     full_reply = ""
-    tool_call_count = 0
 
     def on_chunk(chunk: str):
         nonlocal full_reply
@@ -44,11 +43,9 @@ async def _stream_chat(chat, message: str):
         bus.push_tokens_nowait(full_reply)
 
     def on_tool_event(event):
-        nonlocal tool_call_count
-        tool_call_count += 1
         bus.push_tool_call_nowait(event.name, event.args, "done" if event.result else "running", (event.result or "")[:200])
 
-    async for event in _merge_events(bus, chat, message, on_chunk, on_tool_event):
+    async for event in _merge_events(bus, chat, message, on_chunk, on_tool_event, session_id, images=images):
         yield json.dumps(event) + "\n"
 
 
@@ -92,10 +89,44 @@ async def _heartbeat(bus, interval: float = 5.0):
         pass
 
 
-async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
+async def _reward_observer(bus, session_id: str):
+    from vajra_gate.services.reward import get_tracker
+
+    tracker = get_tracker()
+    last_reply = ""
+    try:
+        async for event in bus.events():
+            etype = event.get("type", "")
+            if etype == "tool_event":
+                status = event.get("status", "")
+                ctx = {
+                    "tool_name": event.get("tool", ""),
+                    "valid_args": bool(event.get("args")),
+                    "status": status,
+                    "success": status == "done",
+                }
+                tracker.record(session_id, "tool_call", ctx, evaluate=True)
+                if status == "done":
+                    tracker.record(session_id, "tool_result", ctx, evaluate=True)
+            elif etype == "tokens":
+                last_reply = event.get("text", "")
+            elif etype == "done":
+                if last_reply:
+                    tracker.record(
+                        session_id, "response",
+                        {"content": last_reply, "session_id": session_id},
+                        evaluate=True,
+                    )
+    except (GeneratorExit, asyncio.CancelledError):
+        pass
+    except Exception:
+        logger.debug("Reward observer error", exc_info=True)
+
+
+async def _merge_events(bus, chat, message, on_chunk, on_tool_event, session_id: str = "default", images: list[str] | None = None):
     async def run_chat():
         try:
-            await chat.send(message, on_chunk=on_chunk, on_tool_event=on_tool_event, notification_bus=bus)
+            await chat.send(message, on_chunk=on_chunk, on_tool_event=on_tool_event, notification_bus=bus, images=images)
         except asyncio.CancelledError:
             pass
         except Exception:
@@ -109,22 +140,21 @@ async def _merge_events(bus, chat, message, on_chunk, on_tool_event):
     chat_task = asyncio.create_task(run_chat(), name="chat_send")
     log_task = asyncio.create_task(lekh_record(bus), name="chat_log")
     hb_task = asyncio.create_task(_heartbeat(bus), name="heartbeat")
+    reward_task = asyncio.create_task(_reward_observer(bus, session_id), name="reward_obs")
+    tasks = (chat_task, log_task, hb_task, reward_task)
     try:
         async for event in bus.events():
             yield event
     except GeneratorExit:
-        chat_task.cancel()
-        log_task.cancel()
-        hb_task.cancel()
+        for t in tasks:
+            t.cancel()
     except asyncio.CancelledError:
-        chat_task.cancel()
-        log_task.cancel()
-        hb_task.cancel()
+        for t in tasks:
+            t.cancel()
     finally:
-        chat_task.cancel()
-        log_task.cancel()
-        hb_task.cancel()
-        for t in (chat_task, log_task, hb_task):
+        for t in tasks:
+            t.cancel()
+        for t in tasks:
             try:
                 await t
             except (asyncio.CancelledError, GeneratorExit, RuntimeError):

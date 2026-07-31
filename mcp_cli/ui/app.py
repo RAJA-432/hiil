@@ -87,7 +87,7 @@ class CliApp:
         self._tool_events = ToolEventHandler()
 
     @property
-    def T(self):
+    def theme(self):
         """Return the current resolved theme instance."""
         return self._theme_mgr.current
 
@@ -127,10 +127,10 @@ class CliApp:
         if self._session is None:
             await self.initialize()
 
-        T = self.T
-        prompt = ANSI(f"{T.ansi('primary')}> {RS}")
+        t = self.theme
+        prompt = ANSI(f"{t.ansi('primary')}> {RS}")
 
-        print(f"{T.style_box('primary', 'MCP Chat')}{RS}")
+        print(f"{t.style_box('primary', 'MCP Chat')}{RS}")
 
         while True:
             try:
@@ -143,10 +143,10 @@ class CliApp:
                 else:
                     user_input = await self._session.prompt_async(prompt)
             except TimeoutError:
-                print(f"{T.ansi('muted')}[timeout] No input received within timeout period.{RS}")
+                print(f"{t.ansi('muted')}[timeout] No input received within timeout period.{RS}")
                 continue
             except (EOFError, KeyboardInterrupt):
-                print(f"\n{T.ansi('success')}Bye!{RS}")
+                print(f"\n{t.ansi('success')}Bye!{RS}")
                 break
 
             user_input = user_input.strip()
@@ -201,25 +201,25 @@ class CliApp:
                         out_turn = usage_after['output_tokens'] - usage_before['output_tokens']
                         cost_turn = usage_after['cost'] - usage_before['cost']
                         print(
-                            f"{T.ansi('muted')}  {in_turn + out_turn:,} tokens "
+                            f"{t.ansi('muted')}  {in_turn + out_turn:,} tokens "
                             f"({in_turn} in / {out_turn} out) ${cost_turn:.4f}{RS}"
                         )
                         print()
 
                 except Exception as exc:
                     self._spinner.stop()
-                    print(f"{T.ansi('error')}[error]{RS} {exc}")
+                    print(f"{t.ansi('error')}[error]{RS} {exc}")
 
     def _print_usage(self) -> None:
-        T = self.T
+        t = self.theme
         session = self.chat.usage.session_summary()
         total = self.chat.usage.total_summary()
-        print(f"{T.ansi('secondary')}--- Session Usage ---{RS}")
+        print(f"{t.ansi('secondary')}--- Session Usage ---{RS}")
         print(f"  Input tokens:  {session['input_tokens']:,}")
         print(f"  Output tokens: {session['output_tokens']:,}")
         print(f"  Total tokens:  {session['total_tokens']:,}")
         print(f"  Cost:          ${session['cost']:.6f}")
-        print(f"{T.ansi('secondary')}--- All Time ---{RS}")
+        print(f"{t.ansi('secondary')}--- All Time ---{RS}")
         print(f"  Input tokens:  {total['input_tokens']:,}")
         print(f"  Output tokens: {total['output_tokens']:,}")
         print(f"  Total tokens:  {total['total_tokens']:,}")
@@ -236,81 +236,80 @@ class CliApp:
             return ""
 
     async def _handle_history(self, session_id: str) -> None:
-        T = self.T
+        t = self.theme
         sid = session_id.strip() or self.chat.session_id
         msgs = await self.chat.history.async_load_session(sid)
         if not msgs:
-            print(f"{T.ansi('muted')}No messages in session '{sid}'.{RS}")
+            print(f"{t.ansi('muted')}No messages in session '{sid}'.{RS}")
             return
-        print(f"{T.ansi('secondary')}--- History: {sid} ({len(msgs)} messages) ---{RS}")
+        print(f"{t.ansi('secondary')}--- History: {sid} ({len(msgs)} messages) ---{RS}")
         for m in msgs[-20:]:
             preview = m["content"][:120].replace("\n", " ")
             ts = self._format_timestamp(m.get("timestamp", ""))
-            print(f"  {T.ansi('primary') if m['role'] == 'assistant' else T.ansi('muted')}{m['role']}:{RS}{ts} {preview}")
+            print(f"  {t.ansi('primary') if m['role'] == 'assistant' else t.ansi('muted')}{m['role']}:{RS}{ts} {preview}")
 
     async def _handle_list_sessions(self) -> None:
-        T = self.T
+        t = self.theme
         sessions = await self.chat.history.async_list_sessions()
         if not sessions:
-            print(f"{T.ansi('muted')}No saved sessions.{RS}")
+            print(f"{t.ansi('muted')}No saved sessions.{RS}")
             return
-        print(f"{T.ansi('secondary')}Sessions:{RS}")
+        print(f"{t.ansi('secondary')}Sessions:{RS}")
         for s in sessions:
             marker = " *" if s == self.chat.session_id else ""
-            print(f"  {T.ansi('primary')}{s}{RS}{marker}")
+            print(f"  {t.ansi('primary')}{s}{RS}{marker}")
 
     async def _handle_switch_session(self, session_id: str) -> None:
-        T = self.T
+        t = self.theme
         sid = session_id.strip()
         if not sid:
-            print(f"{T.ansi('error')}Usage: /session <session_id>{RS}")
+            print(f"{t.ansi('error')}Usage: /session <session_id>{RS}")
             return
         self.chat.session_id = sid
         self.chat.messages = await self.chat.history.async_load_session(sid)
-        print(f"{T.ansi('success')}Switched to session '{sid}' ({len(self.chat.messages)} messages).{RS}")
+        print(f"{t.ansi('success')}Switched to session '{sid}' ({len(self.chat.messages)} messages).{RS}")
 
     def _print_status(self) -> None:
-        T = self.T
+        t = self.theme
         s = self.chat.get_status()
-        print(f"{T.style_box('secondary', 'System Status')}{RS}")
-        print(f"  {T.icon('session')} {T.ansi('primary')}Session:{RS}   {s['session']}{RS}")
-        print(f"  {T.icon('message')} {T.ansi('primary')}Messages:{RS}  {s['messages']}{RS}")
-        print(f"  {T.icon('network')} {T.ansi('primary')}Provider:{RS}  {s['provider']}{RS}")
-        print(f"  {T.icon('model')} {T.ansi('primary')}Model:{RS}     {s['model']}{RS}")
-        print(f"  {T.icon('tool')} {T.ansi('primary')}Tools:{RS}     {s['tools']}{RS}")
-        print(f"  {T.icon('server')} {T.ansi('primary')}Servers:{RS}   {', '.join(s['servers']) if s['servers'] else 'none'}{RS}")
+        print(f"{t.style_box('secondary', 'System Status')}{RS}")
+        print(f"  {t.icon('session')} {t.ansi('primary')}Session:{RS}   {s['session']}{RS}")
+        print(f"  {t.icon('message')} {t.ansi('primary')}Messages:{RS}  {s['messages']}{RS}")
+        print(f"  {t.icon('network')} {t.ansi('primary')}Provider:{RS}  {s['provider']}{RS}")
+        print(f"  {t.icon('model')} {t.ansi('primary')}Model:{RS}     {s['model']}{RS}")
+        print(f"  {t.icon('tool')} {t.ansi('primary')}Tools:{RS}     {s['tools']}{RS}")
+        print(f"  {t.icon('server')} {t.ansi('primary')}Servers:{RS}   {', '.join(s['servers']) if s['servers'] else 'none'}{RS}")
 
     async def _handle_search(self, query: str) -> None:
-        T = self.T
+        t = self.theme
         # Use the HistoryManager via the chat service for a global search
         results = self.chat.history.search(query)
 
         if not results:
-            print(f"{T.ansi('muted')}No matches found for '{query}'.{RS}")
+            print(f"{t.ansi('muted')}No matches found for '{query}'.{RS}")
             return
 
-        print(f"{T.ansi('secondary')}--- Search: '{query}' ({len(results)} results) ---{RS}")
+        print(f"{t.ansi('secondary')}--- Search: '{query}' ({len(results)} results) ---{RS}")
         for r in results:
-            # Use the polished role badges for search results
             role = r.get("role", "unknown")
             content = r.get("content", "")
             preview = content[:120].replace("\n", " ")
             ts = self._format_timestamp(r.get("timestamp", ""))
 
-            color = T.ansi('primary') if role == 'assistant' else T.ansi('muted')
+            color = t.ansi('primary') if role == 'assistant' else t.ansi('muted')
             print(f"  {color}{role}:{RS}{ts} {preview}")
 
     def _print_help(self) -> None:
-        T = self.T
+        t = self.theme
         loc = self._locale
         def _(eng: str) -> str:
             return loc.translate_cmd(eng)
         def cmd(c: str, desc: str) -> str:
-            return f"  {T.ansi('muted')}/{c:<22}{RS} {T.ansi('secondary')}{desc}{RS}"
-        bar = f"{T.ansi('muted')}\u2501{RS}" * 78
+            return f"  {t.ansi('muted')}/{c:<22}{RS} {t.ansi('secondary')}{desc}{RS}"
+        bar = f"{t.ansi('muted')}\u2501{RS}" * 78
         print(bar)
         for section_name, entries in HELP_SECTIONS:
-            print(f"  {T.ansi('primary')}{section_name}{RS}")
+            print(f"  {t.ansi('primary')}{section_name}{RS}")
             for cmd_fn, desc in entries:
                 print(cmd(cmd_fn(_), desc))
         print(bar)

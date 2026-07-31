@@ -155,36 +155,36 @@ class ChatHistoryManager(SqliteStore):
 
     @asyncify("load_session")
     async def async_load_session(self, session_id: str) -> list[dict[str, Any]]:
-        ...
+        return []
 
     @asyncify("list_sessions")
     async def async_list_sessions(self, limit: int | None = None, offset: int = 0) -> list[str]:
-        ...
+        return []
 
     @asyncify("count_sessions")
     async def async_count_sessions(self) -> int:
-        ...
+        return 0
 
     @asyncify("delete_session")
     async def async_delete_session(self, session_id: str) -> None:
-        ...
+        return None
 
     @asyncify("search_messages")
     async def async_search_messages(self, session_id: str, query: str) -> list[dict[str, Any]]:
-        ...
+        return []
 
     @asyncify("rename_session")
     async def async_rename_session(self, old_id: str, new_id: str) -> bool:
-        ...
+        return False
 
     @asyncify("fork_session")
     async def async_fork_session(self, source_id: str, target_id: str) -> int:
-        ...
+        return 0
 
     @asyncify("global_search")
     async def async_global_search(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
-        ...
+        return []
 
     @asyncify("undo_last_messages")
     async def async_undo_last_messages(self, session_id: str, count: int = 2) -> int:
-        ...
+        return 0

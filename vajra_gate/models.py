@@ -9,6 +9,7 @@ from pydantic import BaseModel
 class ChatRequest(BaseModel):
     message: str
     session_id: str = "default"
+    images: list[str] | None = None
 
 
 class KaryaRequest(BaseModel):
@@ -26,8 +27,9 @@ class ActivateSkillRequest(BaseModel):
 
 
 class ResumeDecisionModel(BaseModel):
-    action: str
-    args: dict[str, Any] = {}
+    type: str = "approve"
+    edited_action: dict[str, Any] | None = None
+    message: str | None = None
 
 
 class ResumeRequest(BaseModel):
@@ -265,6 +267,57 @@ class FileTreeResponse(BaseModel):
     children: list[FileItem]
 
 
+class FileWriteRequest(BaseModel):
+    path: str
+    content: str
+
+
+class FileCreateDirRequest(BaseModel):
+    path: str
+
+
+class FileDeleteRequest(BaseModel):
+    path: str
+
+
+class FileRenameRequest(BaseModel):
+    path: str
+    new_path: str
+
+
+class FileOperationResponse(BaseModel):
+    success: bool
+    path: str
+    message: str = ""
+
+
+class RewardRecordRequest(BaseModel):
+    session_id: str
+    action_type: str
+    context: dict[str, Any] = {}
+
+
+class RewardRecordResponse(BaseModel):
+    event_id: str
+    session_id: str
+    action_type: str
+    scores: dict[str, float]
+    total: float
+    timestamp: str
+
+
+class RewardMetricsResponse(BaseModel):
+    total_events: int
+    average_total: float
+    dimension_averages: dict[str, float]
+    action_type_counts: dict[str, int]
+
+
+class RewardListResponse(BaseModel):
+    events: list[dict[str, Any]]
+    total: int
+
+
 class SearchResultItem(BaseModel):
     conversation_id: str
     conversation_title: str
@@ -407,3 +460,4 @@ class StoreSearchRequest(BaseModel):
 class StoreSearchResponse(BaseModel):
     items: list[StoreItem]
     count: int
+

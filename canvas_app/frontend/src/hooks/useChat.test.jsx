@@ -81,6 +81,7 @@ describe('useChat hook', () => {
     expect(sendMessage).toHaveBeenCalledWith(
       'conv_1',
       'Test message',
+      undefined,
       expect.any(Function),
       expect.any(Function),
       expect.any(AbortSignal),

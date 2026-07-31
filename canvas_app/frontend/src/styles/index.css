@@ -7,4 +7,5 @@
 @import './composer.css' layer(components);
 @import './preview.css' layer(components);
 @import './skills.css' layer(components);
+@import './agents.css' layer(components);
 @import './shared.css' layer(components);

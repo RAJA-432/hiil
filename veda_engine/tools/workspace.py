@@ -6,12 +6,12 @@ import logging
 import re
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 from mcp.server.fastmcp import Context
 
 from veda_engine.config import WORKSPACE_ROOT
 from veda_engine.tools.path_guard import is_safe_path, validate_path
+
+logger = logging.getLogger(__name__)
 
 _MAX_DEPTH = 4
 
@@ -96,7 +96,7 @@ async def grep(pattern: str, glob_pattern: str = "*", ctx: Context = None) -> li
         rel = str(path.relative_to(WORKSPACE_ROOT))
         try:
             text: str = await asyncio.to_thread(
-                lambda p=path: p.read_text("utf-8", errors="replace")
+                lambda: path.read_text("utf-8", errors="replace")
             )
             for line in text.splitlines():
                 if compiled.search(line):

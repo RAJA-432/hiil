@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useUIContext } from '../../context/UIContext'
 import Modal from './Modal'
 
-export default function SettingsModal({ open, onClose }) {
-  const { settings, updateSettings, models, activeModel, handleSwitchModel } = useUIContext()
+export default function SettingsModal() {
+  const { settings, updateSettings, models, activeModel, handleSwitchModel, settingsOpen, setSettingsOpen } = useUIContext()
   const [systemPrompt, setSystemPrompt] = useState(settings.systemPrompt || '')
   const [temperature, setTemperature] = useState(settings.temperature ?? 0.7)
   const [maxTokens, setMaxTokens] = useState(settings.maxTokens ?? 4096)
@@ -30,15 +30,16 @@ export default function SettingsModal({ open, onClose }) {
       apiBaseUrl,
       apiKey,
     })
-    onClose()
+    setSettingsOpen(false)
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Settings" width={560}>
+    <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings" width={560}>
       <div className="settings-form">
         <div className="settings-section">
-          <label className="settings-label">Model</label>
+          <label className="settings-label" htmlFor="settings-model-select">Model</label>
           <select
+            id="settings-model-select"
             className="settings-select"
             value={activeModel}
             onChange={e => handleSwitchModel(e.target.value)}
@@ -121,7 +122,7 @@ export default function SettingsModal({ open, onClose }) {
         </div>
 
         <div className="settings-actions">
-          <button className="toolbar-btn" onClick={onClose}>Cancel</button>
+          <button className="toolbar-btn" onClick={() => setSettingsOpen(false)}>Cancel</button>
           <button className="settings-save-btn" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Settings'}</button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -41,8 +42,23 @@ def _detect_family(model: str) -> str:
             return key
     return "gpt-4o"
 
-def count_tokens(text: str, model: str = "gpt-4o") -> int:
-    """Count the number of tokens in a text string using tiktoken, falling back to character estimate."""
+def count_tokens(text: str | list | dict, model: str = "gpt-4o") -> int:
+    """Count tokens in text, content arrays, or dicts.
+
+    Handles OpenAI multimodal content arrays where image_url items cost 85 tokens each.
+    """
+    if isinstance(text, list):
+        total = 0
+        for item in text:
+            if isinstance(item, dict) and item.get("type") == "image_url":
+                total += 85
+            elif isinstance(item, dict) and item.get("type") == "text":
+                total += count_tokens(item.get("text", ""), model)
+            else:
+                total += count_tokens(str(item), model)
+        return total
+    if isinstance(text, dict):
+        return count_tokens(json.dumps(text), model)
     try:
         import tiktoken
         encoding_name = _encoding_for_model(model)
@@ -164,8 +180,8 @@ class UsageTracker(SqliteStore):
 
     @asyncify("total_summary")
     async def async_total_summary(self) -> dict:
-        ...
+        return {}
 
     @asyncify("history")
     async def async_history(self, limit: int = 20) -> list[dict]:
-        ...
+        return []

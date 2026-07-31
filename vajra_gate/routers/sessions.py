@@ -56,7 +56,7 @@ async def list_conversations(
         created = _parse_session_ts(sid)
         msgs = await chat.history.async_load_session(sid)
         first = next((m for m in msgs if m.get("role") == "user"), None)
-        title = first["content"][:80] if first else sid
+        title = (first.get("content") or "")[:80] if first else sid
         convs.append(ConversationItem(
             id=sid,
             title=title,
@@ -104,7 +104,7 @@ async def rename_session(request: Request, body: SessionRenameRequest, user: str
     ok = await chat.history.async_rename_session(session_id, new_title)
     if not ok:
         raise HTTPException(status_code=404, detail="Session not found")
-    return SessionRenameResponse(session_id=new_title)
+    return SessionRenameResponse(session_id=session_id)
 
 
 @router.post("/api/session/delete", response_model=SessionDeleteResponse)

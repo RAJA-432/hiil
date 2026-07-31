@@ -62,17 +62,22 @@ export function ChatProvider({ children }) {
     })
   }, [messages, scrollToMessageId])
 
+  const _createConversation = useCallback(async () => {
+    const id = await createConversation()
+    const conv = { id, title: `Conversation ${conversations.length + 1}`, created: new Date().toISOString(), updated: new Date().toISOString(), message_count: 0, pinned: false }
+    return conv
+  }, [conversations.length])
+
   const handleNewConversation = useCallback(async () => {
     try {
-      const id = await createConversation()
-      const conv = { id, title: `Conversation ${conversations.length + 1}`, created: new Date().toISOString(), updated: new Date().toISOString(), message_count: 0, pinned: false }
+      const conv = await _createConversation()
       setConversations(prev => [conv, ...prev])
       setActiveConversation(conv)
       toastSuccess?.('New conversation created')
     } catch {
       toastError?.('Failed to create conversation')
     }
-  }, [conversations.length])
+  }, [_createConversation])
 
   const handleSelectConversation = useCallback((conv) => {
     setActiveConversation(conv)
@@ -118,11 +123,18 @@ export function ChatProvider({ children }) {
   const handleSend = useCallback(async (text, images) => {
     if (streaming) return
     try {
-      await send(text, images)
+      let cid = activeConversation?.id
+      if (!cid) {
+        const conv = await _createConversation()
+        setConversations(prev => [conv, ...prev])
+        setActiveConversation(conv)
+        cid = conv.id
+      }
+      await send(text, images, cid)
     } catch (err) {
       toastError?.(err?.message || 'Failed to send message')
     }
-  }, [send, streaming, toastError])
+  }, [send, streaming, toastError, activeConversation?.id, _createConversation])
 
   const handleRetry = useCallback((msg) => {
     if (msg?.content) {

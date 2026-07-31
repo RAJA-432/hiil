@@ -23,6 +23,17 @@ if TYPE_CHECKING:
 
 logger = get_logger("chat")
 
+_validation_error_count: int = 0
+
+
+def _inc_validation_error() -> None:
+    global _validation_error_count
+    _validation_error_count += 1
+
+
+def _get_validation_error_count() -> int:
+    return _validation_error_count
+
 
 class CliChat:
     def __init__(
@@ -55,6 +66,9 @@ class CliChat:
         self.doc_injector = DocumentInjector(doc_client)
         self.tool_runner = ToolRunner(self.tools_by_name, tool_timeout, roots_manager=self._roots)
         self._auto_index_task: asyncio.Task | None = None
+        self.response_format: dict[str, Any] | None = None
+        self._correction_attempts = 0
+        self.MAX_CORRECTION_ATTEMPTS = 2
 
         # Agent spawning
         self.agents: dict[str, AgentRunner] = {}
@@ -163,12 +177,38 @@ class CliChat:
     async def initialize(self) -> None:
         await self.refresh_tools()
         await self.doc_injector.initialize()
+        await self.refresh_system_prompt()
         api_ctx = await self.context.fetch_model_context(self.claude.model)
-        self.context.max_context_tokens = min(self.context.max_context_tokens, int(api_ctx * 0.9))
+        if api_ctx is not None:
+            self.context.max_context_tokens = min(self.context.max_context_tokens, int(api_ctx * 0.9))
         logger.info("model context limit: %s, effective budget: %s", api_ctx, self.context.max_context_tokens)
 
-    def refresh_system_prompt(self) -> None:
-        prompt = self.claude.system_prompt()
+    async def _fetch_mcp_format_instructions(self) -> str | None:
+        parts: list[str] = []
+        all_clients: dict[str, SetuBridge | None] = {
+            "doc_client": self.doc_client,
+            **self.clients,
+        }
+        for cid, client in all_clients.items():
+            if client is None:
+                continue
+            try:
+                prompts = await client.list_prompts()
+                for p in prompts:
+                    if p.name and "format" in p.name.lower():
+                        result = await client.get_prompt(p.name, {})
+                        for msg in result:
+                            if hasattr(msg.content, "text"):
+                                parts.append(msg.content.text)
+                            elif isinstance(msg.content, dict):
+                                parts.append(msg.content.get("text", ""))
+            except Exception:
+                logger.debug("no prompts from %s (expected for most servers)", cid)
+        return "\n\n".join(parts) if parts else None
+
+    async def refresh_system_prompt(self) -> None:
+        fmt = await self._fetch_mcp_format_instructions()
+        prompt = self.claude.system_prompt(format_instructions=fmt)
         for i, m in enumerate(self.messages):
             if m.get("role") == "system":
                 self.messages[i] = {"role": "system", "content": prompt}
@@ -299,15 +339,45 @@ class CliChat:
             for a in self.agents.values()
         ]
 
+    def _validate_output(self, content: str) -> tuple[bool, str | None]:
+        if not self.response_format:
+            return True, None
+        schema = self.response_format.get("json_schema", {}).get("schema")
+        if not schema:
+            return True, None
+        try:
+            from jsonschema import Draft7Validator, ValidationError
+            data = json.loads(content)
+            Draft7Validator(schema).validate(data)
+            return True, None
+        except (json.JSONDecodeError, ImportError):
+            return True, None
+        except ValidationError as e:
+            return False, str(e)
+
+    @staticmethod
+    def _is_vision_model(model: str) -> bool:
+        model_lower = model.lower()
+        vision_keywords = ["vision", "gpt-4o", "gpt-4-turbo", "claude-3", "claude-4", "gemini-1.5", "gemini-2.0", "llava", "cogvlm", "qwen-vl", "internvl"]
+        if any(kw in model_lower for kw in vision_keywords):
+            return True
+        non_vision = ["gemma", "deepseek", "llama-3.1", "mixtral", "mistral"]
+        if any(nm in model_lower for nm in non_vision):
+            return False
+        return True
+
     async def send(
         self,
         user_input: str,
+        images: list[str] | None = None,
         on_tool_event: Any = None,
         on_chunk: Any = None,
         on_approval: Any = None,
         notification_bus: NotificationBus | None = None,
+        response_format: dict[str, Any] | None = None,
     ) -> str:
         bus = notification_bus
+        self._correction_attempts = 0
         user_input = self._sanitize_input(user_input)
 
         if bus:
@@ -331,8 +401,38 @@ class CliChat:
         self._auto_index_task = asyncio.create_task(
             self._auto_index_wrapper(user_input), name="auto_index"
         )
-        self.messages.append({"role": "user", "content": augmented})
-        await self.history.async_save_message(self.session_id, "user", augmented)
+
+        # OCR fallback for non-vision models
+        if images and not self._is_vision_model(self.claude.model):
+            from mcp_cli.services.ocr import extract_text_from_data_url, is_available
+            if is_available():
+                ocr_texts = []
+                for img_url in images:
+                    text = extract_text_from_data_url(img_url)
+                    if text:
+                        ocr_texts.append(text)
+                if ocr_texts:
+                    ocr_context = "\n\n[OCR text extracted from image(s)]:\n" + "\n---\n".join(ocr_texts)
+                    augmented = augmented + ocr_context
+                    if bus:
+                        await bus.push_log("info", f"OCR extracted text from {len(ocr_texts)} image(s)")
+                elif bus:
+                    await bus.push_log("warn", "OCR available but no text could be extracted from image(s)")
+            else:
+                if bus:
+                    await bus.push_log("warn", "OCR libraries not installed (pip install Pillow pytesseract). Cannot process images with this model.")
+            images = None  # Don't send images to non-vision model
+
+        if images:
+            content: list[dict] = [{"type": "text", "text": augmented}]
+            for img_url in images:
+                content.append({"type": "image_url", "image_url": {"url": img_url}})
+            self.messages.append({"role": "user", "content": content})
+            save_content = json.dumps(content)
+        else:
+            self.messages.append({"role": "user", "content": augmented})
+            save_content = augmented
+        await self.history.async_save_message(self.session_id, "user", save_content)
         tools = self._openai_tools if self._openai_tools else None
         tools_tokens = count_tokens(json.dumps(tools), self.claude.model) if tools else 0
         self.messages = self.context.trim(self.messages, tools_tokens)
@@ -347,8 +447,9 @@ class CliChat:
             if bus:
                 await bus.push_log("info", f"Calling LLM (iteration {iterations})...")
 
+            fmt = response_format or self.response_format
             message, input_tokens, output_tokens = await self.streamer.chat(
-                self.messages, tools=tools, on_chunk=on_chunk,
+                self.messages, tools=tools, on_chunk=on_chunk, response_format=fmt,
             )
             await self.usage.async_record(self.claude.model, input_tokens, output_tokens, self.session_id)
 
@@ -371,8 +472,32 @@ class CliChat:
 
             tool_calls = getattr(message, "tool_calls", None)
             if not tool_calls:
+                is_valid, err = self._validate_output(message.content or "")
+                if is_valid:
+                    if bus:
+                        await bus.push_log("info", "Response complete.")
+                        await bus.push_done()
+                    return message.content or ""
+
+                logger.warning("output validation failed: %s", err)
+                _inc_validation_error()
+                logger.info(
+                    "refinement_audit skill=%s valid=%s error=%s",
+                    (self.response_format or {}).get("json_schema", {}).get("name", "unknown"),
+                    is_valid,
+                    err,
+                )
+
+                if self._correction_attempts < self.MAX_CORRECTION_ATTEMPTS:
+                    self._correction_attempts += 1
+                    self.messages.append({
+                        "role": "user",
+                        "content": f"Your previous response did not match the required format. Error: {err}\n\nPlease reformat your response to strictly follow the output schema requirements. Return ONLY valid content matching the expected format.",
+                    })
+                    continue
+
                 if bus:
-                    await bus.push_log("info", "Response complete.")
+                    await bus.push_log("warn", "Max correction attempts reached, returning raw output.")
                     await bus.push_done()
                 return message.content or ""
 

@@ -3,7 +3,7 @@ const USE_MOCK = (import.meta.env.VITE_USE_MOCK || 'false') === 'true'
 import { apiGet, apiStream, apiPost, apiDelete } from './client'
 import { getMockConversations, getMockMessages, addMockMessage, simulateStreamResponse } from './mock'
 
-export function sendMessage(conversationId, message, onEvent, onError, signal) {
+export function sendMessage(conversationId, message, images, onEvent, onError, signal) {
   if (USE_MOCK) {
     addMockMessage(conversationId, 'user', message, [], [])
     const reply =
@@ -12,7 +12,11 @@ export function sendMessage(conversationId, message, onEvent, onError, signal) {
     return simulateStreamResponse(conversationId, reply, onEvent)
   }
 
-  return apiStream('POST', `/api/chat?stream=1`, { message, session_id: conversationId, stream: true }, onEvent, onError, signal)
+  const body = { message, session_id: conversationId, stream: true }
+  if (images?.length > 0) {
+    body.images = images.map(i => i.dataUrl || i)
+  }
+  return apiStream('POST', `/api/chat?stream=1`, body, onEvent, onError, signal)
 }
 
 export async function loadConversations({ limit = 50, offset = 0 } = {}) {
@@ -73,6 +77,15 @@ export async function searchMessages(query) {
     return { results: allMessages.slice(0, 50), total_count: allMessages.length }
   }
   return apiGet(`/api/search?q=${encodeURIComponent(query)}`)
+}
+
+export async function sendFeedback(sessionId, rating, context = {}) {
+  if (USE_MOCK) return { event_id: 'mock', total: rating === 1 ? 0.3 : -0.3 }
+  return apiPost('/api/rewards', {
+    session_id: sessionId,
+    action_type: 'feedback',
+    context: { rating, ...context },
+  })
 }
 
 export async function fetchUsage() {
