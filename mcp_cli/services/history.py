@@ -18,6 +18,7 @@ class ChatHistoryManager(SqliteStore):
 
     def __init__(self, db_path: str = "chat_history.db", max_sessions: int = 50):
         self._max_sessions = max_sessions
+        self._writes_since_prune = 0
         super().__init__(db_path)
         self._get_conn().execute("PRAGMA synchronous=NORMAL")
 
@@ -32,7 +33,10 @@ class ChatHistoryManager(SqliteStore):
                 (session_id, role, content, timestamp)
             )
             conn.commit()
-            self._prune_old_sessions()
+            self._writes_since_prune += 1
+            if self._writes_since_prune >= 100:
+                self._writes_since_prune = 0
+                self._prune_old_sessions()
 
     def load_session(self, session_id: str) -> list[dict[str, Any]]:
         """Retrieve all messages for a session ordered by timestamp."""
@@ -56,6 +60,26 @@ class ChatHistoryManager(SqliteStore):
             params.append(offset)
         cursor = conn.execute(query, params)
         return [row[0] for row in cursor.fetchall()]
+
+    def session_summaries(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+        """Return one row per session with last activity, message count, and first user message title."""
+        with self._lock:
+            conn = self._get_conn()
+            cursor = conn.execute(
+                """SELECT session_id, MAX(timestamp), COUNT(*),
+                          (SELECT content FROM messages m2
+                           WHERE m2.session_id = m.session_id AND m2.role = 'user'
+                           ORDER BY m2.timestamp ASC, m2.id ASC LIMIT 1)
+                   FROM messages m
+                   GROUP BY session_id
+                   ORDER BY MAX(timestamp) DESC
+                   LIMIT ? OFFSET ?""",
+                (limit, offset)
+            )
+            return [
+                {"session_id": row[0], "last_ts": row[1], "message_count": row[2], "title": row[3] or ""}
+                for row in cursor.fetchall()
+            ]
 
     def count_sessions(self) -> int:
         """Return the total number of sessions."""
@@ -164,6 +188,10 @@ class ChatHistoryManager(SqliteStore):
     @asyncify("count_sessions")
     async def async_count_sessions(self) -> int:
         return 0
+
+    @asyncify("session_summaries")
+    async def async_session_summaries(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+        return []
 
     @asyncify("delete_session")
     async def async_delete_session(self, session_id: str) -> None:

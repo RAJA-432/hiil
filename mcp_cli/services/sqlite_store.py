@@ -4,10 +4,13 @@ import asyncio
 import sqlite3
 import threading
 import weakref
+from concurrent.futures import ThreadPoolExecutor
 
 from mcp_cli.services.logging import get_logger
 
 logger = get_logger(__name__)
+
+_EXECUTOR = ThreadPoolExecutor(max_workers=8)
 
 
 def asyncify(method_name: str):
@@ -16,7 +19,7 @@ def asyncify(method_name: str):
         async def wrapper(self, *args, **kwargs):
             loop = asyncio.get_running_loop()
             sync_fn = getattr(self, method_name)
-            return await loop.run_in_executor(None, lambda: sync_fn(*args, **kwargs))
+            return await loop.run_in_executor(_EXECUTOR, lambda: sync_fn(*args, **kwargs))
         wrapper.__name__ = sync_method.__name__
         wrapper.__qualname__ = sync_method.__qualname__
         return wrapper
@@ -30,7 +33,11 @@ class SqliteStore:
         self.db_path = db_path
         self._lock = threading.Lock()
         self._conn: sqlite3.Connection | None = sqlite3.connect(db_path, check_same_thread=False)
-        self._get_conn().execute("PRAGMA journal_mode=WAL")
+        conn = self._get_conn()
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA cache_size=-20000")
         self._init_db()
         self._finalizer = weakref.finalize(self, self.__class__._close_conn, self._conn, self._lock)
 

@@ -50,21 +50,18 @@ async def list_conversations(
 ):
     chat = await _require_chat(request)
     total = await chat.history.async_count_sessions()
-    sids = await chat.history.async_list_sessions(limit=limit, offset=offset)
+    summaries = await chat.history.async_session_summaries(limit=limit, offset=offset)
     convs = []
-    for sid in sids:
+    for s in summaries:
+        sid = s["session_id"]
         created = _parse_session_ts(sid)
-        msgs = await chat.history.async_load_session(sid)
-        first = next((m for m in msgs if m.get("role") == "user"), None)
-        title = (first.get("content") or "")[:80] if first else sid
         convs.append(ConversationItem(
             id=sid,
-            title=title,
+            title=(s["title"] or "")[:80],
             created=created.isoformat() if created else sid,
-            updated=created.isoformat() if created else sid,
-            message_count=len(msgs),
+            updated=s["last_ts"],
+            message_count=s["message_count"],
         ))
-    convs.sort(key=lambda c: c.created, reverse=True)
     return ConversationListResponse(conversations=convs, total=total)
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import TYPE_CHECKING, Any
 
 from mcp_cli.services.chunker import chunk_by_tokens, extract_text
@@ -14,14 +15,52 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 _DEFAULT_NAMESPACE = "documents"
+_EMPTY_CACHE_TTL = 30.0
 
 
 class RagPipeline:
     def __init__(self, claude: LLMClient, vector_store: VectorStore):
         self.claude = claude
         self.vector_store = vector_store
+        self._empty_cache: dict[str, tuple[float, bool]] = {}
+        self._index_lock = asyncio.Lock()
+        self._index_inflight: dict[tuple[str, str], asyncio.Task] = {}
+
+    async def _is_namespace_empty(self, namespace: str) -> bool:
+        cached = self._empty_cache.get(namespace)
+        if cached is not None and time.monotonic() - cached[0] < _EMPTY_CACHE_TTL:
+            return cached[1]
+        loop = asyncio.get_running_loop()
+        is_empty = await loop.run_in_executor(None, lambda: self.vector_store.count(namespace) == 0)
+        self._empty_cache[namespace] = (time.monotonic(), is_empty)
+        return is_empty
+
+    def _invalidate_empty_cache(self, namespace: str) -> None:
+        self._empty_cache.pop(namespace, None)
 
     async def index_document(
+        self,
+        content: bytes,
+        filename: str,
+        namespace: str = _DEFAULT_NAMESPACE,
+        chunk_size: int = 512,
+        chunk_overlap: int = 64,
+    ) -> dict[str, Any]:
+        key = (namespace, filename)
+        async with self._index_lock:
+            task = self._index_inflight.get(key)
+            if task is None:
+                task = asyncio.create_task(
+                    self._index_document(content, filename, namespace, chunk_size, chunk_overlap)
+                )
+                self._index_inflight[key] = task
+        try:
+            return await asyncio.shield(task)
+        finally:
+            if self._index_inflight.get(key) is task:
+                del self._index_inflight[key]
+
+    async def _index_document(
         self,
         content: bytes,
         filename: str,
@@ -69,6 +108,7 @@ class RagPipeline:
             result["errors"] = errors
             result["error"] = f"{len(errors)} chunks failed to embed"
         if indexed > 0:
+            self._invalidate_empty_cache(namespace)
             logger.info("Indexed %d/%d chunks from %s", indexed, len(chunks), filename)
         return result
 
@@ -79,6 +119,8 @@ class RagPipeline:
         top_k: int = 5,
         min_score: float = 0.0,
     ) -> list[dict[str, Any]]:
+        if await self._is_namespace_empty(namespace):
+            return []
         emb = await self.claude.embed(query)
         if not emb:
             return []
@@ -118,4 +160,6 @@ class RagPipeline:
         for key in matching:
             await self.vector_store.async_delete(namespace, key)
             deleted += 1
+        if deleted:
+            self._invalidate_empty_cache(namespace)
         return deleted

@@ -8,6 +8,7 @@ Both providers speak the OpenAI Chat Completions protocol, so we use the
 from __future__ import annotations
 
 import time
+from collections import OrderedDict
 from typing import Any, cast
 
 import httpx
@@ -21,6 +22,8 @@ from mcp_cli.services.logging import get_logger
 logger = get_logger("claude")
 
 _RETRYABLE_NETWORK = (httpx.TimeoutException, httpx.ConnectError, ConnectionError, TimeoutError)
+
+_EMBED_CACHE_MAXSIZE = 512
 
 def _is_retryable(exc: BaseException) -> bool:
     if isinstance(exc, httpx.HTTPStatusError):
@@ -57,6 +60,7 @@ class LLMClient:
         self._client = AsyncOpenAI(api_key=effective_key, base_url=base_url, timeout=120)
         self._http_client = httpx.AsyncClient(timeout=30)
         self._caps_cache: dict[tuple[str, str], tuple[float, list[str]]] = {}
+        self._embed_cache: OrderedDict[tuple[str, str, str], list[float]] = OrderedDict()
 
     async def stream_chat(
         self,
@@ -246,6 +250,12 @@ class LLMClient:
     async def embed(self, text: str, model: str | None = None) -> list[float]:
         """Return a vector embedding for the given text via the provider's embeddings endpoint."""
         embed_model = model or self.model
+        key = (self.provider, embed_model, text)
+        cached = self._embed_cache.get(key)
+        if cached is not None:
+            self._embed_cache.move_to_end(key)
+            return cached
+
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -258,19 +268,26 @@ class LLMClient:
                 resp.raise_for_status()
                 data = resp.json()
                 emb = data.get("embeddings", [])
-                return emb[0] if emb else []
-
-            url = self._api_path("embeddings")
-            payload = {"model": embed_model, "input": text}
-            resp = await self._http_client.post(url, json=payload, headers=headers)
-            resp.raise_for_status()
-            data = resp.json()
-            return data["data"][0]["embedding"]
+                emb = emb[0] if emb else []
+            else:
+                url = self._api_path("embeddings")
+                payload = {"model": embed_model, "input": text}
+                resp = await self._http_client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+                emb = data["data"][0]["embedding"]
         except _RETRYABLE_NETWORK:
             raise
         except Exception as exc:
             logger.warning("embedding failed from %s: %s", url, exc)
             return []
+
+        if emb:
+            self._embed_cache[key] = emb
+            self._embed_cache.move_to_end(key)
+            if len(self._embed_cache) > _EMBED_CACHE_MAXSIZE:
+                self._embed_cache.popitem(last=False)
+        return emb
 
     @_API_RETRY
     async def list_models(self) -> list[dict[str, Any]]:
