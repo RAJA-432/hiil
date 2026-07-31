@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
 import { fetchUsage } from '../../api/chat'
 
-export default function TokenBar({ messages, maxTokens = 128000 }) {
+export default function TokenBar({ messages, maxTokens = 128000, sessionId }) {
   const [usage, setUsage] = useState(null)
 
   useEffect(() => {
     let mounted = true
-    fetchUsage().then(u => { if (mounted) setUsage(u) }).catch(() => {})
+    setUsage(null)
+    fetchUsage(sessionId).then(u => { if (mounted) setUsage(u) }).catch(() => {})
     return () => { mounted = false }
-  }, [messages])
+  }, [sessionId, messages])
 
   const estimateTokens = (text) => Math.ceil((text || '').length / 4)
   const estimatedTotal = messages ? messages.reduce((sum, m) => sum + estimateTokens(m.content), 0) : 0

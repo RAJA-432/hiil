@@ -43,7 +43,9 @@ async def chat_api(request: Request, body: ChatRequest, user: str = Depends(get_
     def on_chunk(c: str):
         nonlocal full_reply
         full_reply += c
-    reply = await asyncio.wait_for(chat.send(body.message, on_chunk=on_chunk, images=body.images), timeout=_GLOBAL_CHAT_TIMEOUT)
+    reply = await asyncio.wait_for(
+        chat.send(body.message, on_chunk=on_chunk, images=body.images), timeout=_GLOBAL_CHAT_TIMEOUT
+    )
     return ChatResponse(reply=reply or full_reply)
 
 
@@ -52,7 +54,9 @@ async def list_models(request: Request, user: str = Depends(get_current_user)):
     chat = await _require_chat(request)
     try:
         models_data = await chat.claude.list_models()
-        models = [ModelInfo(id=m.get("id", ""), name=m.get("name", ""), provider=m.get("provider", "")) for m in models_data]
+        models = [
+            ModelInfo(id=m.get("id", ""), name=m.get("name", ""), provider=m.get("provider", "")) for m in models_data
+        ]
         return ModelsResponse(models=models, active=chat.claude.model)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
@@ -80,9 +84,12 @@ async def set_model(request: Request, body: ModelSetRequest, user: str = Depends
 
 
 @router.get("/api/usage", response_model=UsageResponse)
-async def get_usage(request: Request, user: str = Depends(get_current_user)):
+async def get_usage(request: Request, session_id: str | None = None, user: str = Depends(get_current_user)):
     chat = await _require_chat(request)
-    session = chat.usage.session_summary()
+    if session_id:
+        session = await chat.usage.async_session_summary_for(session_id)
+    else:
+        session = chat.usage.session_summary()
     total = chat.usage.total_summary()
     return UsageResponse(
         session=TokenUsage(**session) if session else TokenUsage(),

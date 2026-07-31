@@ -62,6 +62,10 @@ export default function ChatPanel({ onOpenFile, onCopy }) {
     return () => document.removeEventListener('keydown', handler)
   }, [activeConversation])
 
+  useEffect(() => {
+    setSearchOpen(false)
+  }, [activeConversation?.id])
+
   const showStreaming = streaming && streamingText
   const hasTransparency = (ragChunks && ragChunks.length > 0) || (activityLogs && activityLogs.length > 0)
 
@@ -69,7 +73,7 @@ export default function ChatPanel({ onOpenFile, onCopy }) {
     <main role="main" id="main-content" className="chat-panel">
       <SystemPromptBar activeSkill={activeSkill} />
       <div className="chat-panel-header">
-        <TokenBar messages={messages} />
+        <TokenBar messages={messages} sessionId={activeConversation?.id} />
         {activeConversation && (
           <div className="chat-panel-actions">
             {hasTransparency && (

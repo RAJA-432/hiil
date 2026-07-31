@@ -126,7 +126,8 @@ class UsageTracker(SqliteStore):
         with self._lock:
             conn = self._get_conn()
             conn.execute(
-                "INSERT INTO usage_log (model, input_tokens, output_tokens, cost, timestamp, session_id) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO usage_log (model, input_tokens, output_tokens, cost, timestamp, session_id) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (rec.model, rec.input_tokens, rec.output_tokens, rec.cost, rec.timestamp, rec.session_id),
             )
             conn.commit()
@@ -143,10 +144,29 @@ class UsageTracker(SqliteStore):
             "cost": round(self._session_cost, 6),
         }
 
+    def session_summary_for(self, session_id: str) -> dict:
+        """Return aggregated token and cost counts for a persisted session."""
+        conn = self._get_conn()
+        cursor = conn.execute(
+            "SELECT COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0), "
+            "COALESCE(SUM(cost), 0) FROM usage_log WHERE session_id = ?",
+            (session_id,),
+        )
+        row = cursor.fetchone()
+        return {
+            "input_tokens": row[0],
+            "output_tokens": row[1],
+            "total_tokens": row[0] + row[1],
+            "cost": round(row[2], 6),
+        }
+
     def total_summary(self) -> dict:
         """Return aggregated token and cost counts across all persisted records."""
         conn = self._get_conn()
-        cursor = conn.execute("SELECT COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0), COALESCE(SUM(cost), 0) FROM usage_log")
+        cursor = conn.execute(
+            "SELECT COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0), "
+            "COALESCE(SUM(cost), 0) FROM usage_log"
+        )
         row = cursor.fetchone()
         return {
             "input_tokens": row[0],
@@ -159,7 +179,8 @@ class UsageTracker(SqliteStore):
         """Return the most recent usage records, ordered by timestamp descending."""
         conn = self._get_conn()
         cursor = conn.execute(
-            "SELECT model, input_tokens, output_tokens, cost, timestamp, session_id FROM usage_log ORDER BY timestamp DESC LIMIT ?",
+            "SELECT model, input_tokens, output_tokens, cost, timestamp, session_id "
+            "FROM usage_log ORDER BY timestamp DESC LIMIT ?",
             (limit,),
         )
         return [
@@ -177,6 +198,10 @@ class UsageTracker(SqliteStore):
     @asyncify("record")
     async def async_record(self, model: str, input_tokens: int, output_tokens: int, session_id: str = "default"):
         ...
+
+    @asyncify("session_summary_for")
+    async def async_session_summary_for(self, session_id: str) -> dict:
+        return {}
 
     @asyncify("total_summary")
     async def async_total_summary(self) -> dict:

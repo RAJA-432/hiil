@@ -51,6 +51,11 @@ export async function renameConversation(id, title) {
   return apiPost('/api/session/rename', { session_id: id, new_title: title })
 }
 
+export async function switchConversation(id) {
+  if (USE_MOCK) return { session_id: id }
+  return apiPost('/api/session/switch', { session_id: id })
+}
+
 export async function searchMessages(query) {
   if (USE_MOCK) {
     const q = query.toLowerCase()
@@ -86,10 +91,10 @@ export async function sendFeedback(sessionId, rating, context = {}) {
   })
 }
 
-export async function fetchUsage() {
+export async function fetchUsage(sessionId) {
   if (USE_MOCK) return getMockUsage()
   try {
-    const resp = await apiGet('/api/usage')
+    const resp = await apiGet(`/api/usage${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ''}`)
     return resp || { session: null, total: null }
   } catch {
     return { session: null, total: null }

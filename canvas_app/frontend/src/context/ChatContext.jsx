@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef } f
 import { useChat } from '../hooks/useChat'
 import { useTags } from '../hooks/useTags'
 import { useUndo } from '../hooks/useUndo'
-import { loadConversations, createConversation, deleteConversation, renameConversation } from '../api/chat'
+import { loadConversations, createConversation, deleteConversation, renameConversation, switchConversation } from '../api/chat'
 import { useUIContext } from './UIContext'
 
 const LIMIT = 50
@@ -82,11 +82,13 @@ export function ChatProvider({ children }) {
   const handleSelectConversation = useCallback((conv) => {
     setActiveConversation(conv)
     setScrollToMessageId(null)
+    switchConversation(conv.id).catch(() => {})
   }, [])
 
   const handleSearchResultClick = useCallback((conv, messageId) => {
     setActiveConversation(conv)
     setScrollToMessageId(messageId)
+    switchConversation(conv.id).catch(() => {})
   }, [])
 
   const handleDeleteConversation = useCallback(async (id) => {
