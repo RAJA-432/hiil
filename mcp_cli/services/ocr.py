@@ -6,17 +6,20 @@ from __future__ import annotations
 
 import io
 import logging
+from typing import Any
 
 logger = logging.getLogger("mcp_cli.services.ocr")
 
 _HAS_PIL = False
 _HAS_TESSERACT = False
 
+Image: Any = None
 try:
-    from PIL import Image
+    from PIL import Image as _Image
+    Image = _Image
     _HAS_PIL = True
 except ImportError:
-    Image = None  # type: ignore
+    pass
 
 try:
     import pytesseract

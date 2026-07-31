@@ -23,7 +23,7 @@ class _NoopCtx:
     async def error(self, *a, **kw): pass
 
 
-async def read_document(doc_id: str, user_id: str = "default", ctx: Context = None) -> str:  # type: ignore[assignment]
+async def read_document(doc_id: str, user_id: str = "default", ctx: Context | None = None) -> str:
     """Read the contents of a document by ID."""
     c = _c(ctx)
     await c.info(f"Reading document '{doc_id}'...")
@@ -35,7 +35,7 @@ async def read_document(doc_id: str, user_id: str = "default", ctx: Context = No
     return content
 
 
-async def edit_document(doc_id: str, old_str: str, new_str: str, user_id: str = "default", ctx: Context = None) -> str:  # type: ignore[assignment]
+async def edit_document(doc_id: str, old_str: str, new_str: str, user_id: str = "default", ctx: Context | None = None) -> str:
     """Edit a document by replacing the first occurrence of old_str with new_str."""
     c = _c(ctx)
     await c.info(f"Editing document '{doc_id}'...")
@@ -44,7 +44,7 @@ async def edit_document(doc_id: str, old_str: str, new_str: str, user_id: str = 
     return result
 
 
-async def format_document(text: str, ctx: Context = None) -> str:  # type: ignore[assignment]
+async def format_document(text: str, ctx: Context | None = None) -> str:
     """Normalise whitespace, remove trailing spaces, collapse blank lines, ensure final newline."""
     c = _c(ctx)
     await c.info("Formatting text...")

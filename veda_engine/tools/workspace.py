@@ -40,7 +40,7 @@ async def _walk_files(max_depth: int = _MAX_DEPTH) -> list[Path]:
     return out
 
 
-async def search_resources(query: str, ctx: Context = None) -> list[str]:  # type: ignore[assignment]
+async def search_resources(query: str, ctx: Context | None = None) -> list[str]:
     """Search the current workspace for files whose names contain the query."""
     c = _c(ctx)
     await c.info(f"Searching resources matching '{query}'...")
@@ -57,7 +57,7 @@ async def search_resources(query: str, ctx: Context = None) -> list[str]:  # typ
     return matches[:50]
 
 
-async def glob(pattern: str, ctx: Context = None) -> list[str]:  # type: ignore[assignment]
+async def glob(pattern: str, ctx: Context | None = None) -> list[str]:
     """Find files matching a glob pattern (e.g. ``**/*.py``, ``src/**/*.ts``) relative to the workspace root."""
     c = _c(ctx)
     await c.info(f"Globbing pattern '{pattern}'...")
@@ -74,7 +74,7 @@ async def glob(pattern: str, ctx: Context = None) -> list[str]:  # type: ignore[
     return matches[:200]
 
 
-async def grep(pattern: str, glob_pattern: str = "*", ctx: Context = None) -> list[str]:  # type: ignore[assignment]
+async def grep(pattern: str, glob_pattern: str = "*", ctx: Context | None = None) -> list[str]:
     """Search file contents for a regex pattern. Returns ``file:line:content`` for each match."""
     c = _c(ctx)
     await c.info(f"Grepping for '{pattern}' in {glob_pattern} files...")
@@ -112,7 +112,7 @@ async def grep(pattern: str, glob_pattern: str = "*", ctx: Context = None) -> li
     return results
 
 
-async def read_text_resource(path: str, ctx: Context = None) -> str:  # type: ignore[assignment]
+async def read_text_resource(path: str, ctx: Context | None = None) -> str:
     """Read a text file from the workspace."""
     c = _c(ctx)
     await c.info(f"Reading {path}...")
