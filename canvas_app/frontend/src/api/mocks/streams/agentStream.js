@@ -29,11 +29,9 @@ The task has been completed successfully. Here's what was done:
 - **Execution**: Processed the task using available tools
 - **Verification**: Confirmed the output meets the specifications`
 
-  let buffer = ''
   for (let i = 0; i < reply.length; i += cfg.chunkMin + Math.floor(Math.random() * (cfg.chunkMax - cfg.chunkMin + 1))) {
     const chunk = reply.slice(i, i + cfg.chunkMin + Math.floor(Math.random() * (cfg.chunkMax - cfg.chunkMin + 1)))
-    buffer += chunk
-    yield { type: 'tokens', text: buffer }
+    yield { type: 'tokens', text: chunk }
     await new Promise(r => setTimeout(r, cfg.delayMin + Math.random() * (cfg.delayMax - cfg.delayMin)))
   }
 

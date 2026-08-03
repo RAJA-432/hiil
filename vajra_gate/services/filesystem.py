@@ -36,7 +36,9 @@ class FileSystem:
         safe = self.resolve(path)
         return self._build_tree(safe, max_depth)
 
-    def _build_tree(self, safe_path: str, max_depth: int, depth: int = 0) -> dict | None:
+    def _build_tree(self, safe_path: str, max_depth: int, depth: int = 0, visited: set[str] | None = None) -> dict | None:
+        if visited is None:
+            visited = set()
         name = os.path.basename(safe_path) or safe_path
         if self._should_ignore(name):
             return None
@@ -45,6 +47,10 @@ class FileSystem:
             return {"name": name, "type": "file", "path": self.relpath(safe_path), "size": stat.st_size}
         if depth >= max_depth:
             return {"name": name, "type": "dir", "path": self.relpath(safe_path), "children": []}
+        real = os.path.realpath(safe_path)
+        if real in visited:
+            return {"name": name, "type": "dir", "path": self.relpath(safe_path), "children": []}
+        visited.add(real)
         try:
             entries = sorted(os.listdir(safe_path), key=lambda x: (not os.path.isdir(os.path.join(safe_path, x)), x.lower()))
         except PermissionError:
@@ -52,7 +58,7 @@ class FileSystem:
         children = []
         for entry in entries:
             full = os.path.join(safe_path, entry)
-            child = self._build_tree(full, max_depth, depth + 1)
+            child = self._build_tree(full, max_depth, depth + 1, visited)
             if child is not None:
                 children.append(child)
         return {"name": name, "type": "dir", "path": self.relpath(safe_path), "children": children}

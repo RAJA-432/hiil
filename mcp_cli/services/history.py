@@ -14,6 +14,7 @@ class ChatHistoryManager(SqliteStore):
             timestamp TEXT
         )""",
         "CREATE INDEX IF NOT EXISTS idx_session ON messages(session_id)",
+        "CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)",
     ]
 
     def __init__(self, db_path: str = "chat_history.db", max_sessions: int = 50):
@@ -61,20 +62,51 @@ class ChatHistoryManager(SqliteStore):
         cursor = conn.execute(query, params)
         return [row[0] for row in cursor.fetchall()]
 
-    def session_summaries(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
-        """Return one row per session with last activity, message count, and first user message title."""
+    def list_summaries(self, limit: int | None = None, offset: int = 0) -> list[dict[str, Any]]:
+        """Return one metadata row per session with last activity, message count, and first user message title."""
         with self._lock:
             conn = self._get_conn()
+            query = (
+                "SELECT session_id, MAX(timestamp), COUNT(*), "
+                "(SELECT content FROM messages m2 "
+                " WHERE m2.session_id = m.session_id AND m2.role = 'user' "
+                " ORDER BY m2.timestamp ASC, m2.id ASC LIMIT 1) "
+                "FROM messages m "
+                "GROUP BY session_id "
+                "ORDER BY MAX(timestamp) DESC"
+            )
+            params: list[int] = []
+            if limit is not None:
+                query += " LIMIT ?"
+                params.append(limit)
+                query += " OFFSET ?"
+                params.append(offset)
+            cursor = conn.execute(query, params)
+            return [
+                {"session_id": row[0], "last_ts": row[1], "message_count": row[2], "title": row[3] or ""}
+                for row in cursor.fetchall()
+            ]
+
+    def session_summaries(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+        """Return one row per session with last activity, message count, and first user message title."""
+        return self.list_summaries(limit=limit, offset=offset)
+
+    def session_summaries_for(self, session_ids: list[str]) -> list[dict[str, Any]]:
+        """Return one metadata row per requested session (title, count, last activity)."""
+        if not session_ids:
+            return []
+        with self._lock:
+            conn = self._get_conn()
+            in_clause = "(" + ",".join(["?"] * len(session_ids)) + ")"
             cursor = conn.execute(
-                """SELECT session_id, MAX(timestamp), COUNT(*),
-                          (SELECT content FROM messages m2
-                           WHERE m2.session_id = m.session_id AND m2.role = 'user'
-                           ORDER BY m2.timestamp ASC, m2.id ASC LIMIT 1)
-                   FROM messages m
-                   GROUP BY session_id
-                   ORDER BY MAX(timestamp) DESC
-                   LIMIT ? OFFSET ?""",
-                (limit, offset)
+                "SELECT session_id, MAX(timestamp), COUNT(*), "  # noqa: S608 -- ? placeholders are safe
+                "(SELECT content FROM messages m2 "
+                " WHERE m2.session_id = m.session_id AND m2.role = 'user' "
+                " ORDER BY m2.timestamp ASC, m2.id ASC LIMIT 1) "
+                "FROM messages m WHERE session_id IN " + in_clause + " "
+                "GROUP BY session_id "
+                "ORDER BY MAX(timestamp) DESC",
+                list(session_ids),
             )
             return [
                 {"session_id": row[0], "last_ts": row[1], "message_count": row[2], "title": row[3] or ""}
@@ -191,6 +223,14 @@ class ChatHistoryManager(SqliteStore):
 
     @asyncify("session_summaries")
     async def async_session_summaries(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+        return []
+
+    @asyncify("list_summaries")
+    async def async_list_summaries(self, limit: int | None = None, offset: int = 0) -> list[dict[str, Any]]:
+        return []
+
+    @asyncify("session_summaries_for")
+    async def async_session_summaries_for(self, session_ids: list[str]) -> list[dict[str, Any]]:
         return []
 
     @asyncify("delete_session")

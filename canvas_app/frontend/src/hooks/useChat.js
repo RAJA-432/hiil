@@ -51,7 +51,7 @@ export function useChat(conversationId, onUndoPush) {
       (event) => {
         if (!mountedRef.current) return
         if (event.type === 'tokens') {
-          setStreamingText(event.text)
+          setStreamingText(prev => prev + event.text)
         } else if (event.type === 'tool_event') {
           const existing = toolCalls.find(t => t.tool === event.tool && t.status === 'running')
           if (existing) {

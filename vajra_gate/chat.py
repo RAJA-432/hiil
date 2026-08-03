@@ -7,6 +7,8 @@ import vajra_gate.state as _state
 
 logger = logging.getLogger("vajra_gate")
 
+_LOG_FLUSH_EVERY = 50
+
 
 async def _mcp_logging_callback(params: Any) -> None:
     logger.debug("MCP log [%s] %s: %s", getattr(params, "level", "info"), getattr(params, "logger", ""), getattr(params, "data", ""))
@@ -37,12 +39,9 @@ async def _stream_chat(chat, message: str, session_id: str = "default", images: 
     from mcp_cli.services.notification_bus import NotificationBus
 
     bus = NotificationBus()
-    full_reply = ""
 
     def on_chunk(chunk: str):
-        nonlocal full_reply
-        full_reply += chunk
-        bus.push_tokens_nowait(full_reply)
+        bus.push_tokens_nowait(chunk)
 
     def on_tool_event(event):
         bus.push_tool_call_nowait(event.name, event.args, "done" if event.result else "running", (event.result or "")[:200])
@@ -63,11 +62,14 @@ async def lekh_record(bus):
             logger.warning("Failed to open chat log %s: %s", log_path, exc)
 
     try:
+        written = 0
         async for event in bus.events():
             if file is not None:
                 try:
                     file.write(json.dumps(event) + "\n")
-                    file.flush()
+                    written += 1
+                    if written % _LOG_FLUSH_EVERY == 0:
+                        file.flush()
                 except Exception:
                     pass
     except (GeneratorExit, asyncio.CancelledError):
@@ -95,7 +97,7 @@ async def _reward_observer(bus, session_id: str):
     from vajra_gate.services.reward import get_tracker
 
     tracker = get_tracker()
-    last_reply = ""
+    reply_parts: list[str] = []
     try:
         async for event in bus.events():
             etype = event.get("type", "")
@@ -111,12 +113,12 @@ async def _reward_observer(bus, session_id: str):
                 if status == "done":
                     tracker.record(session_id, "tool_result", ctx, evaluate=True)
             elif etype == "tokens":
-                last_reply = event.get("text", "")
+                reply_parts.append(event.get("text", ""))
             elif etype == "done":
-                if last_reply:
+                if reply_parts:
                     tracker.record(
                         session_id, "response",
-                        {"content": last_reply, "session_id": session_id},
+                        {"content": "".join(reply_parts), "session_id": session_id},
                         evaluate=True,
                     )
     except (GeneratorExit, asyncio.CancelledError):

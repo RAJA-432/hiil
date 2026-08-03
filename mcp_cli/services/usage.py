@@ -116,6 +116,7 @@ class UsageTracker(SqliteStore):
             timestamp TEXT,
             session_id TEXT
         )""",
+        "CREATE INDEX IF NOT EXISTS idx_usage_log_session ON usage_log(session_id)",
     ]
 
     def __init__(self, db_path: str = "chat_history.db"):

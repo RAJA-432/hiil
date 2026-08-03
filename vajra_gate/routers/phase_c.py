@@ -70,16 +70,15 @@ async def websocket_chat(websocket: WebSocket):
             async def _stream():
                 from mcp_cli.services.notification_bus import NotificationBus
                 bus = NotificationBus()
-                full_reply = ""
+                chunks: list[str] = []
 
                 def on_chunk(chunk: str):
-                    nonlocal full_reply
-                    full_reply += chunk
+                    chunks.append(chunk)
                     try:
                         asyncio.ensure_future(
                             websocket.send_json({
                                 "event": "token",
-                                "data": {"chunk": chunk, "full": full_reply},
+                                "data": {"chunk": chunk},
                             })
                         )
                     except Exception:
@@ -116,7 +115,7 @@ async def websocket_chat(websocket: WebSocket):
                     try:
                         await websocket.send_json({
                             "event": "complete",
-                            "data": {"reply": full_reply},
+                            "data": {"reply": "".join(chunks)},
                         })
                     except Exception:
                         pass

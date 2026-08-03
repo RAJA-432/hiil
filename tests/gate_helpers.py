@@ -76,6 +76,23 @@ class FakeHistory:
     async def async_list_sessions(self) -> list[str]:
         return list(self._sessions.keys())
 
+    async def async_list_summaries(self, limit: int | None = None, offset: int = 0) -> list[dict[str, Any]]:
+        summaries = []
+        for sid, msgs in self._sessions.items():
+            first_user = next((m.get("content", "") for m in msgs if m.get("role") == "user"), "")
+            summaries.append({
+                "session_id": sid,
+                "last_ts": "",
+                "message_count": len(msgs),
+                "title": first_user,
+            })
+        summaries.sort(key=lambda s: s["last_ts"], reverse=True)
+        return summaries[offset:offset + limit] if limit is not None else summaries[offset:]
+
+    async def async_session_summaries_for(self, session_ids: list[str]) -> list[dict[str, Any]]:
+        by_id = {s["session_id"]: s for s in await self.async_list_summaries()}
+        return [by_id[sid] for sid in session_ids if sid in by_id]
+
     async def async_load_session(self, sid: str) -> list[dict[str, Any]] | None:
         return self._sessions.get(sid)
 

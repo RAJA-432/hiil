@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import fnmatch
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -14,6 +15,16 @@ from veda_engine.tools.path_guard import is_safe_path, validate_path
 logger = logging.getLogger(__name__)
 
 _MAX_DEPTH = 4
+
+_MAX_BATCH_FILES = 20
+_MAX_FILE_BYTES = 100_000
+_MAX_BATCH_BYTES = 500_000
+
+_NOISE_DIRS = frozenset({
+    ".git", ".venv", "venv", ".env", "node_modules", "__pycache__",
+    ".egg-info", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+    ".idea", ".vscode", "htmlcov", ".tox", ".eggs", "dist", "build",
+})
 
 
 def _c(ctx: Context | None):
@@ -31,12 +42,22 @@ async def _walk_files(max_depth: int = _MAX_DEPTH) -> list[Path]:
     """Return all files under ``WORKSPACE_ROOT`` up to *max_depth* levels deep."""
     root = WORKSPACE_ROOT
     out: list[Path] = []
-    for path in root.rglob("*"):
-        if not path.is_file():
+    visited: set[str] = set()
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        dir_real = os.path.realpath(dirpath)
+        if dir_real in visited:
+            dirnames[:] = []
             continue
-        rel = path.relative_to(root)
-        if len(rel.parents) <= max_depth:
-            out.append(path)
+        visited.add(dir_real)
+        depth = len(Path(dirpath).relative_to(root).parts)
+        if depth >= max_depth - 1:
+            dirnames[:] = []
+        else:
+            dirnames[:] = [name for name in dirnames if name not in _NOISE_DIRS]
+        if depth < max_depth:
+            dir_abs = Path(dirpath)
+            for name in filenames:
+                out.append(dir_abs / name)
     return out
 
 
@@ -141,3 +162,60 @@ async def read_text_resource(path: str, ctx: Context | None = None) -> str:
     except Exception as exc:
         await c.error(f"Read failed: {exc}")
         return f"Unable to read file: {exc}"
+
+
+async def read_text_batch(paths: list[str], ctx: Context | None = None) -> str:
+    """Read up to ``_MAX_BATCH_FILES`` workspace files concurrently into keyed blocks."""
+    c = _c(ctx)
+    await c.info(f"Reading {len(paths)} files in batch...")
+    if not paths:
+        return ""
+
+    root = WORKSPACE_ROOT
+    sem = asyncio.Semaphore(4)
+
+    async def read_one(path: str) -> tuple[str, str, str]:
+        err = validate_path(path, root)
+        if err:
+            await c.error(f"Path traversal blocked: {path} ({err})")
+            return path, "denied", f"Access denied: {path} ({err})"
+
+        target = (root / path).resolve()
+        if not is_safe_path(target, root):
+            await c.error(f"Path traversal blocked after resolution: {path}")
+            return path, "denied", f"Access denied: {path} (path traversal not allowed)"
+
+        async with sem:
+            exists = await asyncio.to_thread(target.exists)
+            is_file = await asyncio.to_thread(target.is_file) if exists else False
+            if not exists or not is_file:
+                await c.error(f"File not found: {path}")
+                return path, "missing", f"Resource not found: {path}"
+            try:
+                content = await asyncio.to_thread(
+                    lambda: target.read_text(encoding="utf-8", errors="ignore")
+                )
+            except Exception as exc:
+                await c.error(f"Read failed: {exc}")
+                return path, "denied", f"Access denied: {path} ({exc})"
+        await c.info(f"Read {len(content)} bytes from {path}")
+        return path, "ok", content
+
+    entries = await asyncio.gather(*(read_one(p) for p in paths[:_MAX_BATCH_FILES]))
+
+    blocks: list[str] = []
+    total_bytes = 0
+    for path, kind, payload in entries:
+        if kind in ("missing", "denied"):
+            blocks.append(f"{payload}\n\n")
+            continue
+        if len(payload) > _MAX_FILE_BYTES:
+            payload = payload[:_MAX_FILE_BYTES] + f"\n[truncated at {_MAX_FILE_BYTES} bytes]"
+        block = f"=== {path} ===\n{payload}\n\n"
+        if total_bytes + len(block) > _MAX_BATCH_BYTES:
+            blocks.append(f"[batch truncated at {_MAX_BATCH_BYTES} bytes total]\n")
+            break
+        blocks.append(block)
+        total_bytes += len(block)
+    await c.info(f"Assembled {len(blocks)} blocks totaling {total_bytes} bytes")
+    return "".join(blocks)

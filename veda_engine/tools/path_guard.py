@@ -32,13 +32,6 @@ def is_safe_path(requested: Path, root: Path) -> bool:
         p_canon.relative_to(r_canon)
     except ValueError:
         return False
-    expanded = Path(os.path.realpath(requested))
-    if os.name == "nt":
-        expanded = Path(str(expanded).lower())
-    try:
-        expanded.relative_to(r_canon)
-    except ValueError:
-        return False
     return True
 
 

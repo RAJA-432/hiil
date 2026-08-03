@@ -17,11 +17,14 @@ async def search_messages(
     raw = await chat.history.async_global_search(q, limit=50)
 
     session_ids = list({r["session_id"] for r in raw})
+    summaries = {
+        s["session_id"]: s
+        for s in await chat.history.async_session_summaries_for(session_ids)
+    }
     titles = {}
     for sid in session_ids:
-        msgs = await chat.history.async_load_session(sid)
-        first = next((m for m in msgs if m.get("role") == "user"), None)
-        titles[sid] = first["content"][:80] if first else sid
+        meta = summaries.get(sid)
+        titles[sid] = ((meta["title"] if meta else "") or sid)[:80]
 
     results = []
     for r in raw:

@@ -12,7 +12,6 @@ function _randomChunkSize(cfg, remaining) {
 export function simulateStreamResponse(convId, text, onEvent) {
   const cfg = SCENARIO_CONFIG[getMockScenario()]
   let i = 0
-  let buffer = ''
   const toolCalls = []
   const mockChunks = [
     { text: 'Binary search trees support O(log n) insertion, deletion, and search operations on average.', score: 0.92, metadata: { filename: 'dsa_notes.md' } },
@@ -56,8 +55,7 @@ export function simulateStreamResponse(convId, text, onEvent) {
     const chunkSize = _randomChunkSize(cfg, text.length - i)
     const chunk = text.slice(i, i + chunkSize)
     i += chunkSize
-    buffer += chunk
-    onEvent({ type: 'tokens', text: buffer })
+    onEvent({ type: 'tokens', text: chunk })
 
     if (i > 30 && toolCalls.length === 0 && Math.random() < cfg.ragRate) {
       onEvent({ type: 'rag_context', chunks: mockChunks })

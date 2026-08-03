@@ -369,8 +369,8 @@ class NishkamaRewardSystem:
 class RewardTracker:
     """Persistent reward event store and metric aggregator.
 
-    Stores individual events in ``~/.hiil/store/rewards.json`` and computed
-    metrics in ``~/.hiil/store/reward_metrics.json``.
+    Stores individual events as an append-only JSONL log in
+    ``~/.hiil/store/rewards.jsonl``; metrics are computed on the fly.
     """
 
     def __init__(self):

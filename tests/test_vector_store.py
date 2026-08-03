@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import builtins
+import sys
 
 import pytest
 
@@ -91,6 +92,7 @@ class TestBackendSelection:
             return real_import(name, globals, locals, fromlist, level)
 
         monkeypatch.setattr(builtins, "__import__", fake_import)
+        monkeypatch.delitem(sys.modules, "faiss", raising=False)
         store = create_vector_store("faiss", db_path=str(tmp_path / "vectors.db"))
         assert isinstance(store, VectorStore)
         store.close()

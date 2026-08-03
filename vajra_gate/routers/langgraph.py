@@ -81,18 +81,17 @@ async def info():
 @router.get("/threads", response_model=ThreadListResponse)
 async def list_threads(request: Request, user: str = Depends(get_current_user)):
     chat = await _require_chat(request)
-    sids = await chat.history.async_list_sessions()
+    from vajra_gate.routers.sessions import _parse_session_ts
     threads = []
-    for sid in sids:
-        msgs = await chat.history.async_load_session(sid)
-        from vajra_gate.routers.sessions import _parse_session_ts
+    for s in await chat.history.async_list_summaries():
+        sid = s["session_id"]
         created = _parse_session_ts(sid)
         created_at = created.isoformat() if created else sid
         threads.append(ThreadItem(
             thread_id=sid,
             created_at=created_at,
             updated_at=created_at,
-            message_count=len(msgs),
+            message_count=s["message_count"],
         ))
     threads.sort(key=lambda t: t.created_at, reverse=True)
     return ThreadListResponse(threads=threads)
@@ -179,11 +178,10 @@ async def run_thread_stream(
 
             yield json.dumps({"event": "metadata", "data": {"run_id": run_id, "thread_id": thread_id}}) + "\n"
 
-            full_reply = ""
+            chunks: list[str] = []
 
             def on_chunk(chunk: str):
-                nonlocal full_reply
-                full_reply += chunk
+                chunks.append(chunk)
 
             async def _run():
                 await chat.send(user_input, notification_bus=bus, on_chunk=on_chunk)
@@ -197,7 +195,7 @@ async def run_thread_stream(
 
             yield json.dumps({
                 "event": "complete",
-                "data": {"run_id": run_id, "reply": full_reply},
+                "data": {"run_id": run_id, "reply": "".join(chunks)},
             }) + "\n"
 
         except Exception as exc:
