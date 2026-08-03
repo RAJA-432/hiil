@@ -1,0 +1,137 @@
+.arch-card {
+  background: var(--bg, #0f172a);
+  color: var(--text, #f8fafc);
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 1.6rem;
+  border-radius: 12px;
+  border: 1px solid var(--border, #1e293b);
+  max-width: 760px;
+  margin: 0 auto;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.arch-header {
+  text-align: center;
+  margin-bottom: 1.25rem;
+}
+
+.arch-logo {
+  color: var(--primary, #0ea5e9);
+  margin-bottom: 0.25rem;
+}
+
+.arch-header h1 {
+  display: inline-block;
+  font-size: 1.7rem;
+  margin: 0;
+  letter-spacing: 2px;
+  color: var(--text, #f8fafc);
+}
+
+.arch-sub {
+  font-weight: 600;
+  color: var(--success, #10b981);
+  font-size: 1rem;
+}
+
+.arch-tagline {
+  color: var(--text-dim, #94a3b8);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+
+.arch-node {
+  background: var(--border, #1e293b);
+  border: 1px solid var(--border-light, #334155);
+  text-align: center;
+  padding: 0.7rem 0.75rem;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.arch-node strong {
+  letter-spacing: 0.5px;
+}
+
+.arch-node span {
+  font-size: 0.8rem;
+  color: var(--text-dim, #cbd5e1);
+}
+
+.arch-node-fastapi {
+  border-color: var(--primary, #0ea5e9);
+  background: var(--primary-dim, #0f2b48);
+}
+
+.arch-node-fastapi strong {
+  color: var(--primary, #0ea5e9);
+}
+
+.arch-node-llm {
+  border-color: var(--success, #10b981);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.arch-node-llm strong {
+  color: var(--success, #10b981);
+}
+
+.arch-connector {
+  text-align: center;
+  color: var(--primary, #0ea5e9);
+  font-size: 1.1rem;
+  margin: 0.4rem 0;
+}
+
+.arch-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.9rem;
+  margin: 0.9rem 0;
+}
+
+.arch-tile {
+  background: var(--bg-elevated, #182238);
+  border: 1px solid var(--border-light, #334155);
+  padding: 0.9rem 1rem;
+  border-radius: 8px;
+  min-width: 0;
+}
+
+.arch-tile-highlight {
+  border-color: var(--success, #10b981);
+}
+
+.arch-tile h3 {
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+  color: var(--primary, #38bdf8);
+}
+
+.arch-tile ul {
+  padding-left: 1.1rem;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-dim, #94a3b8);
+}
+
+.arch-tile li {
+  margin-bottom: 0.3rem;
+  word-break: break-word;
+}
+
+.arch-tile code {
+  font-size: 0.75rem;
+  color: var(--text, #e2e8f0);
+  background: var(--border, #1e293b);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+
+@media (max-width: 640px) {
+  .arch-grid {
+    grid-template-columns: 1fr;
+  }
+}

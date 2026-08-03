@@ -10,6 +10,33 @@
 CLI / React SPA ──▶ FastAPI gateway ──▶ mcp_cli (chat · RAG · agents) ──▶ Ollama + MCP servers
 ```
 
+```mermaid
+flowchart TD
+    %% Styling
+    classDef gateway fill:#0f2b48,stroke:#0ea5e9,stroke-width:2px,color:#fff
+    classDef core fill:#182238,stroke:#334155,stroke-width:1px,color:#fff
+    classDef rag fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#fff
+
+    UI["💻 USER INTERFACE<br/>(React SPA / CLI)"] :::gateway
+    Gateway["⚡ FASTAPI GATEWAY<br/>(Vajra Gate)"] :::gateway
+
+    subgraph Core["H.I.I.L. Core Runtime"]
+        Agents["🤖 MULTI-AGENT RUNTIME<br/>• Agent Registry<br/>• Thread Manager<br/>• A2A Orchestration"] :::core
+        RAG["📚 KNOWLEDGE BASE (RAG)<br/>• Document Ingestion (PDF/DOCX)<br/>• SQLite Vector Store<br/>• Chunked Context Retrieval"] :::rag
+        Tools["🛠️ TOOLING (MCP Native)<br/>• Built-in veda_engine<br/>• stdio servers (filesystem, memory)<br/>• Custom MCP Connectors"] :::core
+    end
+
+    LLM["🧠 LLM CONNECTION<br/>(Ollama / OpenAI Compatible • Vision & OCR Fallback)"] :::gateway
+
+    UI --> Gateway
+    Gateway --> Agents
+    Gateway --> RAG
+    Gateway --> Tools
+    Agents --> LLM
+    RAG --> LLM
+    Tools --> LLM
+```
+
 ## Table of Contents
 
 - [Preview](#preview)

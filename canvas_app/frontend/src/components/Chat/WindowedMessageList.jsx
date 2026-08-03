@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import MessageBubble from './MessageBubble'
 import MarkdownRenderer from './MarkdownRenderer'
 import { MessageSkeleton } from '../Shared/LoadingSkeleton'
+import ArchitectureCard from '../Shared/ArchitectureCard'
 
 const WINDOW_SIZE = 100
 const OLDER_CHUNK_SIZE = 50
@@ -88,8 +89,7 @@ export default function WindowedMessageList({
     <div className="chat-messages" ref={containerRef} role="log" aria-label="Chat messages" aria-live="polite">
       {!activeConversation ? (
         <div className="chat-empty">
-          <h2>H.I.I.L. — Hyper-Integrated Inference Engine</h2>
-          <p>Start a conversation to begin. The AI can read and edit files in your workspace.</p>
+          <ArchitectureCard />
         </div>
       ) : loading ? (
         <MessageSkeleton count={4} />
