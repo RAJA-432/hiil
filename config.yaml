@@ -10,6 +10,7 @@ settings:
   enable_moderation: false      # input/output moderation filter (opt-in)
   moderation_deny_list: []      # extra terms the moderation filter should block
   vector_backend: "sqlite"      # vector store backend: "sqlite" or "faiss" (faiss requires the optional package)
+  discovery_guard: "off"        # pre-write discovery guard: "off", "warn", or "block"
 
 # Approved root directories for MCP filesystem access.
 roots:
@@ -39,6 +40,11 @@ servers:
 
   - id: "mock_mail"
     script: "setu_bridge.mock_mail"
+    args: []
+    env: {}
+
+  - id: "calendar"
+    script: "setu_bridge.calendar"
     args: []
     env: {}
 

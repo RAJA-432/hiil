@@ -143,3 +143,53 @@ def test_count_tokens_dict_key_order_independent():
     a = count_tokens({"role": "user", "content": "hello world"}, "gpt-4o")
     b = count_tokens({"content": "hello world", "role": "user"}, "gpt-4o")
     assert a == b
+
+
+class NoCacheCM(ContextManager):
+    def _token_count(self, content):
+        return count_tokens(content, self.claude.model)
+
+
+def test_trim_token_cache_reused_across_calls():
+    messages = _build_history(300)
+    cm = ContextManager(FakeClaude(), None, max_context_tokens=4000)
+    calls = {"n": 0}
+
+    def counting(text, model="gpt-4o"):
+        calls["n"] += 1
+        return len(text) // 4
+
+    with patch("mcp_cli.services.context_manager.count_tokens", new=counting):
+        first = cm.trim([dict(m) for m in messages])
+        first_calls = calls["n"]
+        second = cm.trim([dict(m) for m in messages])
+        second_calls = calls["n"] - first_calls
+
+    assert first_calls > 100
+    assert second_calls <= 10
+
+
+def test_trim_output_identical_before_after_cache():
+    messages = _build_history(120)
+    cm = ContextManager(FakeClaude(), None, max_context_tokens=2500)
+    reference = NoCacheCM(FakeClaude(), None, max_context_tokens=2500)
+    real = cm_module.count_tokens
+
+    with patch("mcp_cli.services.context_manager.count_tokens", new=real):
+        cached_result = cm.trim([dict(m) for m in messages])
+        uncached_result = reference.trim([dict(m) for m in messages])
+
+    assert cached_result == uncached_result
+
+
+def test_token_cache_bounded_and_correct():
+    cm = ContextManager(FakeClaude(), None, max_context_tokens=10_000_000)
+
+    def counting(text, model="gpt-4o"):
+        return max(1, len(text) // 4)
+
+    with patch("mcp_cli.services.context_manager.count_tokens", new=counting):
+        for i in range(cm._max_cache_entries + 100):
+            cm._token_count(f"cache-cap-content-{i}")
+        assert len(cm._token_cache) <= cm._max_cache_entries
+        assert cm._token_count("cache-cap-content-0") == counting("cache-cap-content-0")

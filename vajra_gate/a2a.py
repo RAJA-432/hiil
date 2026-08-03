@@ -56,9 +56,14 @@ class A2AMessage:
 class A2ABus:
     """In-memory pub-sub for agent-to-agent messages."""
 
-    def __init__(self):
+    def __init__(self, max_messages: int = 10_000):
         self._agents: dict[str, A2AAgent] = {}
         self._messages: list[A2AMessage] = []
+        self._max_messages = max_messages
+
+    @property
+    def message_count(self) -> int:
+        return len(self._messages)
 
     def register(self, name: str, role: str,
                  capabilities: list[str] | None = None) -> A2AAgent:
@@ -104,7 +109,22 @@ class A2ABus:
             created_at=time.time(),
         )
         self._messages.append(msg)
+        self._prune_messages()
         return msg
+
+    def _prune_messages(self) -> None:
+        overflow = len(self._messages) - self._max_messages
+        if overflow <= 0:
+            return
+        kept: list[A2AMessage] = []
+        for msg in self._messages:
+            if overflow > 0 and msg.read:
+                overflow -= 1
+                continue
+            kept.append(msg)
+        if overflow > 0:
+            kept = kept[overflow:]
+        self._messages = kept
 
     def get_messages(self, agent_id: str, unread_only: bool = False,
                      limit: int = 50) -> list[A2AMessage]:

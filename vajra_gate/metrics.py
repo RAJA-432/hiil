@@ -7,6 +7,8 @@ from threading import Lock
 _START_TIME = time.time()
 
 _counts: dict[tuple[str, str, str], int] = defaultdict(int)  # (method, path, status)
+_paths: set[str] = set()
+_MAX_PATHS = 1000
 _chat_total: int = 0
 _agent_runs: int = 0
 _validation_errors_total: int = 0
@@ -21,6 +23,11 @@ def inc_validation_error(skill_id: str = "unknown") -> None:
 
 def inc_request(method: str, path: str, status: int) -> None:
     with _lock:
+        if path not in _paths:
+            if len(_paths) >= _MAX_PATHS:
+                path = "other"
+            else:
+                _paths.add(path)
         _counts[(method, path, str(status))] += 1
 
 

@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
-from mcp_cli.services.agents import AgentConfig, AgentRunner
+from mcp_cli.services.agents import (
+    SUBAGENT_REGISTRY,
+    AgentConfig,
+    AgentRunner,
+    classify,
+)
 from mcp_cli.services.claude import _known_text_only_model, _known_vision_model
 from mcp_cli.services.context_manager import ContextManager
+from mcp_cli.services.discovery import DiscoveryTracker
 from mcp_cli.services.document_injector import DocumentInjector
 from mcp_cli.services.history import ChatHistoryManager
 from mcp_cli.services.logging import get_logger
@@ -54,6 +60,8 @@ class CliChat:
         verifier_model: str | None = None,
         enable_moderation: bool = False,
         moderation_deny_list: list[str] | None = None,
+        discovery_guard: Literal["off", "warn", "block"] = "off",
+        intent_routing: bool = False,
     ):
         self.clients = clients
         self.claude = claude_service
@@ -72,7 +80,17 @@ class CliChat:
         self.context = ContextManager(claude_service, self._vector_store, max_context_tokens)
         self.rag = RagPipeline(claude_service, self._vector_store)
         self.doc_injector = DocumentInjector(doc_client)
-        self.tool_runner = ToolRunner(self.tools_by_name, tool_timeout, roots_manager=self._roots)
+        self.discovery_tracker = (
+            DiscoveryTracker(discovery_guard) if discovery_guard != "off" else None
+        )
+        self.tool_runner = ToolRunner(
+            self.tools_by_name,
+            tool_timeout,
+            roots_manager=self._roots,
+            discovery=self.discovery_tracker,
+        )
+        self.discovery_guard = discovery_guard
+        self.intent_routing = intent_routing
         self._auto_index_task: asyncio.Task | None = None
         self.response_format: dict[str, Any] | None = None
         self._correction_attempts = 0
@@ -527,6 +545,18 @@ class CliChat:
 
         if bus:
             await bus.push_log("info", "Processing your request...")
+
+        if getattr(self, "intent_routing", False):
+            agent_name = await classify(user_input, llm_client=self.claude)
+            agent_config = SUBAGENT_REGISTRY.get(agent_name) if agent_name else None
+            if agent_config is not None:
+                if bus:
+                    await bus.push_log("info", f"Routing request to '{agent_config.name}' agent.")
+                runner = self.spawn_agent(agent_config, bus=bus)
+                result = await runner.run(user_input)
+                if bus:
+                    await bus.push_done()
+                return result.output or f"Agent '{agent_config.name}' returned no output."
 
         augmented = await self.doc_injector.resolve(user_input)
 

@@ -15,6 +15,7 @@ from mcp_cli.ui.codeblock import CodeBlockAccumulator
 from mcp_cli.ui.completers import HiilCompleter
 from mcp_cli.ui.messaging import MessageManager, SpinnerManager
 from mcp_cli.ui.renderer import get_renderer
+from mcp_cli.ui.streaming import StreamingRenderer
 from mcp_cli.ui.theme_manager import ThemeManager
 from mcp_cli.ui.themes import RS, THEMES
 from mcp_cli.ui.tool_events import ToolEventHandler
@@ -171,6 +172,11 @@ class CliApp:
                     header = self._msg.assistant_header()
                     started = False
 
+                    streaming = StreamingRenderer(
+                        self._msg._renderer.render_inline,
+                        on_output=lambda t: print(t, end="", flush=True),
+                    )
+
                     def on_chunk(c: str) -> None:
                         nonlocal started
                         if not started:
@@ -180,16 +186,17 @@ class CliApp:
                         buf.append(c)
 
                         # Use the CodeBlockAccumulator to handle streaming code
-                        # and the renderer for inline formatting.
+                        # and the throttled StreamingRenderer for inline text.
                         # Since we are streaming, we feed it to the accumulator.
-                        self._codeblocks.feed(c, on_text=lambda t: print(self._msg._renderer.render_inline(t), end="", flush=True))
+                        self._codeblocks.feed(c, on_text=streaming.push, on_block=streaming.emit_raw)
 
                     usage_before = self.chat.usage.session_summary()
                     reply = await self.chat.send(user_input, on_chunk=on_chunk)
                     self._spinner.stop()
 
                     # Finalize any unclosed code blocks
-                    self._codeblocks.flush(on_text=lambda t: print(self._msg._renderer.render_inline(t), end="", flush=True))
+                    self._codeblocks.flush(on_text=streaming.push, on_block=streaming.emit_raw)
+                    streaming.flush_now()
 
                     printed = "".join(buf)
                     final = reply or printed

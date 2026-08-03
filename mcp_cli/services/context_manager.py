@@ -18,12 +18,34 @@ class ContextManager:
         self.vector_store: Any = vector_store
         self.max_context_tokens = max_context_tokens
         self.compact_count = 0
+        self._token_cache: dict[int, int] = {}
+        self._max_cache_entries = 4096
+
+    def _token_count(self, content: Any) -> int:
+        key: int | None = None
+        if isinstance(content, str):
+            key = hash(content)
+        elif isinstance(content, (dict, list)):
+            try:
+                key = hash(json.dumps(content, sort_keys=True, default=str))
+            except (TypeError, ValueError):
+                key = None
+        if key is None:
+            return count_tokens(content, self.claude.model)
+        cached = self._token_cache.get(key)
+        if cached is not None:
+            return cached
+        if len(self._token_cache) >= self._max_cache_entries:
+            self._token_cache.clear()
+        value = count_tokens(content, self.claude.model)
+        self._token_cache[key] = value
+        return value
 
     def message_tokens(self, messages: list[dict[str, Any]]) -> int:
         total = 0
         for msg in messages:
             content = msg.get("content", "")
-            total += count_tokens(content, self.claude.model)
+            total += self._token_count(content)
         return total
 
     def trim(self, messages: list[dict[str, Any]], tools_token_count: int = 0) -> list[dict[str, Any]]:
@@ -31,14 +53,14 @@ class ContextManager:
         if budget <= 0:
             return messages[-2:] if len(messages) > 2 else messages
 
-        counts = [count_tokens(m.get("content", ""), self.claude.model) for m in messages]
+        counts = [self._token_count(m.get("content", "")) for m in messages]
         total_tokens = sum(counts)
         if total_tokens <= budget:
             return messages
 
         self.compact_count += 1
         summary_text = f"[compacted #{self.compact_count}: msgs trimmed]"
-        target = budget - count_tokens(summary_text, self.claude.model)
+        target = budget - self._token_count(summary_text)
 
         suffix = [0] * (len(messages) + 1)
         for i in range(len(messages)):
@@ -84,7 +106,7 @@ class ContextManager:
                     trimmed_counts.pop(0)
                 break
             c_json = json.dumps(c)
-            c_tokens = count_tokens(c_json, self.claude.model)
+            c_tokens = self._token_count(c_json)
             excess = total_tokens - target
             trim_frac = max(0.05, min(0.5, excess * 1.2 / max(1, c_tokens)))
             target_tokens_c = max(1, int(c_tokens * (1 - trim_frac)))
@@ -99,7 +121,7 @@ class ContextManager:
                 trunc_content = trunc_content[:last_space]
             largest["content"] = trunc_content
             new_json = json.dumps(largest["content"])
-            new_tokens = count_tokens(new_json, self.claude.model)
+            new_tokens = self._token_count(new_json)
             total_tokens += new_tokens - c_tokens
             for i, m in enumerate(trimmed):
                 if m is largest:
@@ -111,9 +133,9 @@ class ContextManager:
         result.insert(0, {"role": "system", "content": summary_text})
 
         if truncated:
-            cur_counts = [count_tokens(m.get("content", ""), self.claude.model) for m in result]
+            cur_counts = [self._token_count(m.get("content", "")) for m in result]
         else:
-            cur_counts = [count_tokens(summary_text, self.claude.model)] + trimmed_counts
+            cur_counts = [self._token_count(summary_text)] + trimmed_counts
         total_tokens = sum(cur_counts)
 
         if total_tokens > budget:

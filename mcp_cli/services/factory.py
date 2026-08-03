@@ -92,6 +92,8 @@ class ChatBuilder:
             verifier_model=self._settings.verifier_model or None,
             enable_moderation=self._settings.enable_moderation,
             moderation_deny_list=list(self._settings.moderation_deny_list or []),
+            discovery_guard=self._settings.discovery_guard,
+            intent_routing=self._settings.intent_routing,
             session_id=session_id,
         )
 

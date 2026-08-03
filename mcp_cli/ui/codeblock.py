@@ -44,12 +44,19 @@ class CodeBlockAccumulator:
     def in_block(self) -> bool:
         return self._in_block
 
-    def feed(self, text: str, on_text: Callable[[str], None]) -> None:
+    def feed(
+        self,
+        text: str,
+        on_text: Callable[[str], None],
+        on_block: Callable[[str], None] | None = None,
+    ) -> None:
         """Process incoming text, buffering code block content.
 
         Text outside code blocks is forwarded to ``on_text`` immediately.
         Code block content is buffered and flushed when the closing fence
-        arrives.
+        arrives.  Completed blocks go to ``on_block`` (falling back to
+        ``on_text``) so callers can skip the inline render passes on the
+        already-rendered block.
         """
         self._buf += text
 
@@ -57,9 +64,13 @@ class CodeBlockAccumulator:
             idx = self._buf.index("\n")
             line = self._buf[: idx + 1]
             self._buf = self._buf[idx + 1 :]
-            self._feed_line(line, on_text)
+            self._feed_line(line, on_text, on_block)
 
-    def flush(self, on_text: Callable[[str], None]) -> None:
+    def flush(
+        self,
+        on_text: Callable[[str], None],
+        on_block: Callable[[str], None] | None = None,
+    ) -> None:
         """Flush any remaining buffered content.
 
         Call this at the end of a stream to ensure any unclosed code block
@@ -71,7 +82,7 @@ class CodeBlockAccumulator:
                 self._lines.append(rem)
                 self._buf = ""
             # no closing fence — render what we have
-            on_text(self._render_block(self._lang, self._lines))
+            (on_block or on_text)(self._render_block(self._lang, self._lines))
             self._reset()
         elif self._buf:
             on_text(self._buf)
@@ -79,7 +90,12 @@ class CodeBlockAccumulator:
 
     # ── Internal ────────────────────────────────────────────────────────
 
-    def _feed_line(self, line: str, on_text: Callable[[str], None]) -> None:
+    def _feed_line(
+        self,
+        line: str,
+        on_text: Callable[[str], None],
+        on_block: Callable[[str], None] | None,
+    ) -> None:
         m = _FENCE.match(line.strip())
         if m:
             fence = m.group("fence")
@@ -93,7 +109,7 @@ class CodeBlockAccumulator:
                 self._lines = []
             else:
                 # closing fence — render the block
-                on_text(self._render_block(self._lang, self._lines))
+                (on_block or on_text)(self._render_block(self._lang, self._lines))
                 self._reset()
             return
 

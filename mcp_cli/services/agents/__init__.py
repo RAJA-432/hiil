@@ -6,6 +6,12 @@ from mcp_cli.services.agents.middleware import AgentMiddleware, MiddlewarePipeli
 from mcp_cli.services.agents.models import AgentConfig, AgentResult, AgentState
 from mcp_cli.services.agents.permissions import FilesystemPermission, PermissionEnforcer
 from mcp_cli.services.agents.quote_calculator import QuoteCalculatorMiddleware
+from mcp_cli.services.agents.route_classifier import (
+    RouteClassifier,
+    classify,
+    classify_rule_based,
+    classify_with_model,
+)
 from mcp_cli.services.agents.runner import AgentRunner
 from mcp_cli.services.agents.subagents import SUBAGENT_REGISTRY
 from mcp_cli.services.agents.summarization import SummarizationMiddleware
@@ -23,6 +29,10 @@ __all__ = [
     "SummarizationMiddleware",
     "TodoMiddleware",
     "SUBAGENT_REGISTRY",
+    "RouteClassifier",
+    "classify",
+    "classify_rule_based",
+    "classify_with_model",
     "ActionRequest",
     "ResumeDecision",
     "AgentInterruptError",

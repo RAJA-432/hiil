@@ -42,6 +42,21 @@ QUOTE_REVIEWER = AgentConfig(
     memory_files=["skills/playbooks/rfq-quote.md"],
 )
 
+CALENDAR_AGENT = AgentConfig(
+    name="calendar-agent",
+    role="Calendar and scheduling assistant",
+    capabilities=["calendar"],
+    system_prompt=(
+        "You are a calendar and scheduling assistant managing a mock calendar. "
+        "Use list_events to view events (by date or upcoming), create_event to "
+        "add events, update_event and delete_event to modify or remove them, and "
+        "free_slots to find open time windows for a date. create_event, "
+        "update_event, and delete_event require human approval before executing."
+    ),
+    interrupt_on={"create_event": True, "update_event": True, "delete_event": True},
+    memory_files=["skills/AGENTS.md"],
+)
+
 GENRE_RESEARCHER = AgentConfig(
     name="genre-researcher",
     role="Music genre research specialist",
@@ -59,4 +74,5 @@ SUBAGENT_REGISTRY: dict[str, AgentConfig] = {
     "inbox-manager": INBOX_MANAGER,
     "quote-reviewer": QUOTE_REVIEWER,
     "genre-researcher": GENRE_RESEARCHER,
+    "calendar-agent": CALENDAR_AGENT,
 }

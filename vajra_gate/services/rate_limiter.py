@@ -29,16 +29,36 @@ class RateLimiter:
         self._default_rate = default_rate
         self._default_capacity = default_capacity
         self._buckets: dict[str, TokenBucket] = {}
+        self._last_used: dict[str, float] = {}
         self._lock = threading.Lock()
 
     def _bucket(self, key: str) -> TokenBucket:
-        if key not in self._buckets:
-            self._buckets[key] = TokenBucket(self._default_rate, self._default_capacity)
-        return self._buckets[key]
+        with self._lock:
+            if key not in self._buckets:
+                self._buckets[key] = TokenBucket(self._default_rate, self._default_capacity)
+            self._last_used[key] = time.monotonic()
+            return self._buckets[key]
 
     def check(self, key: str, tokens: int = 1) -> bool:
-        return self._bucket(key).consume(tokens)
+        bucket = self._bucket(key)
+        allowed = bucket.consume(tokens)
+        if len(self._buckets) % 97 == 0:
+            self.prune_idle()
+        return allowed
 
     def configure(self, key: str, rate: float, capacity: int):
         with self._lock:
             self._buckets[key] = TokenBucket(rate, capacity)
+            self._last_used[key] = time.monotonic()
+
+    def prune_idle(self, max_idle_seconds: float = 3600.0) -> int:
+        now = time.monotonic()
+        with self._lock:
+            stale = [
+                key for key, last in self._last_used.items()
+                if now - last > max_idle_seconds
+            ]
+            for key in stale:
+                self._buckets.pop(key, None)
+                self._last_used.pop(key, None)
+        return len(stale)
