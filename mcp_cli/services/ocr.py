@@ -10,6 +10,9 @@ from typing import Any
 
 logger = logging.getLogger("mcp_cli.services.ocr")
 
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+MAX_IMAGE_PIXELS = 40_000_000
+
 _HAS_PIL = False
 _HAS_TESSERACT = False
 
@@ -42,6 +45,9 @@ def extract_text_from_image(image_data: bytes, language: str = "eng") -> str:
 
     try:
         img = Image.open(io.BytesIO(image_data))
+        if img.width * img.height > MAX_IMAGE_PIXELS:
+            logger.warning("image too large for OCR: %dx%d pixels", img.width, img.height)
+            return ""
         text = pytesseract.image_to_string(img, lang=language)
         return text.strip()
     except Exception as exc:
@@ -54,8 +60,13 @@ def extract_text_from_data_url(data_url: str, language: str = "eng") -> str:
     if "," not in data_url:
         return ""
     header, b64_data = data_url.split(",", 1)
+    if not header.lower().startswith("data:image/"):
+        return ""
     try:
         image_bytes = base64.b64decode(b64_data)
+        if len(image_bytes) > MAX_IMAGE_BYTES:
+            logger.warning("data URL image exceeds %d bytes, skipping OCR", MAX_IMAGE_BYTES)
+            return ""
         return extract_text_from_image(image_bytes, language)
     except Exception as exc:
         logger.warning("Failed to decode data URL for OCR: %s", exc)

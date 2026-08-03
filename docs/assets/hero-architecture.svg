@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" font-family="system-ui, Segoe UI, Roboto, sans-serif">
+  <defs>
+    <radialGradient id="hubGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4a9eff" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#4a9eff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#4a9eff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="stream1" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#4a9eff"/>
+    </linearGradient>
+    <linearGradient id="stream2" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="#f5c542"/>
+      <stop offset="100%" stop-color="#4a9eff"/>
+    </linearGradient>
+    <linearGradient id="stream3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a9eff"/>
+      <stop offset="100%" stop-color="#34d399"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <marker id="arrGreen" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#34d399"/>
+    </marker>
+    <marker id="arrGold" markerWidth="8" markerHeight="8" refX="2" refY="3" orient="auto">
+      <path d="M6,0 L0,3 L6,6 Z" fill="#f5c542"/>
+    </marker>
+  </defs>
+
+  <rect width="900" height="560" rx="24" fill="#0f1626"/>
+
+  <text x="450" y="52" text-anchor="middle" fill="#e8eef7" font-size="22" font-weight="700" letter-spacing="2">H.I.I.L. ARCHITECTURE</text>
+  <text x="450" y="76" text-anchor="middle" fill="#8fa3bf" font-size="13">Hyper-Integrated Inference Engine</text>
+
+  <!-- data streams -->
+  <path d="M450,270 Q330,180 205,185" fill="none" stroke="url(#stream1)" stroke-width="3" stroke-dasharray="6 5" opacity="0.85" marker-end="url(#arrGreen)"/>
+  <path d="M450,270 Q570,180 695,185" fill="none" stroke="url(#stream2)" stroke-width="3" stroke-dasharray="6 5" opacity="0.85" marker-end="url(#arrGold)"/>
+  <path d="M450,275 Q450,345 450,415" fill="none" stroke="url(#stream3)" stroke-width="3" stroke-dasharray="6 5" opacity="0.85"/>
+
+  <!-- ===== central hub ===== -->
+  <circle cx="450" cy="270" r="120" fill="url(#hubGlow)"/>
+  <g transform="translate(450,270)">
+    <polygon points="0,-78 68,-39 68,39 0,78 -68,39 -68,-39" fill="#12233f" stroke="#4a9eff" stroke-width="3"/>
+    <polygon points="0,-44 38,-22 38,22 0,44 -38,22 -38,-22" fill="#1c3a6b" stroke="#4a9eff" stroke-width="1.5" opacity="0.9"/>
+    <circle r="20" fill="#4a9eff"/>
+    <circle r="9" fill="#e8eef7"/>
+    <!-- facet nodes -->
+    <circle cx="0" cy="-78" r="7" fill="#34d399"/>
+    <circle cx="68" cy="-39" r="7" fill="#34d399"/>
+    <circle cx="68" cy="39" r="7" fill="#34d399"/>
+    <circle cx="0" cy="78" r="7" fill="#34d399"/>
+    <circle cx="-68" cy="39" r="7" fill="#34d399"/>
+    <circle cx="-68" cy="-39" r="7" fill="#34d399"/>
+  </g>
+  <text x="450" y="330" text-anchor="middle" fill="#e8eef7" font-size="15" font-weight="600">Interface Layer</text>
+  <text x="450" y="350" text-anchor="middle" fill="#8fa3bf" font-size="12">FastAPI Gateway · SSE · WS</text>
+
+  <!-- ===== left: Vajra Gate "V" ===== -->
+  <g>
+    <rect x="105" y="120" width="90" height="130" rx="14" fill="#0f1a33" stroke="#34d399" stroke-width="2"/>
+    <polyline points="130,215 150,165 170,215" fill="none" stroke="#34d399" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <line x1="122" y1="145" x2="178" y2="145" stroke="#34d399" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+    <circle cx="150" cy="132" r="6" fill="#34d399"/>
+    <text x="150" y="285" text-anchor="middle" fill="#e8eef7" font-size="14" font-weight="600">Vajra Gate</text>
+    <text x="150" y="302" text-anchor="middle" fill="#8fa3bf" font-size="11">API · Auth · Routing</text>
+  </g>
+
+  <!-- ===== right: RAG book + gear ===== -->
+  <g>
+    <rect x="705" y="120" width="90" height="130" rx="14" fill="#0f1a33" stroke="#f5c542" stroke-width="2"/>
+    <path d="M725,205 L750,215 L775,205 L775,150 L750,160 L725,150 Z" fill="#f5c542" opacity="0.9"/>
+    <line x1="750" y1="160" x2="750" y2="215" stroke="#0f1626" stroke-width="2"/>
+    <g transform="translate(750,175)">
+      <circle r="16" fill="none" stroke="#f5c542" stroke-width="5" stroke-dasharray="7 5"/>
+      <circle r="7" fill="#f5c542"/>
+      <circle r="3" fill="#0f1626"/>
+    </g>
+    <text x="750" y="285" text-anchor="middle" fill="#e8eef7" font-size="14" font-weight="600">RAG Knowledge</text>
+    <text x="750" y="302" text-anchor="middle" fill="#8fa3bf" font-size="11">Vector Store · Retrieve</text>
+  </g>
+
+  <!-- ===== bottom: agents cluster ===== -->
+  <g>
+    <rect x="290" y="430" width="320" height="90" rx="14" fill="#0f1a33" stroke="#34d399" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="450" y="458" text-anchor="middle" fill="#e8eef7" font-size="14" font-weight="600">Agent Runtime</text>
+    <g transform="translate(345,485)">
+      <rect x="-18" y="-12" width="36" height="24" rx="6" fill="#1c3a6b" stroke="#4a9eff" stroke-width="1.5"/>
+      <circle cx="-5" cy="-4" r="3.5" fill="#4a9eff"/>
+      <circle cx="-5" cy="4" r="3.5" fill="#4a9eff"/>
+      <rect x="2" y="-4" width="10" height="2" rx="1" fill="#8fa3bf"/>
+      <rect x="2" y="2" width="10" height="2" rx="1" fill="#8fa3bf"/>
+      <line x1="-24" y1="-14" x2="-14" y2="-14" stroke="#4a9eff" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="-14" y1="-14" x2="-14" y2="-24" stroke="#4a9eff" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(420,485)">
+      <rect x="-18" y="-12" width="36" height="24" rx="6" fill="#1c3a6b" stroke="#34d399" stroke-width="1.5"/>
+      <circle cx="0" cy="0" r="7" fill="none" stroke="#34d399" stroke-width="2"/>
+      <circle cx="-2" cy="-2" r="2.5" fill="#34d399"/>
+      <line x1="-24" y1="-14" x2="-14" y2="-14" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="-14" y1="-14" x2="-14" y2="-24" stroke="#34d399" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(495,485)">
+      <rect x="-18" y="-12" width="36" height="24" rx="6" fill="#1c3a6b" stroke="#f5c542" stroke-width="1.5"/>
+      <rect x="-8" y="-6" width="6" height="12" rx="1" fill="#f5c542" opacity="0.9"/>
+      <rect x="-1" y="-2" width="6" height="8" rx="1" fill="#f5c542" opacity="0.7"/>
+      <rect x="6" y="-8" width="6" height="14" rx="1" fill="#f5c542" opacity="0.5"/>
+      <line x1="-24" y1="-14" x2="-14" y2="-14" stroke="#f5c542" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="-14" y1="-14" x2="-14" y2="-24" stroke="#f5c542" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <g transform="translate(570,485)">
+      <rect x="-18" y="-12" width="36" height="24" rx="6" fill="#1c3a6b" stroke="#8fa3bf" stroke-width="1.5"/>
+      <circle cx="0" cy="0" r="5" fill="none" stroke="#8fa3bf" stroke-width="2"/>
+      <circle cx="0" cy="0" r="2" fill="#8fa3bf"/>
+      <line x1="-24" y1="-14" x2="-14" y2="-14" stroke="#8fa3bf" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="-14" y1="-14" x2="-14" y2="-24" stroke="#8fa3bf" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- caption -->
+  <text x="450" y="545" text-anchor="middle" fill="#5c6e8c" font-size="11" letter-spacing="1">MCP servers · Ollama · React SPA · PWA</text>
+</svg>

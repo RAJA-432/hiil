@@ -37,7 +37,7 @@ export default function Toolbar() {
         <button className="toolbar-btn toolbar-hamburger" onClick={toggleSidebar} aria-label="Open navigation menu">
           ☰
         </button>
-        <span className="toolbar-brand">hiil</span>
+        <span className="toolbar-brand">H.I.I.L.</span>
 
         <ModelPicker models={models} activeModel={activeModel} onSwitch={handleSwitchModel} loading={modelsLoading} />
         <ModelInfo model={activeModel} models={models} />

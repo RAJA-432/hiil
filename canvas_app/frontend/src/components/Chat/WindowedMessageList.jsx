@@ -88,7 +88,7 @@ export default function WindowedMessageList({
     <div className="chat-messages" ref={containerRef} role="log" aria-label="Chat messages" aria-live="polite">
       {!activeConversation ? (
         <div className="chat-empty">
-          <h2>hiil</h2>
+          <h2>H.I.I.L. — Hyper-Integrated Inference Engine</h2>
           <p>Start a conversation to begin. The AI can read and edit files in your workspace.</p>
         </div>
       ) : loading ? (

@@ -56,7 +56,7 @@ async def ok():
 @router.get("/info", response_model=ServerInfoResponse)
 async def info():
     return ServerInfoResponse(
-        name="hiil",
+        name="hiil-gateway",
         version="0.2.0",
         description="Conversational AI gateway with LangGraph-compatible API",
         endpoints=[

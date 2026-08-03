@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 const STEPS = [
   {
-    title: 'Welcome to hiil',
+    title: 'Welcome to H.I.I.L.',
     description: 'Your AI-powered workspace for code, research, and writing. Let\'s take a quick tour.',
     icon: '✨',
   },

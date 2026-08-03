@@ -1,14 +1,47 @@
-# hiil — MCP Chat + RAG + Agents
+# H.I.I.L. — Hyper-Integrated Inference Engine
 
 [![CI](https://github.com/RAJA-432/hiil/actions/workflows/ci.yml/badge.svg)](https://github.com/RAJA-432/hiil/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.13%20%7C%203.14-blue)](#)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](#)
 
-CLI + Web chat backed by MCP tool servers and Ollama. Built-in RAG (upload PDFs/DOCX/text and auto-retrieve context), multimodal image input, a persona/skills system, and an agent runtime — all served by a FastAPI gateway with an SSE-streaming React UI.
+> An extensible CLI and Web chat platform powered by MCP (Model Context Protocol) tool servers and Ollama — with built-in document RAG, multimodal vision processing, a persona/skills system, and an agent runtime served by a FastAPI gateway with an SSE-streaming React 19 UI.
 
 ```
 CLI / React SPA ──▶ FastAPI gateway ──▶ mcp_cli (chat · RAG · agents) ──▶ Ollama + MCP servers
 ```
+
+## Table of Contents
+
+- [Preview](#preview)
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+- [Usage Example](#usage-example)
+- [Configuration](#configuration)
+- [Vision & Image Input](#vision--image-input)
+- [API](#api)
+- [Built-in MCP Tools](#built-in-mcp-tools-veda_engine)
+- [Project Layout](#project-layout)
+- [Frontend](#frontend)
+- [Testing & Quality](#testing--quality)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Preview
+
+**Core architecture** — the Interface Layer hub radiating to Vajra Gate (API), RAG Knowledge, and the Agent Runtime:
+
+![Architecture](docs/assets/hero-architecture.svg)
+
+**How RAG context is built** — documents chunked and embedded into the local vector store, with retrieved context merging into the LLM prompt:
+
+![RAG Context](docs/assets/rag-context.svg)
+
+**Multi-agent orchestration** — queries routed by the Agent Registry to specialized agents, all bound by a shared thread/session:
+
+![Agent Orchestration](docs/assets/agents-orchestration.svg)
+
+Add a screenshot or demo GIF of the running React SPA (served at `/canvas`) and the CLI into `docs/assets/demo.gif` to round out the preview.
 
 ## Features
 
@@ -33,14 +66,29 @@ CLI / React SPA ──▶ FastAPI gateway ──▶ mcp_cli (chat · RAG · agen
 
 ## Quick Start
 
+### Windows (PowerShell)
+
 ```powershell
 .\setup.ps1              # install deps, build frontend, serve at :8000
 .\setup.ps1 -Dev         # Vite hot-reload dev server at :5173
 ```
 
+### macOS / Linux (uv)
+
+```bash
+uv venv && source .venv/bin/activate
+uv pip install -e ".[ocr]"   # drop the ".[ocr]" extra if you don't need OCR
+python main.py               # CLI mode
+```
+
+### Docker
+
+```bash
+docker compose up --build
+```
+
 - Open <http://localhost:8000> (frontend is served from `/canvas`).
 - CLI mode: `python main.py`.
-- Docker: `docker compose up --build`.
 
 `config.yaml` selects the provider/model. The default is `gemma4:31b-cloud` on Ollama (`http://localhost:11434/v1`).
 
@@ -49,6 +97,33 @@ CLI / React SPA ──▶ FastAPI gateway ──▶ mcp_cli (chat · RAG · agen
 - Python 3.11+ (CI runs 3.13/3.14)
 - Node 18+ for the frontend
 - Ollama running locally (or point `settings.base_url` at any OpenAI-compatible API)
+
+## Usage Example
+
+Send a chat message to the gateway (JSON):
+
+```bash
+curl -s -X POST http://localhost:8000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Summarize the workspace", "session_id": "default"}'
+```
+
+Stream the reply over SSE (frontend uses this path):
+
+```bash
+curl -sN -X POST "http://localhost:8000/api/chat?stream=1" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{"message": "List the available MCP tools"}'
+```
+
+Call an MCP tool directly:
+
+```bash
+curl -s -X POST http://localhost:8000/api/tools/call \
+  -H "Content-Type: application/json" \
+  -d '{"name": "list_roots", "arguments": {}}'
+```
 
 ## Configuration
 
@@ -115,7 +190,7 @@ hiil/
 ├── config.yaml          # Provider, model, servers, roots
 ├── setup.ps1            # One-command setup
 ├── Dockerfile / docker-compose.yml
-└── tests/               # 99 backend tests (pytest)
+└── tests/               # 324 backend tests (pytest)
 ```
 
 ## Frontend
@@ -137,7 +212,7 @@ npm run lint        # eslint (0 warnings policy)
 Backend gates are enforced by CI on Python 3.13 and 3.14.
 
 ```bash
-make test          # pytest tests/ -x -q         (99 tests)
+make test          # pytest tests/ -x -q         (324 tests)
 make test-v        # verbose
 make test-coverage # coverage report
 make lint          # ruff check

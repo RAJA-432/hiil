@@ -1,4 +1,4 @@
-# hiil
+# H.I.I.L. — Hyper-Integrated Inference Engine
 
 A private AI assistant running local LLMs on your desktop. Provides chat, code editing, file search, and workspace management through a canvas-based interface.
 

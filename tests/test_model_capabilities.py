@@ -67,7 +67,7 @@ class TestModelCapabilities:
         assert caps == ["embedding"]
         assert "vision" not in caps
 
-    async def test_non_ollama_provider_returns_empty_without_http_call(self) -> None:
+    async def test_non_ollama_provider_returns_known_vision_without_http_call(self) -> None:
         client = LLMClient(
             provider="openrouter",
             model="gpt-4o",
@@ -82,6 +82,24 @@ class TestModelCapabilities:
 
         _install_fake_get(client, fake_get)
         caps = await client.model_capabilities("gpt-4o")
+        assert caps == ["vision"]
+        assert calls["count"] == 0
+
+    async def test_non_ollama_unknown_model_returns_empty(self) -> None:
+        client = LLMClient(
+            provider="openrouter",
+            model="gpt-4o",
+            api_key="test-key",
+            base_url="https://api.openrouter.ai/v1",
+        )
+        calls = {"count": 0}
+
+        async def fake_get(url: str, **kwargs: Any) -> FakeResponse:
+            calls["count"] += 1
+            raise AssertionError("should not be called")
+
+        _install_fake_get(client, fake_get)
+        caps = await client.model_capabilities("some-unknown-model-v42")
         assert caps == []
         assert calls["count"] == 0
 

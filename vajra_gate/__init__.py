@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from collections.abc import AsyncGenerator
@@ -33,24 +34,52 @@ from vajra_gate.routers import (
 setup_vajra_gate_logger(log_json=VAJRA_GATE_LOG_JSON, log_level=VAJRA_GATE_LOG_LEVEL)
 logger = logging.getLogger("vajra_gate")
 
+_WARMUP_TIMEOUT = float(os.getenv("VAJRA_GATE_PREWARM_TIMEOUT", "15"))
+_WARMUP_DELAY = float(os.getenv("VAJRA_GATE_PREWARM_DELAY", "0.5"))
+_PREWARM_DISABLED = os.getenv("VAJRA_GATE_DISABLE_PREWARM", "0") == "1"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    yield
-    stack = getattr(_state, "_chat_stack", None)
-    if stack is not None:
-        try:
-            await stack.aclose()
-        except BaseExceptionGroup:
-            pass
-        except Exception:
-            logger.exception("Chat stack cleanup error")
-        _state._chat_stack = None
-        _state._chat = None
+    prewarm_task: asyncio.Task[None] | None = None
+    if not _PREWARM_DISABLED:
+        _state._prewarm_task = _state._PREWARM_PENDING = None
+
+        async def warmup_chat() -> None:
+            await asyncio.sleep(_WARMUP_DELAY)
+            try:
+                await asyncio.wait_for(_state._get_pool().init(), timeout=_WARMUP_TIMEOUT)
+            except (TimeoutError, asyncio.CancelledError, Exception) as exc:
+                if not isinstance(exc, asyncio.CancelledError):
+                    logger.warning("Prewarm failed: %s", exc)
+
+        prewarm_task = asyncio.create_task(warmup_chat(), name="vajra_gate_prewarm")
+        _state._prewarm_task = prewarm_task
+
+    try:
+        yield
+    finally:
+        if prewarm_task is not None and not prewarm_task.done():
+            prewarm_task.cancel()
+            try:
+                await prewarm_task
+            except (asyncio.CancelledError, Exception):
+                pass
+        _state._prewarm_task = None
+        stack = getattr(_state, "_chat_stack", None)
+        if stack is not None:
+            try:
+                await stack.aclose()
+            except BaseExceptionGroup:
+                pass
+            except Exception:
+                logger.exception("Chat stack cleanup error")
+            _state._chat_stack = None
+            _state._chat = None
 
 
 
-app = FastAPI(title="hiil API Gateway", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="H.I.I.L. — Hyper-Integrated Inference Engine API", version="0.2.0", lifespan=lifespan)
 
 origins = os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173").split(",")
 

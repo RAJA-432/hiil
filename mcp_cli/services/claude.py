@@ -42,6 +42,29 @@ _API_RETRY = retry(
     ),
 )
 
+VISION_MODEL_KEYWORDS = [
+    "vision", "gpt-4o", "gpt-4-turbo", "claude-3", "claude-4", "claude-sonnet",
+    "claude-opus", "gemini-1.5", "gemini-2", "gemini-2.5", "llava", "cogvlm",
+    "qwen-vl", "internvl", "moondream", "phi-3-vision", "o1", "o3", "gpt-4.1",
+]
+
+TEXT_ONLY_MODEL_KEYWORDS = [
+    "deepseek", "llama-3.1", "llama-3.2", "mixtral", "mistral", "gemma2",
+    "gemma-2", "gemma3",
+]
+
+
+def _known_vision_model(model: str) -> bool:
+    model_lower = model.lower()
+    return any(kw in model_lower for kw in VISION_MODEL_KEYWORDS)
+
+
+def _known_text_only_model(model: str) -> bool:
+    model_lower = model.lower()
+    if "gemma3" in model_lower and "4b" in model_lower:
+        return False
+    return any(kw in model_lower for kw in TEXT_ONLY_MODEL_KEYWORDS)
+
 
 class LLMClient:
     def __init__(
@@ -313,8 +336,12 @@ class LLMClient:
         return []
 
     async def model_capabilities(self, model: str) -> list[str]:
-        """Return the capabilities advertised for the given Ollama model."""
+        """Return the capabilities advertised for the given model."""
         if self.provider != "ollama":
+            if _known_vision_model(model):
+                return ["vision"]
+            if _known_text_only_model(model):
+                return ["text"]
             return []
         key = (self.base_url or "", model)
         cached = self._caps_cache.get(key)

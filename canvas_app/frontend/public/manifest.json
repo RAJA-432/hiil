@@ -1,7 +1,7 @@
 {
-  "name": "hiil",
-  "short_name": "hiil",
-  "description": "Private AI assistant running local LLMs on your desktop.",
+  "name": "H.I.I.L. — Hyper-Integrated Inference Engine",
+  "short_name": "H.I.I.L.",
+  "description": "Hyper-Integrated Inference Engine — private AI assistant running local LLMs on your desktop.",
   "start_url": "/canvas/",
   "display": "standalone",
   "background_color": "#0d0d0d",

@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: hiil — Canvas API
+  title: H.I.I.L. — Hyper-Integrated Inference Engine API
   version: 0.2.0
   description: |
     CLI + Web chat backed by MCP tool servers.

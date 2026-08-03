@@ -7,6 +7,8 @@ _chat_process: subprocess.Popen | None = None
 _pool: Any = None
 _chat: Any = None
 _chat_stack: Any = None
+_prewarm_task: Any | None = None
+_PREWARM_PENDING: Any | None = None
 
 
 def _get_pool() -> Any:

@@ -5,6 +5,7 @@ import json
 from typing import TYPE_CHECKING, Any
 
 from mcp_cli.services.agents import AgentConfig, AgentRunner
+from mcp_cli.services.claude import _known_text_only_model, _known_vision_model
 from mcp_cli.services.context_manager import ContextManager
 from mcp_cli.services.document_injector import DocumentInjector
 from mcp_cli.services.history import ChatHistoryManager
@@ -377,11 +378,9 @@ class CliChat:
     @staticmethod
     def _is_vision_model(model: str) -> bool:
         model_lower = model.lower()
-        vision_keywords = ["vision", "gpt-4o", "gpt-4-turbo", "claude-3", "claude-4", "gemini-1.5", "gemini-2.0", "llava", "cogvlm", "qwen-vl", "internvl"]
-        if any(kw in model_lower for kw in vision_keywords):
+        if _known_vision_model(model_lower):
             return True
-        non_vision = ["gemma2", "gemma-2", "deepseek", "llama-3.1", "mixtral", "mistral"]
-        if any(nm in model_lower for nm in non_vision):
+        if _known_text_only_model(model_lower):
             return False
         return True
 
@@ -568,6 +567,7 @@ class CliChat:
             else:
                 if bus:
                     await bus.push_log("warn", "OCR libraries not installed (pip install Pillow pytesseract). Cannot process images with this model.")
+                    await bus.push_log("drop", "Images ignored: model has no vision and OCR is unavailable.")
             images = None  # Don't send images to non-vision model
 
         if images:
@@ -575,7 +575,7 @@ class CliChat:
             for img_url in images:
                 content.append({"type": "image_url", "image_url": {"url": img_url}})
             self.messages.append({"role": "user", "content": content})
-            save_content = json.dumps(content)
+            save_content = augmented
         else:
             self.messages.append({"role": "user", "content": augmented})
             save_content = augmented
