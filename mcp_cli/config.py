@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from dotenv import load_dotenv
@@ -49,6 +49,8 @@ class Settings:
     enable_moderation: bool = False
     moderation_deny_list: list[str] = field(default_factory=list)
     vector_backend: str = "sqlite"
+    discovery_guard: Literal["off", "warn", "block"] = "off"
+    intent_routing: bool = False
 
 def _as_bool(value: Any, default: bool = False) -> bool:
     if value is None:
@@ -119,6 +121,12 @@ def load_settings(config_path: str = "config.yaml") -> tuple[Settings, list[Serv
     moderation_yaml = settings_yaml.get("moderation_deny_list") or []
     moderation_deny_list = [str(item) for item in moderation_yaml]
     vector_backend = str(settings_yaml.get("vector_backend", "sqlite"))
+    discovery_guard = str(
+        os.getenv("DISCOVERY_GUARD", settings_yaml.get("discovery_guard", "off"))
+    ).lower()
+    intent_routing = _as_bool(
+        os.getenv("INTENT_ROUTING", settings_yaml.get("intent_routing", False))
+    )
 
     settings = Settings(
         provider=provider,
@@ -132,6 +140,8 @@ def load_settings(config_path: str = "config.yaml") -> tuple[Settings, list[Serv
         enable_moderation=enable_moderation,
         moderation_deny_list=moderation_deny_list,
         vector_backend=vector_backend,
+        discovery_guard=discovery_guard,
+        intent_routing=intent_routing,
     )
 
     # 3. Resolve Servers
@@ -148,6 +158,8 @@ def _validate_config(settings: Settings, servers: list[ServerConfig]) -> None:
         errors.append(f"Unknown provider '{settings.provider}'. Valid: {', '.join(sorted(valid_providers))}")
     if settings.max_context_tokens < 1:
         errors.append(f"max_context_tokens must be positive, got {settings.max_context_tokens}")
+    if settings.discovery_guard not in ("off", "warn", "block"):
+        errors.append(f"discovery_guard must be 'off', 'warn' or 'block', got '{settings.discovery_guard}'")
     seen_ids: set[str] = set()
     for sv in servers:
         if not sv.script and not sv.command:

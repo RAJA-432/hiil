@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from mcp_cli.services.discovery import DiscoveryTracker
 from mcp_cli.services.logging import get_logger
 
 logger = get_logger("tool_router")
@@ -44,12 +45,14 @@ class ToolRouter:
         clients: dict[str, Any],
         capabilities: list[str],
         tool_capability_map: dict[str, str] | None = None,
+        discovery: DiscoveryTracker | None = None,
     ):
         self._tools_by_name = tools_by_name
         self._clients = clients
         self._capabilities = [c.lower() for c in capabilities]
         self._explicit_map = tool_capability_map or {}
         self._server_caps = self._build_server_cap_index()
+        self.discovery = discovery
 
         self._allowed: dict[str, dict[str, Any]] = {}
         self._rebuild()
@@ -70,6 +73,15 @@ class ToolRouter:
         entry = self._allowed.get(name)
         if entry is None:
             return f"[denied] Tool '{name}' is not in this agent's capabilities ({', '.join(self._capabilities)})"
+        if self.discovery:
+            self.discovery.record(name, args)
+            discovery_note = self.discovery.check(name, args)
+            if discovery_note and self.discovery.mode == "block":
+                return discovery_note
+            result = await entry["client"].call_tool(name, args)
+            if discovery_note:
+                return f"{discovery_note}\n{result}"
+            return result
         return await entry["client"].call_tool(name, args)
 
     # ------------------------------------------------------------------

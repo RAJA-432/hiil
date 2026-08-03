@@ -4,6 +4,7 @@ import asyncio
 import json
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+from mcp_cli.services.discovery import DiscoveryTracker
 from mcp_cli.services.frontier import is_sensitive_tool
 from mcp_cli.services.logging import get_logger
 from mcp_cli.services.moderation import sanitize_tool_result
@@ -49,12 +50,14 @@ class ToolRunner:
         roots_manager: RootsManager | None = None,
         max_concurrent: int = 4,
         sanitize_results: bool = True,
+        discovery: DiscoveryTracker | None = None,
     ):
         self.tools_by_name = tools_by_name
         self._tool_timeout = tool_timeout
         self.roots = roots_manager or RootsManager()
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._sanitize_results = sanitize_results
+        self.discovery = discovery
 
     async def call_tool(self, name: str, args: dict[str, Any]) -> str:
         entry = self.tools_by_name.get(name)
@@ -105,6 +108,20 @@ class ToolRunner:
                 continue
             if on_tool_event:
                 on_tool_event(KaryaEvent(name=name, args=args))
+            discovery_note: str | None = None
+            if self.discovery:
+                self.discovery.record(name, args)
+                discovery_note = self.discovery.check(name, args)
+                if discovery_note and self.discovery.mode == "block":
+                    result_text = discovery_note
+                    if on_tool_event:
+                        on_tool_event(KaryaEvent(name=name, args=args, result=result_text))
+                    tool_results.append({
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": self._finalize_content(f"<tool_result name=\"{name}\">\n{result_text}\n</tool_result>"),
+                    })
+                    continue
             if on_approval and is_sensitive_tool(name):
                 approved = await on_approval(name, args)
                 if not approved:
@@ -118,6 +135,8 @@ class ToolRunner:
                     })
                     continue
             result_text = await self.call_tool(name, args)
+            if discovery_note:
+                result_text = f"{discovery_note}\n{result_text}"
             if on_tool_event:
                 on_tool_event(KaryaEvent(name=name, args=args, result=result_text))
             tool_results.append({

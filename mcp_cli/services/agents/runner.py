@@ -81,6 +81,7 @@ class AgentRunner:
             tools_by_name=parent_chat.tools_by_name,
             clients=parent_chat.clients,
             capabilities=config.capabilities,
+            discovery=getattr(parent_chat, "discovery_tracker", None),
         )
 
         # Permission enforcer for file operations
