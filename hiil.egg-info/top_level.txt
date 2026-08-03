@@ -1,5 +1,0 @@
-main
-mcp_cli
-setu_bridge
-vajra_gate
-veda_engine
