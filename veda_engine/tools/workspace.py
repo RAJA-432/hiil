@@ -27,6 +27,13 @@ _NOISE_DIRS = frozenset({
 })
 
 
+def _read_bounded(path: Path, limit: int) -> str:
+    """Read at most *limit* bytes from *path* and decode as UTF-8."""
+    with open(path, "rb") as f:
+        data = f.read(limit)
+    return data.decode("utf-8", errors="ignore")
+
+
 def _c(ctx: Context | None):
     return ctx or _NoopCtx()
 
@@ -75,7 +82,9 @@ async def search_resources(query: str, ctx: Context | None = None) -> list[str]:
         if i % 50 == 0:
             await c.report_progress(min(i + 1, total), total)
     await c.info(f"Found {len(matches)} matching resources")
-    return matches[:50]
+    if len(matches) > 50:
+        return matches[:50] + ["[truncated: only first 50 matches shown]"]
+    return matches
 
 
 async def glob(pattern: str, ctx: Context | None = None) -> list[str]:
@@ -92,7 +101,9 @@ async def glob(pattern: str, ctx: Context | None = None) -> list[str]:
         if i % 100 == 0:
             await c.report_progress(min(i + 1, total), total)
     await c.info(f"Glob found {len(matches)} files")
-    return matches[:200]
+    if len(matches) > 200:
+        return matches[:200] + ["[truncated: only first 200 matches shown]"]
+    return matches
 
 
 async def grep(pattern: str, glob_pattern: str = "*", ctx: Context | None = None) -> list[str]:
@@ -116,15 +127,22 @@ async def grep(pattern: str, glob_pattern: str = "*", ctx: Context | None = None
     for i, path in enumerate(candidates):
         rel = str(path.relative_to(WORKSPACE_ROOT))
         try:
+            resolved = await asyncio.to_thread(path.resolve)
+            if not is_safe_path(resolved, WORKSPACE_ROOT):
+                logger.warning("Skipping symlink escaping workspace: %s", rel)
+                continue
+            if not await asyncio.to_thread(resolved.is_file):
+                logger.warning("Skipping non-regular file: %s", rel)
+                continue
             text: str = await asyncio.to_thread(
-                lambda: path.read_text("utf-8", errors="replace")
+                lambda: resolved.read_text("utf-8", errors="replace")
             )
-            for line in text.splitlines():
+            for lineno, line in enumerate(text.splitlines(), start=1):
                 if compiled.search(line):
-                    results.append(f"{rel}:{line}")
+                    results.append(f"{rel}:{lineno}:{line}")
                     if len(results) >= 200:
                         await c.info("Found 200+ matches, truncating")
-                        return results
+                        return results + ["[truncated: only first 200 matches shown]"]
         except Exception:
             logger.exception("Failed to read %s", rel)
         if i % 20 == 0:
@@ -154,6 +172,11 @@ async def read_text_resource(path: str, ctx: Context | None = None) -> str:
         await c.error(f"File not found: {path}")
         return f"Resource not found: {path}"
     try:
+        size = (await asyncio.to_thread(target.stat)).st_size
+        if size > _MAX_FILE_BYTES:
+            content = await asyncio.to_thread(_read_bounded, target, _MAX_FILE_BYTES)
+            await c.info(f"Read {len(content)} bytes (truncated from {size})")
+            return content + f"\n[truncated at {_MAX_FILE_BYTES} bytes]"
         content = await asyncio.to_thread(
             lambda: target.read_text(encoding="utf-8", errors="ignore")
         )
@@ -192,9 +215,14 @@ async def read_text_batch(paths: list[str], ctx: Context | None = None) -> str:
                 await c.error(f"File not found: {path}")
                 return path, "missing", f"Resource not found: {path}"
             try:
-                content = await asyncio.to_thread(
-                    lambda: target.read_text(encoding="utf-8", errors="ignore")
-                )
+                size = (await asyncio.to_thread(target.stat)).st_size
+                if size > _MAX_FILE_BYTES:
+                    content = await asyncio.to_thread(_read_bounded, target, _MAX_FILE_BYTES)
+                    content += f"\n[truncated at {_MAX_FILE_BYTES} bytes]"
+                else:
+                    content = await asyncio.to_thread(
+                        lambda: target.read_text(encoding="utf-8", errors="ignore")
+                    )
             except Exception as exc:
                 await c.error(f"Read failed: {exc}")
                 return path, "denied", f"Access denied: {path} ({exc})"
@@ -209,8 +237,6 @@ async def read_text_batch(paths: list[str], ctx: Context | None = None) -> str:
         if kind in ("missing", "denied"):
             blocks.append(f"{payload}\n\n")
             continue
-        if len(payload) > _MAX_FILE_BYTES:
-            payload = payload[:_MAX_FILE_BYTES] + f"\n[truncated at {_MAX_FILE_BYTES} bytes]"
         block = f"=== {path} ===\n{payload}\n\n"
         if total_bytes + len(block) > _MAX_BATCH_BYTES:
             blocks.append(f"[batch truncated at {_MAX_BATCH_BYTES} bytes total]\n")
@@ -218,4 +244,7 @@ async def read_text_batch(paths: list[str], ctx: Context | None = None) -> str:
         blocks.append(block)
         total_bytes += len(block)
     await c.info(f"Assembled {len(blocks)} blocks totaling {total_bytes} bytes")
-    return "".join(blocks)
+    out = "".join(blocks)
+    if len(paths) > _MAX_BATCH_FILES:
+        out += f"[truncated: only first {_MAX_BATCH_FILES} of {len(paths)} files shown]\n"
+    return out

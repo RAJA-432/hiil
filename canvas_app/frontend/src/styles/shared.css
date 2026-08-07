@@ -238,7 +238,7 @@
 
 .settings-save-btn {
   padding: 8px 20px;
-  background: var(--primary);
+  background: #2563eb;
   color: #fff;
   border: none;
   border-radius: var(--radius-sm);
@@ -249,7 +249,7 @@
 }
 
 .settings-save-btn:hover {
-  background: #3a8aee;
+  background: #1d4ed8;
 }
 
 .settings-save-btn:disabled {

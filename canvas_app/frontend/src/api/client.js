@@ -62,6 +62,17 @@ export function apiStream(method, path, body, onEvent, onError, signal) {
       const decoder = new TextDecoder()
       let buffer = ''
 
+      const handleLine = (line) => {
+        const trimmed = line.trim()
+        if (!trimmed) return
+        try {
+          const event = JSON.parse(trimmed)
+          if (onEvent) onEvent(event)
+        } catch (e) {
+          console.warn('Failed to parse SSE event:', e)
+        }
+      }
+
       for (;;) {
         const { done, value } = await reader.read()
         if (done) break
@@ -69,16 +80,10 @@ export function apiStream(method, path, body, onEvent, onError, signal) {
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
         for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed) continue
-          try {
-            const event = JSON.parse(trimmed)
-            if (onEvent) onEvent(event)
-          } catch (e) {
-            console.warn('Failed to parse SSE event:', e)
-          }
+          handleLine(line)
         }
       }
+      handleLine(buffer)
     })
     .catch((err) => {
       if (onError && err.name !== 'AbortError') onError(err)

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -9,6 +12,10 @@ from typing import Any
 _STORE_DIR = Path.home() / ".hiil" / "store"
 
 _REWARD_NAMESPACE = "rewards"
+
+_REWARDS_COMPACT_THRESHOLD = 1024 * 1024  # 1 MB
+
+logger = logging.getLogger("vajra_gate.store")
 
 
 class KVStore:
@@ -19,6 +26,8 @@ class KVStore:
     that high-frequency reward events cost O(1) per write instead of
     rewriting the whole file. Thread-safe via a per-instance lock.
     """
+
+    _NAMESPACE_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
 
     def __init__(self, store_dir: str | Path = _STORE_DIR):
         self._dir = Path(store_dir)
@@ -94,11 +103,26 @@ class KVStore:
         results.sort(key=lambda r: r.get("updated_at", ""), reverse=True)
         return results[:limit]
 
+    def all_items(self, namespace: str) -> list[dict[str, Any]]:
+        """Return every item in a namespace without a row cap.
+
+        Used by metrics that must aggregate over the full event log rather than
+        a paginated slice.
+        """
+        ns = self._load(namespace)
+        return list(ns.values())
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _validate_namespace(namespace: str) -> None:
+        if not KVStore._NAMESPACE_RE.match(namespace):
+            raise ValueError(f"Invalid namespace: {namespace!r}")
+
     def _load(self, namespace: str) -> dict[str, dict[str, Any]]:
+        self._validate_namespace(namespace)
         if namespace in self._cache:
             return self._cache[namespace]
         if namespace == _REWARD_NAMESPACE:
@@ -106,21 +130,33 @@ class KVStore:
             return self._cache[namespace]
         path = self._dir / f"{namespace}.json"
         if path.exists():
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f)
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+            except json.JSONDecodeError:
+                logger.warning("Corrupt store file %s — starting empty", path)
+                try:
+                    corrupt = path.read_text(encoding="utf-8", errors="replace")
+                    (self._dir / f"{namespace}.json.corrupt").write_text(corrupt, encoding="utf-8")
+                except Exception:
+                    pass
+                data = {}
             self._cache[namespace] = data
         else:
             self._cache[namespace] = {}
         return self._cache[namespace]
 
     def _save(self, namespace: str, data: dict[str, dict[str, Any]]) -> None:
+        self._validate_namespace(namespace)
         if namespace == _REWARD_NAMESPACE:
             self._write_rewards(data)
             self._cache[namespace] = dict(data)
             return
         path = self._dir / f"{namespace}.json"
-        with open(path, "w", encoding="utf-8") as f:
+        tmp = path.with_name(f".{namespace}.json.tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, default=str)
+        os.replace(tmp, path)
         self._cache[namespace] = dict(data)
 
     # ------------------------------------------------------------------
@@ -135,17 +171,26 @@ class KVStore:
         path = self._rewards_path()
         if path.exists():
             with open(path, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        entry = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
+                content = f.read()
+            for line in content.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(entry, dict):
+                    continue
+                if "key" in entry:
                     key = entry.get("key")
                     if key:
                         cache[key] = entry
+                else:
+                    # Compacted snapshot: {key: entry}
+                    for key, item in entry.items():
+                        if isinstance(item, dict) and item.get("key"):
+                            cache[key] = item
         legacy = self._dir / "rewards.json"
         if legacy.exists():
             with open(legacy, encoding="utf-8") as f:
@@ -158,9 +203,11 @@ class KVStore:
 
     def _write_rewards(self, cache: dict[str, dict[str, Any]]) -> None:
         path = self._rewards_path()
-        with open(path, "w", encoding="utf-8") as f:
-            for key in cache:
-                f.write(json.dumps(cache[key], ensure_ascii=False, default=str) + "\n")
+        tmp = path.with_suffix(".jsonl.tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, default=str, separators=(",", ":"))
+            f.write("\n")
+        os.replace(tmp, path)
 
     def _upsert_rewards(self, items: list[dict[str, Any]]) -> None:
         with self._lock:
@@ -180,11 +227,17 @@ class KVStore:
                     existing["created_at"] = now
                 ns[key] = existing
                 appended.append(existing)
-            if appended:
-                path = self._rewards_path()
-                with open(path, "a", encoding="utf-8") as f:
-                    for entry in appended:
-                        f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+            if not appended:
+                return
+            path = self._rewards_path()
+            if path.exists() and path.stat().st_size > _REWARDS_COMPACT_THRESHOLD:
+                # Compact: rewrite the latest-state snapshot and skip the append
+                # (the appended entries are already part of the snapshot).
+                self._write_rewards(ns)
+                return
+            with open(path, "a", encoding="utf-8") as f:
+                for entry in appended:
+                    f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
 
     def list_namespaces(self) -> list[str]:
         return sorted({

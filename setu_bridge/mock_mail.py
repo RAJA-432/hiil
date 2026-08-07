@@ -21,6 +21,12 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from setu_bridge.config import (
+    MOCK_MAIL_DEFAULT_PORT,
+    MOCK_MAIL_MAX_DRAFTS,
+    MOCK_MAIL_PASSWORD,
+)
+
 mcp = FastMCP("mock-mail")
 
 # ---------------------------------------------------------------------------
@@ -78,8 +84,10 @@ _INBOX: list[dict[str, Any]] = [
 ]
 
 _DRAFTS: list[dict[str, Any]] = []
+_MAX_DRAFTS = MOCK_MAIL_MAX_DRAFTS
 _AUTH_TOKEN: str | None = None
-_MOCK_PASSWORD = "mail_mock_secret"  # noqa: S105
+_MOCK_PASSWORD = MOCK_MAIL_PASSWORD  # noqa: S105
+_FOLDERS = {"inbox", "drafts"}
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +129,10 @@ async def list_messages(folder: str = "inbox") -> str:
         folder: Folder name — ``inbox`` or ``drafts``.
     """
     _require_auth()
+    if folder not in _FOLDERS:
+        raise ValueError(
+            f"Unknown folder '{folder}'. Valid folders: {sorted(_FOLDERS)}."
+        )
     if folder == "drafts":
         items = _DRAFTS
     else:
@@ -129,11 +141,11 @@ async def list_messages(folder: str = "inbox") -> str:
     summary = []
     for msg in items:
         summary.append({
-            "id": msg["id"],
-            "from": msg["from"],
-            "subject": msg["subject"],
-            "timestamp": msg["timestamp"],
-            "read": msg["read"],
+            "id": msg.get("id", ""),
+            "from": msg.get("from", ""),
+            "subject": msg.get("subject", ""),
+            "timestamp": msg.get("timestamp", ""),
+            "read": msg.get("read", False),
         })
     return json.dumps(summary, indent=2)
 
@@ -166,6 +178,11 @@ async def send_draft(to: str, subject: str, body: str) -> str:
         body: Email body text.
     """
     _require_auth()
+    if len(_DRAFTS) >= _MAX_DRAFTS:
+        return json.dumps({
+            "status": "error",
+            "error": f"Draft store at capacity ({_MAX_DRAFTS}). send_draft rejected.",
+        }, indent=2)
     msg_id = f"sent_{uuid.uuid4().hex[:8]}"
     record = {
         "id": msg_id,
@@ -174,6 +191,7 @@ async def send_draft(to: str, subject: str, body: str) -> str:
         "body": body,
         "status": "sent",
         "timestamp": datetime.now(UTC).isoformat(),
+        "read": False,
     }
     _DRAFTS.append(record)
     return json.dumps({
@@ -194,6 +212,11 @@ async def save_draft(to: str, subject: str, body: str) -> str:
         body: Email body text.
     """
     _require_auth()
+    if len(_DRAFTS) >= _MAX_DRAFTS:
+        return json.dumps({
+            "status": "error",
+            "error": f"Draft store at capacity ({_MAX_DRAFTS}). save_draft rejected.",
+        }, indent=2)
     msg_id = f"draft_{uuid.uuid4().hex[:8]}"
     record = {
         "id": msg_id,
@@ -203,6 +226,7 @@ async def save_draft(to: str, subject: str, body: str) -> str:
         "status": "draft",
         "folder": "drafts",
         "timestamp": datetime.now(UTC).isoformat(),
+        "read": False,
     }
     _DRAFTS.append(record)
     return json.dumps({
@@ -221,7 +245,7 @@ async def save_draft(to: str, subject: str, body: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Mock Mail MCP Server")
     parser.add_argument("--transport", choices=["stdio", "sse", "streamable-http"], default="stdio")
-    parser.add_argument("--port", type=int, default=8200)
+    parser.add_argument("--port", type=int, default=MOCK_MAIL_DEFAULT_PORT)
     args = parser.parse_args()
     if args.transport == "sse":
         import uvicorn

@@ -24,7 +24,7 @@ class KaryaEvent(NamedTuple):
 
 def _mcp_tool_to_openai(tool: Any) -> dict[str, Any]:
     schema = tool.inputSchema or {"type": "object", "properties": {}}
-    return {
+    result = {
         "type": "function",
         "function": {
             "name": tool.name,
@@ -32,14 +32,57 @@ def _mcp_tool_to_openai(tool: Any) -> dict[str, Any]:
             "parameters": schema,
         },
     }
+    # Apply compression to reduce token bloat
+    return compress_schema(result)
 
 
 def _extract_text(result: Any) -> str:
     if result is None:
         return ""
+    if isinstance(result, str):
+        return result
     blocks = getattr(result, "content", None) or []
     parts = [getattr(b, "text", None) for b in blocks]
     return "\n".join(p for p in parts if p)
+
+
+def compress_schema(schema: dict) -> dict:
+    """Strip verbose defaults and optional descriptions to reduce token bloat."""
+    import copy
+    s = copy.deepcopy(schema)
+    # Strip verbose descriptions and optional fields
+    def strip_properties(prop_dict: dict) -> dict:
+        stripped = {}
+        for key, value in prop_dict.items():
+            if key == "description":
+                # Skip verbose descriptions
+                continue
+            if key == "default":
+                # Skip default values that bloat tokens
+                continue
+            if key == "required" and isinstance(value, list):
+                # Keep required but don't duplicate it elsewhere
+                stripped[key] = value
+            elif not isinstance(value, dict) or "default" not in value.get("properties", {}):
+                # Keep other properties but strip unnecessary nesting
+                stripped[key] = value
+        return stripped
+
+    # Apply stripping to parameters
+    if "parameters" in s and isinstance(s["parameters"], dict):
+        if "properties" in s["parameters"]:
+            s["parameters"]["properties"] = strip_properties(s["parameters"]["properties"])
+            # Simplify required field if it's bulky
+            if "required" in s["parameters"] and isinstance(s["parameters"]["required"], list):
+                # Keep only key required keywords
+                stripped_required = []
+                for req in s["parameters"]["required"]:
+                    # Don't include things like "format" unless it's critical
+                    if req not in ['format', 'pattern'] or req == 'format':
+                        stripped_required.append(req)
+                s["parameters"]["required"] = stripped_required
+
+    return s
 
 
 class ToolRunner:

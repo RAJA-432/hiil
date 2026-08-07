@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, HTTPException
 
 from mcp_cli.services.users import authenticate_user, register_user, user_count
@@ -9,7 +11,7 @@ router = APIRouter()
 
 @router.post("/api/auth/register", response_model=AuthResponse)
 async def register(body: AuthRequest):
-    err = register_user(body.username, body.password)
+    err = await asyncio.to_thread(register_user, body.username, body.password)
     if err:
         raise HTTPException(status_code=409, detail=err)
     token = create_access_token(body.username)
@@ -18,9 +20,9 @@ async def register(body: AuthRequest):
 
 @router.post("/api/auth/login", response_model=AuthResponse)
 async def login(body: AuthRequest):
-    if not authenticate_user(body.username, body.password):
+    if not await asyncio.to_thread(authenticate_user, body.username, body.password):
         if user_count() == 0:
-            err = register_user(body.username, body.password)
+            err = await asyncio.to_thread(register_user, body.username, body.password)
             if err:
                 raise HTTPException(status_code=400, detail=err)
             token = create_access_token(body.username)

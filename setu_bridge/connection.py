@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -18,6 +19,8 @@ from mcp.types import (
     Root,
 )
 from pydantic import FileUrl
+
+from setu_bridge.config import DEFAULT_CONNECT_TIMEOUT as _DEFAULT_CONNECT_TIMEOUT
 
 
 class ManagedConnection:
@@ -51,26 +54,42 @@ class ManagedConnection:
             CreateMessageResult,
         ] | None = None,
         logging_callback: Callable[[LoggingMessageNotificationParams], Any] | None = None,
+        connect_timeout: float = _DEFAULT_CONNECT_TIMEOUT,
     ):
         self._command = command
         self._args = args or []
         self._env = env
         self._transport = transport
         self._url = url
+        self._connect_timeout = connect_timeout
         self._roots = [Root(uri=FileUrl(f"file://{Path(p).resolve()}"), name=Path(p).name or "Root") for p in (roots or [])]
         self._sampling_callback = sampling_callback
         self._logging_callback = logging_callback
         self._session: ClientSession | None = None
         self._exit_stack: AsyncExitStack = AsyncExitStack()
-        self.script = self._args[0] if self._args else (command or "")
+        self.script = command or ""
+        if self._args:
+            if "-m" in self._args:
+                m_idx = self._args.index("-m")
+                if m_idx + 1 < len(self._args):
+                    self.script = self._args[m_idx + 1]
+                else:
+                    self.script = self._args[0]
+            else:
+                self.script = self._args[0]
 
     async def connect(self):
-        if self._transport == "sse":
-            await self._connect_sse()
-        elif self._transport == "streamable-http":
-            await self._connect_streamable_http()
-        else:
-            await self._connect_stdio()
+        try:
+            if self._transport == "sse":
+                await self._connect_sse()
+            elif self._transport == "streamable-http":
+                await self._connect_streamable_http()
+            else:
+                await self._connect_stdio()
+        except BaseException:
+            await self._exit_stack.aclose()
+            self._session = None
+            raise
 
     async def _handle_list_roots(
         self, context: RequestContext[ClientSession, None]
@@ -100,7 +119,7 @@ class ManagedConnection:
         self._session = await self._exit_stack.enter_async_context(
             ClientSession(_read, _write, **self._session_args())
         )
-        await self._session.initialize()
+        await asyncio.wait_for(self._session.initialize(), timeout=self._connect_timeout)
 
     async def _connect_sse(self):
         streams = await self._exit_stack.enter_async_context(
@@ -110,7 +129,7 @@ class ManagedConnection:
         self._session = await self._exit_stack.enter_async_context(
             ClientSession(_read, _write, **self._session_args())
         )
-        await self._session.initialize()
+        await asyncio.wait_for(self._session.initialize(), timeout=self._connect_timeout)
 
     async def _connect_streamable_http(self):
         streams = await self._exit_stack.enter_async_context(
@@ -120,7 +139,7 @@ class ManagedConnection:
         self._session = await self._exit_stack.enter_async_context(
             ClientSession(_read, _write, **self._session_args())
         )
-        await self._session.initialize()
+        await asyncio.wait_for(self._session.initialize(), timeout=self._connect_timeout)
 
     def session(self) -> ClientSession:
         if self._session is None:

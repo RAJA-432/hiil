@@ -52,7 +52,7 @@ Add a screenshot or demo GIF of the running React SPA (served at `/canvas`) and 
 - **MCP native** — load any stdio MCP server (filesystem, memory, everything, custom) plus built-in `veda_engine` tools; browser-based connectors panel.
 - **Full chat UX** — SSE streaming, inline edit/retry/undo, conversation search, tags, pinning, session history, token-usage bar, export to Markdown/JSON, inline SVG charts.
 - **Secure by default** — rate limiting, trusted-host + CORS allow-lists, path-traversal-guarded file access, SSRF-protected web fetch, optional web-UI auth.
-- **PWA frontend** — installable React 19 SPA with service worker; mock data layer for UI development without a backend.
+- **React SPA** — installable-friendly React 19 frontend (manifest + icons); mock data layer for UI development without a backend.
 
 ## Tech Stack
 
@@ -190,20 +190,20 @@ hiil/
 ├── config.yaml          # Provider, model, servers, roots
 ├── setup.ps1            # One-command setup
 ├── Dockerfile / docker-compose.yml
-└── tests/               # 324 backend tests (pytest)
+└── tests/               # 509 backend tests (pytest)
 ```
 
 ## Frontend
 
 - React 19 + Vite 6 + Vitest 4; Monaco editor, react-markdown, custom markdown/chart/diff renderers.
 - API layer is modular (`src/api/`) with a full mock layer (`src/api/mocks/`) — set `VITE_USE_MOCK=true` to develop the UI without a backend.
-- PWA: installable, offline-ready via service worker (`sw.js`), icons + manifest.
+- SPA: manifest + icons shipped in `dist/`; service-worker registration is intentionally not wired up (the gateway serves the app under `/canvas/` only).
 
 ```bash
 cd canvas_app/frontend
 npm run dev         # Vite dev server :5173
 npm run build       # production build
-npm test            # vitest — 21 tests
+npm test            # vitest — 35 tests
 npm run lint        # eslint (0 warnings policy)
 ```
 

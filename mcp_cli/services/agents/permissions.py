@@ -7,6 +7,18 @@ from typing import Literal
 
 Operation = Literal["read", "write", "delete"]
 
+_WRITE_TOOLS = (
+    "write_file",
+    "edit_file",
+    "move_file",
+    "copy_file",
+    "create_directory",
+    "delete_file",
+    "delete_directory",
+    "mkdir",
+    "rmdir",
+)
+
 
 @dataclass
 class FilesystemPermission:
@@ -46,7 +58,7 @@ class PermissionEnforcer:
         for key in path_keys:
             val = args.get(key)
             if isinstance(val, str) and val.strip():
-                err = self.enforce("write" if tool_name in ("write_file", "edit_file", "move_file", "copy_file", "create_directory", "delete_file", "mkdir", "rmdir") else "read", val.strip(), tool_name)
+                err = self.enforce("write" if tool_name in _WRITE_TOOLS else "read", val.strip(), tool_name)
                 if err:
                     return err
             elif isinstance(val, list):
@@ -57,7 +69,7 @@ class PermissionEnforcer:
                             return err
         for key, val in args.items():
             if key not in path_keys and isinstance(val, str) and val.strip() and ('/' in val or '\\' in val or val.startswith('.')):
-                err = self.enforce("write" if tool_name in ("write_file", "edit_file", "move_file", "copy_file", "create_directory", "delete_file", "mkdir", "rmdir") else "read", val.strip(), tool_name)
+                err = self.enforce("write" if tool_name in _WRITE_TOOLS else "read", val.strip(), tool_name)
                 if err:
                     return err
         return None

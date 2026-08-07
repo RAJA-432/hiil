@@ -24,7 +24,7 @@ export function ChatProvider({ children }) {
 
   const { tags, addTag, removeTag } = useTags()
   const { undoItems, push: pushUndo, dismiss: dismissUndo } = useUndo()
-  const { messages, streaming, streamingText, ragChunks, activityLogs, error, send, stop, loadMessages, setMessages, editMessage, deleteMessage } = useChat(activeConversation?.id, pushUndo)
+  const { messages, streaming, streamingText, ragChunks, activityLogs, phases, error, send, stop, loadMessages, setMessages, editMessage, deleteMessage } = useChat(activeConversation?.id, pushUndo)
 
   const prevMessagesLength = useRef(0)
 
@@ -80,10 +80,15 @@ export function ChatProvider({ children }) {
   }, [_createConversation])
 
   const handleSelectConversation = useCallback((conv) => {
-    setActiveConversation(conv)
+    const id = typeof conv === 'string' ? conv : conv?.id
+    if (!id) return
+    const item = typeof conv === 'string'
+      ? conversations.find(c => c.id === id) || { id, title: 'Untitled', created: new Date().toISOString(), updated: new Date().toISOString(), message_count: 0, pinned: false }
+      : conv
+    setActiveConversation(item)
     setScrollToMessageId(null)
-    switchConversation(conv.id).catch(() => {})
-  }, [])
+    switchConversation(id).catch(() => {})
+  }, [conversations])
 
   const handleSearchResultClick = useCallback((conv, messageId) => {
     setActiveConversation(conv)
@@ -171,7 +176,7 @@ export function ChatProvider({ children }) {
 
   const value = {
     conversations, conversationsLoading, activeConversation,
-    messages, streaming, streamingText, ragChunks, activityLogs, error,
+    messages, streaming, streamingText, ragChunks, activityLogs, phases, error,
     pinnedIds, tags, addTag, removeTag,
     undoItems, dismissUndo,
     scrollToMessageId,

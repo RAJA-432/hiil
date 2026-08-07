@@ -16,6 +16,7 @@ import vajra_gate.state as _state  # noqa: F401 -- imported for side effects (in
 from vajra_gate.config import VAJRA_GATE_LOG_JSON, VAJRA_GATE_LOG_LEVEL
 from vajra_gate.middleware.logging_middleware import AccessLogMiddleware, setup_vajra_gate_logger
 from vajra_gate.middleware.rate_limit import RateLimitMiddleware
+from vajra_gate.middleware.security import SecurityHeadersMiddleware
 from vajra_gate.routers import (
     agents_router,
     auth_router,
@@ -49,9 +50,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await asyncio.sleep(_WARMUP_DELAY)
             try:
                 await asyncio.wait_for(_state._get_pool().init(), timeout=_WARMUP_TIMEOUT)
-            except (TimeoutError, asyncio.CancelledError, Exception) as exc:
-                if not isinstance(exc, asyncio.CancelledError):
-                    logger.warning("Prewarm failed: %s", exc)
+            except TimeoutError:
+                logger.warning("Prewarm timed out after %ss", _WARMUP_TIMEOUT)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("Prewarm failed: %s", exc)
 
         prewarm_task = asyncio.create_task(warmup_chat(), name="vajra_gate_prewarm")
         _state._prewarm_task = prewarm_task
@@ -95,6 +99,8 @@ app.add_middleware(AccessLogMiddleware)
 app.add_middleware(RateLimitMiddleware)
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,testserver,testclient").split(","))
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(agents_router)
 app.include_router(auth_router)

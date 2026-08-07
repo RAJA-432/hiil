@@ -11,7 +11,7 @@ import ConversationExport from '../Shared/ConversationExport'
 import SystemPromptBar from './SystemPromptBar'
 
 export default function ChatPanel({ onOpenFile, onCopy }) {
-  const { messages, streaming, streamingText, ragChunks, activityLogs, error, activeConversation, scrollToMessageId, handleRetry, handleDeleteMessage, handleEditMessage } = useChatContext()
+  const { messages, streaming, streamingText, ragChunks, activityLogs, phases, error, activeConversation, scrollToMessageId, handleRetry, handleDeleteMessage, handleEditMessage } = useChatContext()
   const { activeSkill } = useUIContext()
   const bottomRef = useRef(null)
   const messagesRef = useRef(null)
@@ -45,7 +45,7 @@ export default function ChatPanel({ onOpenFile, onCopy }) {
   }, [activeConversation?.id])
 
   const showStreaming = streaming && streamingText
-  const hasTransparency = (ragChunks && ragChunks.length > 0) || (activityLogs && activityLogs.length > 0)
+  const hasTransparency = (ragChunks && ragChunks.length > 0) || (activityLogs && activityLogs.length > 0) || (phases && phases.length > 0)
 
   return (
     <main role="main" id="main-content" className="chat-panel">
@@ -88,7 +88,7 @@ export default function ChatPanel({ onOpenFile, onCopy }) {
       {transparencyOpen && hasTransparency && (
         <div className="chat-transparency">
           <RetrievedChunksPanel chunks={ragChunks} />
-          <ToolActivityPanel logs={activityLogs} ragChunks={ragChunks} />
+          <ToolActivityPanel logs={activityLogs} ragChunks={ragChunks} phases={phases} />
         </div>
       )}
 

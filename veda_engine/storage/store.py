@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import logging
+import re
 import sqlite3
 import threading
 from pathlib import Path
@@ -12,9 +14,27 @@ DB_DIR.mkdir(parents=True, exist_ok=True)
 
 _lock = threading.Lock()
 
+_SAFE_USER_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+_MAX_USER_ID_LEN = 64
+
+
+def _sanitize_user_id(user_id: str) -> str:
+    if not isinstance(user_id, str):
+        user_id = str(user_id)
+    if not user_id:
+        raise ValueError("user_id must not be empty")
+    if _SAFE_USER_ID_RE.fullmatch(user_id) and user_id.strip("."):
+        return user_id
+    digest = hashlib.sha256(user_id.encode("utf-8", errors="replace")).hexdigest()
+    slug = re.sub(r"[^A-Za-z0-9_.-]", "_", user_id)
+    slug = slug.strip("._")[:_MAX_USER_ID_LEN]
+    if not slug:
+        slug = digest[:16]
+    return f"{slug}-{digest[:12]}"
+
 
 def _db_path(user_id: str) -> Path:
-    return DB_DIR / f"docs_{user_id}.db"
+    return DB_DIR / f"docs_{_sanitize_user_id(user_id)}.db"
 
 
 def _get_conn(user_id: str = "default") -> sqlite3.Connection:

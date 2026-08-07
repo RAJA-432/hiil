@@ -10,7 +10,8 @@ import os
 import sys
 
 _dir = os.path.dirname(os.path.abspath(__file__))
-sys.path = [p for p in sys.path if os.path.abspath(p) != _dir]
+if _dir not in sys.path:
+    sys.path.insert(0, _dir)
 
 from veda_engine.main import mcp  # noqa: E402
 

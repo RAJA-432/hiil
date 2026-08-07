@@ -12,6 +12,7 @@ from vajra_gate.services.reward import (
     RewardEvent,
     RewardTracker,
 )
+from vajra_gate.store import KVStore
 
 
 class TestRewardEvent:
@@ -185,3 +186,53 @@ class TestRewardTracker:
         assert set(metrics["dimension_averages"]) == set(REWARD_DIMENSIONS)
         assert all(-1.0 <= v <= 1.0 for v in metrics["dimension_averages"].values())
         assert pytest.approx(metrics["average_total"]) == metrics["average_total"]
+
+
+class TestRewardStorePersistence:
+    def test_jsonl_append_then_snapshot_roundtrip(self, tmp_path):
+        store = KVStore(tmp_path)
+        for i in range(5):
+            store.upsert("rewards", [{"key": f"evt{i}", "value": {"total": i}}])
+
+        raw = (tmp_path / "rewards.jsonl").read_text(encoding="utf-8")
+        assert raw.count("\n") == 5
+
+        store._write_rewards(store._load("rewards"))
+        store.upsert("rewards", [{"key": "evt9", "value": {"total": 9}}])
+
+        reloaded = KVStore(tmp_path)._load("rewards")
+        assert len(reloaded) == 6
+        assert reloaded["evt9"]["value"]["total"] == 9
+        assert all(reloaded[f"evt{i}"]["value"]["total"] == i for i in range(5))
+
+    def test_rewards_readable_after_compaction_threshold(self, tmp_path):
+        import vajra_gate.store as store_module
+
+        store = KVStore(tmp_path)
+        store.upsert("rewards", [{"key": "small", "value": {"total": 1}}])
+        store_module._REWARDS_COMPACT_THRESHOLD = 1
+        store.upsert("rewards", [{"key": "big", "value": {"x": "y" * 10000}}])
+        store_module._REWARDS_COMPACT_THRESHOLD = 1024 * 1024
+
+        reloaded = KVStore(tmp_path)._load("rewards")
+        assert reloaded["big"]["value"]["x"] == "y" * 10000
+        assert reloaded["small"]["value"]["total"] == 1
+
+    def test_corrupt_store_file_recovered(self, tmp_path):
+        store = KVStore(tmp_path)
+        (tmp_path / "test.json").write_text("{not valid json", encoding="utf-8")
+
+        assert store._load("test") == {}
+        assert (tmp_path / "test.json.corrupt").exists()
+
+        store.upsert("test", [{"key": "k", "value": {"a": 1}}])
+        assert store.get("test", "k")["value"]["a"] == 1
+        assert store._load("test")["k"]["value"]["a"] == 1
+
+    def test_all_items_returns_full_log_without_cap(self, tmp_path):
+        store = KVStore(tmp_path)
+        for i in range(3):
+            store.upsert("rewards", [{"key": f"evt{i}", "value": {"total": i}}])
+
+        items = store.all_items("rewards")
+        assert sorted(item["key"] for item in items) == ["evt0", "evt1", "evt2"]

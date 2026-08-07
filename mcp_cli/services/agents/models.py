@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, model_validator
 
 from mcp_cli.services.agents.interrupts import ActionRequest, DecisionType
-from mcp_cli.services.agents.middleware import AgentMiddleware
+from mcp_cli.services.agents.middleware.base import AgentMiddleware
 from mcp_cli.services.agents.permissions import FilesystemPermission
 
 _MIDDLEWARE_REGISTRY: dict[str, type[AgentMiddleware]] = {}
@@ -70,6 +70,7 @@ class AgentConfig(BaseModel):
         default_factory=list,
         description="Tool capability tags this agent may use (e.g. 'filesystem', 'github')",
     )
+    # system_prompt should be provided for registered subagents (empty falls back to role-based default)
     system_prompt: str = ""
     model: str = "default"
     max_iterations: int = Field(default=10, ge=1, le=100)
@@ -92,6 +93,12 @@ class AgentConfig(BaseModel):
     permissions: list[FilesystemPermission] = Field(
         default_factory=list,
         description="Per-operation path-based permissions for file tools",
+    )
+
+    # Tool override: when set, replaces the inherited tool set (filesystem builtins still provided)
+    tools: list[Any] = Field(
+        default_factory=list,
+        description="OpenAI-format tool definitions that override the inherited tool set",
     )
 
     # Middleware pipeline
@@ -120,6 +127,18 @@ class AgentConfig(BaseModel):
 # Runtime state
 # ---------------------------------------------------------------------------
 
+AgentPhase = Literal["IDLE", "THINKING", "DELEGATING", "EXECUTING", "REPORTING", "DONE"]
+
+PHASES: tuple[str, ...] = ("THINKING", "DELEGATING", "EXECUTING", "REPORTING", "DONE")
+
+
+class PhaseTransition(BaseModel):
+    """A single task-lifecycle phase transition recorded for audit/UI."""
+
+    phase: AgentPhase
+    timestamp: datetime
+    iteration: int | None = None
+
 
 class AgentState(BaseModel):
     """Mutable runtime state of a single agent."""
@@ -136,6 +155,11 @@ class AgentState(BaseModel):
 
     # Human-in-the-loop: non-None when agent is paused awaiting a decision
     pending_interrupt: list[ActionRequest] | None = None
+
+    # Task lifecycle: fine-grained progress orthogonal to ``status``
+    # (IDLE is the initial sentinel; only the five lifecycle phases are emitted)
+    phase: AgentPhase = "IDLE"
+    phase_transitions: list[PhaseTransition] = Field(default_factory=list)
 
 
 class AgentResult(BaseModel):

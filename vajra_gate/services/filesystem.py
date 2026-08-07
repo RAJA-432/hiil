@@ -22,7 +22,9 @@ class FileSystem:
 
     def resolve(self, path: str) -> str:
         resolved = os.path.realpath(os.path.join(self._root, path))
-        if not resolved.startswith(self._root):
+        root_norm = os.path.normcase(self._root)
+        resolved_norm = os.path.normcase(resolved)
+        if not (resolved_norm == root_norm or resolved_norm.startswith(root_norm + os.sep)):
             raise PermissionError(f"Path traversal denied: {path}")
         return resolved
 

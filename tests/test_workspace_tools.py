@@ -4,7 +4,7 @@ import pytest
 
 import veda_engine.config as config_module
 import veda_engine.tools.workspace as workspace_module
-from veda_engine.tools.workspace import read_text_batch
+from veda_engine.tools.workspace import grep, read_text_batch, read_text_resource
 
 
 @pytest.fixture
@@ -79,3 +79,52 @@ async def test_batch_byte_cap_truncates_output(ws_root, monkeypatch):
     assert "=== big_a.txt ===" in out
     assert "big_b.txt" not in out
     assert f"[batch truncated at {workspace_module._MAX_BATCH_BYTES} bytes total]" in out
+
+
+async def test_read_resource_returns_full_small_file(ws_root):
+    out = await read_text_resource("a.txt")
+    assert out == "hello a"
+
+
+async def test_read_resource_truncates_large_file(ws_root, monkeypatch):
+    monkeypatch.setattr(workspace_module, "_MAX_FILE_BYTES", 100)
+    (ws_root / "huge.txt").write_text("y" * 10_000, encoding="utf-8")
+    out = await read_text_resource("huge.txt")
+    assert "y" * 100 in out
+    assert "y" * 101 not in out
+    assert f"[truncated at {workspace_module._MAX_FILE_BYTES} bytes]" in out
+
+
+async def test_read_resource_rejects_traversal(ws_root, tmp_path):
+    secret = tmp_path.parent / "secret.txt"
+    secret.write_text("TOP SECRET", encoding="utf-8")
+    out = await read_text_resource("../secret.txt")
+    assert "Access denied" in out
+    assert "TOP SECRET" not in out
+
+
+async def test_batch_large_file_truncates_via_stat(ws_root):
+    big = workspace_module._MAX_FILE_BYTES + 5_000
+    (ws_root / "huge.txt").write_text("z" * big, encoding="utf-8")
+    out = await read_text_batch(["huge.txt"])
+    assert f"[truncated at {workspace_module._MAX_FILE_BYTES} bytes]" in out
+    assert "z" * (workspace_module._MAX_FILE_BYTES + 1) not in out
+
+
+async def test_grep_finds_match_in_workspace_file(ws_root):
+    (ws_root / "notes.txt").write_text("needle in haystack", encoding="utf-8")
+    out = await grep("needle")
+    assert any("notes.txt" in r and "needle" in r for r in out)
+
+
+async def test_grep_skips_symlink_escaping_workspace(ws_root):
+    outside = ws_root.parent / "secret.txt"
+    outside.write_text("TOP SECRET", encoding="utf-8")
+    link = ws_root / "link.txt"
+    try:
+        link.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not supported on this platform")
+    (ws_root / "plain.txt").write_text("no secrets here", encoding="utf-8")
+    out = await grep("SECRET")
+    assert not any("TOP SECRET" in r for r in out)

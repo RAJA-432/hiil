@@ -5,7 +5,7 @@ from typing import Any
 
 from mcp_cli.services.agents.models import AgentConfig
 from mcp_cli.services.agents.runner import AgentRunner
-from mcp_cli.services.agents.summarization import SummarizationMiddleware
+from mcp_cli.services.agents.middleware.summarization import SummarizationMiddleware
 
 
 def _tool_message() -> SimpleNamespace:
@@ -97,7 +97,7 @@ class TestSummarizationMiddleware:
         assert mw.should_summarize(messages, total_tokens=10) is True
 
     def test_build_summary_messages_structure(self) -> None:
-        mw = SummarizationMiddleware(max_messages=4)
+        mw = SummarizationMiddleware(max_messages=4, keep_messages=2)
         systems = [_system("s1"), _system("s2")]
         turns = [_user("one"), _user("two"), _user("three"), _user("four")]
         result = mw.build_summary_messages(systems + turns, "the summary")

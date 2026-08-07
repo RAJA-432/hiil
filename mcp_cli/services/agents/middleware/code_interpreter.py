@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import tempfile
 import textwrap
 from pathlib import Path
 from typing import Any
 
-from mcp_cli.services.agents.middleware import AgentMiddleware
+from mcp_cli.services.agents.middleware.base import AgentMiddleware
 from mcp_cli.services.agents.models import register_middleware
 
 _TOOL_DEFINITION = {
@@ -54,7 +55,7 @@ _SAFE_MODULES: set[str] = {
     "_collections_abc", "_functools",
 }
 
-def _build_wrapper_script(code: str, timeout: int) -> str:
+def _build_wrapper_script(code: str, timeout: int, subagents: bool = True) -> str:
     sanitized = code.replace("\r\n", "\n")
     _code_repr = repr(sanitized)
     _allowed_repr = repr(sorted(_SAFE_MODULES))
@@ -66,6 +67,36 @@ def _build_wrapper_script(code: str, timeout: int) -> str:
         "from pathlib import Path\n"
         "import traceback\n"
     )
+    if subagents:
+        _task_globals = textwrap.dedent(
+            """\
+            def task(subagent_type="general-purpose", description="", **kwargs):
+                request = {"op": "task", "subagent_type": subagent_type, "description": description, "kwargs": kwargs}
+                print("__HIIL_TASK__" + json.dumps(request), flush=True)
+                line = sys.stdin.readline()
+                if not line:
+                    return "[error] task() bridge closed"
+                return json.loads(line).get("result", "[error] empty task result")
+
+            def task_parallel(delegations=None):
+                if not delegations:
+                    return "[error] task_parallel requires a list of delegations"
+                request = {"op": "task_parallel", "delegations": delegations}
+                print("__HIIL_TASK__" + json.dumps(request), flush=True)
+                line = sys.stdin.readline()
+                if not line:
+                    return "[error] task_parallel() bridge closed"
+                return json.loads(line).get("result", "[error] empty task_parallel result")
+
+            """
+        )
+        _ns_line = (
+            "_ns = {\"__builtins__\": _safe_builtins, "
+            "\"task\": task, \"task_parallel\": task_parallel}\n"
+        )
+    else:
+        _task_globals = ""
+        _ns_line = "_ns = {\"__builtins__\": _safe_builtins}\n"
     return textwrap.dedent(f"""\
 import os, sys, threading
 
@@ -105,9 +136,11 @@ def _safe_import(name, *args, **kwargs):
 _builtins.__import__ = _safe_import
 _safe_builtins["__import__"] = _safe_import
 
+{_task_globals}
+{_ns_line}
 
 try:
-    exec({_code_repr}, {{"__builtins__": _safe_builtins}})
+    exec({_code_repr}, _ns)
 except SystemExit:
     raise
 except BaseException:
@@ -129,12 +162,30 @@ class CodeInterpreterMiddleware(AgentMiddleware):
         middleware=[CodeInterpreterMiddleware(timeout=30)]
     """
 
-    def __init__(self, timeout: int = 15):
+    def __init__(self, timeout: int = 15, subagents: bool = True, chat: Any = None):
         self._default_timeout = max(1, min(timeout, 60))
+        self._subagents = subagents
+        self._chat = chat
 
     # ------------------------------------------------------------------
     # Middleware API
     # ------------------------------------------------------------------
+
+    def before_run(self, messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not self._subagents:
+            return messages
+        addendum = (
+            "\n\n## Orchestration\n"
+            'If the request uses the word "workflow", write orchestration code '
+            "that dispatches subagents with task() and assembles their results, "
+            "instead of delegating one at a time."
+        )
+        if messages and messages[0].get("role") == "system":
+            existing = messages[0].get("content", "")
+            messages[0]["content"] = existing + addendum
+        else:
+            messages.insert(0, {"role": "system", "content": addendum.lstrip("\n")})
+        return messages
 
     def get_extra_tools(self) -> list[dict[str, Any]]:
         return [_TOOL_DEFINITION]
@@ -152,7 +203,7 @@ class CodeInterpreterMiddleware(AgentMiddleware):
     # ------------------------------------------------------------------
 
     async def _run_in_subprocess(self, code: str, timeout: int) -> str:
-        wrapper = _build_wrapper_script(code, timeout)
+        wrapper = _build_wrapper_script(code, timeout, subagents=self._subagents)
 
         with tempfile.TemporaryDirectory(prefix="hiil_code_") as tmpdir:
             script_path = Path(tmpdir) / "_execute.py"
@@ -164,24 +215,53 @@ class CodeInterpreterMiddleware(AgentMiddleware):
                 proc = await asyncio.create_subprocess_exec(
                     sys.executable,
                     str(script_path),
-                    stdin=asyncio.subprocess.DEVNULL,
+                    stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                     cwd=tmpdir,
                     env={"PYTHONUNBUFFERED": "1"},
                 )
 
+                out_lines: list[str] = []
+
+                async def _pump() -> None:
+                    while True:
+                        line = await proc.stdout.readline()
+                        if not line:
+                            break
+                        text = line.decode("utf-8", errors="replace").rstrip("\n")
+                        if text.startswith("__HIIL_TASK__"):
+                            payload = text[len("__HIIL_TASK__"):]
+                            try:
+                                request = json.loads(payload)
+                            except json.JSONDecodeError:
+                                result = "[error] malformed task request"
+                            else:
+                                result = await self._dispatch_subagent(request)
+                            if proc.stdin is not None:
+                                try:
+                                    proc.stdin.write(
+                                        (json.dumps({"result": result}) + "\n").encode("utf-8")
+                                    )
+                                    await proc.stdin.drain()
+                                except (BrokenPipeError, ConnectionResetError):
+                                    pass
+                        else:
+                            out_lines.append(text)
+
                 try:
-                    stdout, stderr = await asyncio.wait_for(
-                        proc.communicate(), timeout=timeout + 5
-                    )
+                    await asyncio.wait_for(_pump(), timeout=timeout + 5)
                 except TimeoutError:
                     proc.kill()
                     await proc.wait()
                     return f"[timeout] Code execution exceeded {timeout}s"
 
-                out = stdout.decode("utf-8", errors="replace").strip()
-                err = stderr.decode("utf-8", errors="replace").strip()
+                if proc.stdin is not None:
+                    proc.stdin.close()
+                await proc.wait()
+                err = (await proc.stderr.read()).decode("utf-8", errors="replace").strip()
+
+                out = "\n".join(out_lines).strip()
 
                 parts: list[str] = []
                 if out:
@@ -196,3 +276,35 @@ class CodeInterpreterMiddleware(AgentMiddleware):
                 return f"[error] Python interpreter not found: {sys.executable}"
             except Exception as exc:
                 return f"[error] {exc}"
+
+    async def _dispatch_subagent(self, request: dict) -> str:
+        from mcp_cli.services.builtin_tools import (
+            _MAX_DELEGATION_DEPTH,
+            _delegate_parallel,
+            _delegate_task,
+            _delegation_depth,
+            _push_depth,
+        )
+
+        if self._chat is None:
+            return "[error] task() requires a chat reference"
+
+        op = request.get("op")
+        if op == "task":
+            if _delegation_depth.get() >= _MAX_DELEGATION_DEPTH:
+                return "[error] delegation depth exceeded."
+            args = {
+                "agent": request.get("subagent_type", ""),
+                "task": request.get("description", ""),
+                **request.get("kwargs", {}),
+            }
+            async with _push_depth():
+                return await _delegate_task(self._chat, args)
+        if op == "task_parallel":
+            if _delegation_depth.get() >= _MAX_DELEGATION_DEPTH:
+                return "[error] delegation depth exceeded."
+            async with _push_depth():
+                return await _delegate_parallel(
+                    self._chat, {"delegations": request.get("delegations", [])}
+                )
+        return "[error] unknown task op"

@@ -15,10 +15,6 @@ createRoot(document.getElementById('root')).render(
 const splash = document.getElementById('splash')
 if (splash) splash.remove()
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').catch(() => {})
-}
-
 document.documentElement.lang = localStorage.getItem('lang') || 'en'
 
 window.removeEventListener('error', window.__HTML_ERROR_FALLBACK)

@@ -33,8 +33,8 @@ async def is_path_allowed(requested_path: Path, ctx: Context) -> bool:
     try:
         roots_result = await ctx.session.list_roots()
     except Exception:
-        logger.warning("list_roots failed, allowing access")
-        return True
+        logger.warning("list_roots failed, denying access")
+        return False
 
     for root in roots_result.roots:
         root_path = _file_url_to_path(str(root.uri))

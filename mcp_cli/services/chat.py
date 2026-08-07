@@ -10,12 +10,15 @@ from mcp_cli.services.agents import (
     AgentRunner,
     classify,
 )
+from mcp_cli.services.builtin_tools import BuiltinTools, _DELEGATE_TOOLS
 from mcp_cli.services.claude import _known_text_only_model, _known_vision_model
 from mcp_cli.services.context_manager import ContextManager
 from mcp_cli.services.discovery import DiscoveryTracker
 from mcp_cli.services.document_injector import DocumentInjector
 from mcp_cli.services.history import ChatHistoryManager
+from mcp_cli.services.registry import ToolRegistry
 from mcp_cli.services.logging import get_logger
+
 from mcp_cli.services.moderation import ModerationFilter
 from mcp_cli.services.notification_bus import NotificationBus
 from mcp_cli.services.rag import RagPipeline
@@ -33,6 +36,13 @@ if TYPE_CHECKING:
 logger = get_logger("chat")
 
 _validation_error_count: int = 0
+
+
+def new_session_id() -> str:
+    """Generate a unique session id (timestamp + random suffix)."""
+    import secrets
+    from datetime import datetime
+    return datetime.now().strftime("session_%Y%m%d_%H%M%S") + "_" + secrets.token_hex(3)
 
 
 def _inc_validation_error() -> None:
@@ -72,6 +82,8 @@ class CliChat:
         self.messages: list[dict[str, Any]] = self.history.load_session(session_id)
         self.tools_by_name: dict[str, dict[str, Any]] = {}
         self._openai_tools: list[dict[str, Any]] = []
+        self.builtin_tools = BuiltinTools(self)
+        self._register_builtin_tools()
         self._max_tool_iterations = max_tool_iterations
 
         self._roots = roots_manager or RootsManager()
@@ -91,6 +103,7 @@ class CliChat:
         )
         self.discovery_guard = discovery_guard
         self.intent_routing = intent_routing
+        self.registry = ToolRegistry()
         self._auto_index_task: asyncio.Task | None = None
         self.response_format: dict[str, Any] | None = None
         self._correction_attempts = 0
@@ -110,6 +123,7 @@ class CliChat:
 
         # Agent spawning
         self.agents: dict[str, AgentRunner] = {}
+        self._recovery_attempted = False
 
     async def close(self):
         if self._auto_index_task is not None and not self._auto_index_task.done():
@@ -182,7 +196,20 @@ class CliChat:
         await asyncio.gather(*(
             _fetch(cid, c) for cid, c in all_clients.items()
         ))
+        self._register_builtin_tools()
+
+    def _register_builtin_tools(self) -> None:
+        """Re-register builtin tools after the MCP registry is (re)built."""
+        self.builtin_tools.register(self.tools_by_name)
         self._openai_tools = [v["openai"] for v in self.tools_by_name.values()]
+
+    async def _push_state(self, phase: str, iteration: int | None = None) -> None:
+        """Emit a task-lifecycle phase for the orchestrator chat on the active bus."""
+        bus = getattr(self, "_active_bus", None)
+        if bus is None:
+            return
+        await bus.push_state(phase, self.session_id, iteration=iteration)
+        await bus.push_log("info", f"[{self.session_id}] {phase}")
 
     async def add_server(self, server_id: str, script: str) -> str:
         if server_id in self.clients:
@@ -285,8 +312,7 @@ class CliChat:
         return None
 
     def new_session(self) -> str:
-        from datetime import datetime
-        sid = datetime.now().strftime("session_%Y%m%d_%H%M%S")
+        sid = new_session_id()
         self.session_id = sid
         self.messages = []
         return sid
@@ -530,6 +556,7 @@ class CliChat:
         response_format: dict[str, Any] | None = None,
     ) -> str:
         bus = notification_bus
+        self._active_bus = bus
         self._correction_attempts = 0
         user_input = self._sanitize_input(user_input)
 
@@ -610,15 +637,33 @@ class CliChat:
             self.messages.append({"role": "user", "content": augmented})
             save_content = augmented
         await self.history.async_save_message(self.session_id, "user", save_content)
-        tools = self._openai_tools if self._openai_tools else None
-        tools_tokens = count_tokens(json.dumps(tools), self.claude.model) if tools else 0
-        self.messages = self.context.trim(self.messages, tools_tokens)
+        
         iterations = 0
         tool_used = False
+        prev_tool_used = False  # Track if previous iteration used tools
         tool_events: list[str] = []
+        await self._push_state("THINKING", iteration=1)
         while True:
             iterations += 1
+
+            # Track if previous iteration used tools for silent failure detection
+            prev_tool_used = tool_used
+            tool_used = False  # Reset for this iteration
+            active_tool_names = self.registry.resolve_tools(user_input)
+            active_tools = [self.tools_by_name[name]['openai']
+                            for name in active_tool_names if name in self.tools_by_name]
+            tools_tokens = count_tokens(json.dumps(active_tools), self.claude.model) if active_tools else 0
+            self.messages = self.context.trim(self.messages, tools_tokens)
+
+            # Log routing metrics
+            if bus:
+                await bus.push_log("debug", f"Tool routing: selected {len(active_tool_names)} tools ({tools_tokens} tokens)")
+                if hasattr(bus, 'push_metric'):
+                    await bus.push_metric("tool_schema_tokens", tools_tokens)
+                    await bus.push_metric("tool_count", len(active_tool_names))
+
             if iterations > self._max_tool_iterations:
+                await self._push_state("DONE")
                 if bus:
                     await bus.push_log("warn", f"Stopped after {self._max_tool_iterations} tool iterations.")
                 return await self._moderate_output(
@@ -630,7 +675,7 @@ class CliChat:
 
             fmt = response_format or self.response_format
             message, input_tokens, output_tokens = await self.streamer.chat(
-                self.messages, tools=tools, on_chunk=on_chunk, response_format=fmt,
+                self.messages, tools=active_tools, on_chunk=on_chunk, response_format=fmt,
             )
             await self.usage.async_record(self.claude.model, input_tokens, output_tokens, self.session_id)
 
@@ -652,7 +697,66 @@ class CliChat:
             await self.history.async_save_message(self.session_id, "assistant", msg_dict["content"])
 
             tool_calls = getattr(message, "tool_calls", None)
+
+            # --- RECOVERY LOGIC: Silent Failure Detection ---
+            # If we just executed tools in the previous iteration AND now we get empty content with no tool calls,
+            # this is a "silent failure" - the model didn't respond after seeing tool results.
+            content = message.content or ""
+            if prev_tool_used and not tool_calls and not content.strip():
+                if not self._recovery_attempted:
+                    if bus:
+                        await bus.push_log("warn", "Silent failure detected: model returned empty response after tool execution. Initiating recovery...")
+                    # Recovery: strip all tools and force a summary
+                    recovery_messages = self.messages + [{
+                        "role": "system",
+                        "content": "You have received tool results above but provided no response. Summarize the tool results immediately and provide your final answer."
+                    }]
+                    self._recovery_attempted = True
+                    fmt = response_format or self.response_format
+                    recovery_message, rec_in, rec_out = await self.streamer.chat(
+                        recovery_messages, tools=[], on_chunk=on_chunk, response_format=fmt,
+                    )
+                    await self.usage.async_record(self.claude.model, rec_in, rec_out, self.session_id)
+
+                    if hasattr(recovery_message, "model_dump"):
+                        rec_dict = recovery_message.model_dump(exclude_unset=True)
+                    else:
+                        rec_dict = {
+                            "role": "assistant",
+                            "content": getattr(recovery_message, "content", "") or "",
+                        }
+                        if hasattr(recovery_message, "tool_calls") and recovery_message.tool_calls:
+                            rec_dict["tool_calls"] = recovery_message.tool_calls
+
+                    if rec_dict.get("content"):
+                        if bus:
+                            await bus.push_log("info", "Recovery successful.")
+                        self.messages.append(rec_dict)
+                        await self.history.async_save_message(self.session_id, "assistant", rec_dict["content"])
+                        await self._push_state("REPORTING")
+                        final_answer = await self._finalize_output(
+                            rec_dict["content"],
+                            user_input,
+                            rag_context,
+                            tool_used,
+                            "\n".join(tool_events),
+                            bus,
+                        )
+                        if bus:
+                            await bus.push_log("info", "Response complete (recovery).")
+                            await bus.push_done()
+                        await self._push_state("DONE")
+                        return final_answer
+
+                    if bus:
+                        await bus.push_log("warn", "Recovery attempt also returned empty content. Continuing with normal flow...")
+
+            # Reset recovery flag for next iteration
+            if prev_tool_used and not tool_calls:
+                self._recovery_attempted = False
+
             if not tool_calls:
+                await self._push_state("REPORTING")
                 is_valid, err = self._validate_output(message.content or "")
                 if is_valid:
                     final_answer = await self._finalize_output(
@@ -666,6 +770,7 @@ class CliChat:
                     if bus:
                         await bus.push_log("info", "Response complete.")
                         await bus.push_done()
+                    await self._push_state("DONE")
                     return final_answer
 
                 logger.warning("output validation failed: %s", err)
@@ -696,18 +801,25 @@ class CliChat:
                 if bus:
                     await bus.push_log("warn", "Max correction attempts reached, returning raw output.")
                     await bus.push_done()
+                await self._push_state("DONE")
                 return final_answer
 
             if bus:
                 await bus.push_log("info", f"Executing {len(tool_calls)} tool(s)...")
 
             tool_used = True
+            tool_names: list[str] = []
             for tc in tool_calls:
                 fn = getattr(tc, "function", None)
                 name = getattr(fn, "name", None) or getattr(tc, "name", "") or "tool"
                 args = getattr(fn, "arguments", None) or ""
+                tool_names.append(name)
                 tool_events.append(f"{name}({args})" if args else name)
 
+            await self._push_state(
+                "DELEGATING" if any(n in _DELEGATE_TOOLS for n in tool_names) else "EXECUTING",
+                iteration=iterations,
+            )
             tool_results = await self.tool_runner.execute_tool_calls(
                 tool_calls,
                 on_tool_event=on_tool_event,

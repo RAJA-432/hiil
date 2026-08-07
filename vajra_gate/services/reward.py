@@ -421,7 +421,7 @@ class RewardTracker:
         self,
         since: str | None = None,
     ) -> dict[str, Any]:
-        events = self._store.search("rewards", limit=10000)
+        events = self._store.all_items("rewards")
         if since:
             events = [e for e in events if e.get("value", {}).get("timestamp", "") >= since]
 

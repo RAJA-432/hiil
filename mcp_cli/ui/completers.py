@@ -40,6 +40,14 @@ _SUBCOMMAND_META: dict[str, dict[str, str]] = {
         "pause": "Pause a running agent",
         "approve": "Approve a pending agent action",
         "reject": "Reject a pending agent action",
+        "agents": "List registered subagents",
+        "run": "Run a registered subagent with a task",
+    },
+    "skill": {
+        "create": "Create a new skill (name + optional description)",
+        "list": "List existing skills",
+        "show": "Show a skill's SKILL.md contents",
+        "delete": "Delete a skill directory",
     },
 }
 
@@ -163,6 +171,37 @@ class HiilCompleter(Completer):
                     display=w,
                     display_meta=meta_text,
                 )
+        if cmd == "agent" and partial.startswith("run "):
+            yield from self._agent_name_completions(partial[4:])
+        if cmd == "skill" and partial.startswith(("show ", "delete ")):
+            parts = partial.split(maxsplit=1)
+            yield from self._skill_name_completions(parts[1] if len(parts) > 1 else "")
+
+    def _skill_name_completions(self, partial: str):
+        from pathlib import Path
+        skills_dir = Path("skills")
+        if not skills_dir.exists():
+            return
+        for child in sorted(skills_dir.iterdir()):
+            if child.is_dir() and (child / "SKILL.md").exists():
+                if partial.lower() in child.name.lower():
+                    yield Completion(
+                        child.name,
+                        start_position=-len(partial),
+                        display=child.name,
+                        display_meta="skill",
+                    )
+
+    def _agent_name_completions(self, partial: str):
+        from mcp_cli.services.agents import SUBAGENT_REGISTRY
+        for name, cfg in SUBAGENT_REGISTRY.items():
+            if partial.lower() in name.lower():
+                yield Completion(
+                    name,
+                    start_position=-len(partial),
+                    display=name,
+                    display_meta=f"subagent [{cfg.role}]",
+                )
 
     def _session_id_completions(self, partial: str):
         try:
@@ -196,7 +235,7 @@ class HiilCompleter(Completer):
         yield from self._completions(
             self._themes, partial,
             display_func=lambda n: n,
-            meta_func=lambda n: f"theme{' *' if n == self.app._theme.name else ''}",
+            meta_func=lambda n: f"theme{' *' if n == self.app.theme.name else ''}",
         )
 
     def _server_id_completions(self, partial: str):

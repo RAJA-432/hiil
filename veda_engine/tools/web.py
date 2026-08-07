@@ -4,7 +4,7 @@ import asyncio
 import ipaddress
 import re
 import socket
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from pydantic import Field
@@ -62,6 +62,7 @@ _PRIVATE_NETWORKS = [
 ]
 
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+_MAX_REDIRECTS = 5
 
 
 def _resolve_blocks(host: str) -> tuple[str, ...]:
@@ -70,7 +71,7 @@ def _resolve_blocks(host: str) -> tuple[str, ...]:
         infos = socket.getaddrinfo(host, None)
     except socket.gaierror:
         raise ValueError(f"Could not resolve URL host '{host}'") from None
-    return tuple(info[4][0] for info in infos)
+    return tuple(str(info[4][0]) for info in infos)
 
 
 def _validate_url(url: str) -> str:
@@ -91,9 +92,17 @@ def _validate_url(url: str) -> str:
             ip = ipaddress.ip_address(addr)
         except ValueError:
             continue
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+            ip = ip.ipv4_mapped
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ValueError(
+                f"URL host '{host}' is in a private/reserved range and is blocked for security"
+            )
         for net in _PRIVATE_NETWORKS:
             if ip in net:
-                raise ValueError(f"URL host '{host}' is in a private/reserved range and is blocked for security")
+                raise ValueError(
+                    f"URL host '{host}' is in a private/reserved range and is blocked for security"
+                )
     return url
 
 
@@ -103,9 +112,10 @@ async def web_fetch(
 ) -> str:
     """Fetch a web page and extract its readable text content.
 
-    The response body is streamed and hard-capped at ``_MAX_RESPONSE_BYTES``. The host is
-    DNS-resolved once before the request; httpx follows redirects without re-validation, so
-    a redirect to a private address is not re-checked (bounded only by the response cap).
+    The response body is streamed and hard-capped at ``_MAX_RESPONSE_BYTES``. Redirects are
+    followed manually up to ``_MAX_REDIRECTS`` hops, and every hop is re-validated against
+    the SSRF rules (scheme whitelist, host blocklist, private-network DNS check) before it is
+    requested, so a redirect to a private or blocked address is rejected.
     """
     url = await asyncio.to_thread(_validate_url, url)
     headers = {
@@ -113,17 +123,30 @@ async def web_fetch(
     }
     truncated = False
     async with httpx.AsyncClient(
-        follow_redirects=True, timeout=30, limits=httpx.Limits(max_connections=10)
+        follow_redirects=False, timeout=30, limits=httpx.Limits(max_connections=10)
     ) as client:
-        async with client.stream("GET", url, headers=headers) as resp:
-            resp.raise_for_status()
-            buffer = bytearray()
-            async for chunk in resp.aiter_bytes():
-                buffer.extend(chunk)
-                if len(buffer) > _MAX_RESPONSE_BYTES:
-                    truncated = True
-                    break
-            raw = bytes(buffer)
+        current_url = url
+        redirects = 0
+        while True:
+            if redirects > _MAX_REDIRECTS:
+                raise ValueError(f"Too many redirects while fetching {url}")
+            async with client.stream("GET", current_url, headers=headers) as resp:
+                if resp.is_redirect:
+                    location = resp.headers.get("location")
+                    if not location:
+                        raise ValueError(f"Redirect from {current_url} is missing a Location header")
+                    current_url = await asyncio.to_thread(_validate_url, urljoin(current_url, location))
+                    redirects += 1
+                    continue
+                resp.raise_for_status()
+                buffer = bytearray()
+                async for chunk in resp.aiter_bytes():
+                    buffer.extend(chunk)
+                    if len(buffer) > _MAX_RESPONSE_BYTES:
+                        truncated = True
+                        break
+                raw = bytes(buffer)
+                break
 
     text = raw.decode("utf-8", errors="replace")
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime
 from typing import Any
 
 _log = logging.getLogger(__name__)
@@ -21,10 +22,12 @@ class NotificationBus:
 
     def __init__(self, max_queue_size: int = 1000):
         self._queues: list[asyncio.Queue[dict[str, Any]]] = []
+        self._queue_registry: dict[int, dict[str, Any]] = {}
         self._done = False
         self._buffer: list[dict[str, Any]] = []
         self._max_queue_size = max_queue_size
         self._seq = 0
+        self._next_queue_id = 0
 
     def _broadcast(self, event: dict[str, Any]) -> None:
         self._seq += 1
@@ -54,6 +57,21 @@ class NotificationBus:
     async def push_interrupt(self, action_requests: list[dict]) -> None:
         self._broadcast({"type": "interrupt", "action_requests": action_requests})
 
+    async def push_state(self, phase: str, agent_id: str, iteration: int | None = None) -> None:
+        """Broadcast a task-lifecycle phase transition for an agent.
+
+        ``iteration`` is optional and only meaningful for per-loop phases
+        (THINKING / EXECUTING); terminal phases (REPORTING / DONE) leave it
+        unset so consumers never treat it as authoritative.
+        """
+        self._broadcast({
+            "type": "state",
+            "phase": phase,
+            "agent_id": agent_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            "iteration": iteration,
+        })
+
     async def push_tokens(self, text: str) -> None:
         self._broadcast({"type": "tokens", "text": text})
 
@@ -72,7 +90,14 @@ class NotificationBus:
 
     async def events(self) -> AsyncIterator[dict[str, Any]]:
         queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=self._max_queue_size)
+        queue_id = self._next_queue_id
+        self._next_queue_id += 1
+        self._queue_registry[queue_id] = {
+            "queue": queue,
+            "created_at": datetime.now(UTC).isoformat(),
+        }
         self._queues.append(queue)
+        _log.debug("NotificationBus: subscriber %s registered (%d active)", queue_id, len(self._queues))
         # Drain pre-subscriber buffer into this queue.
         buffer_had_done = any(e.get("type") == "done" for e in self._buffer)
         for event in self._buffer:
@@ -91,4 +116,7 @@ class NotificationBus:
                 if event["type"] == "done":
                     break
         finally:
-            self._queues.remove(queue)
+            if queue in self._queues:
+                self._queues.remove(queue)
+            self._queue_registry.pop(queue_id, None)
+            _log.debug("NotificationBus: subscriber %s removed (%d active)", queue_id, len(self._queues))

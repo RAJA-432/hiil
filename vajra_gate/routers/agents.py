@@ -84,21 +84,36 @@ async def run_agent(request: Request, agent_id: str, body: AgentRunRequest, user
         runner.bus = bus
 
         async def event_stream():
-            async def execute():
-                try:
-                    result = await runner.run(task_input)
-                    if result.status == "waiting" and result.pending_interrupt:
-                        await bus.push_interrupt([a.model_dump() for a in result.pending_interrupt])
-                    else:
-                        await bus.push_log("info", f"Agent completed: {result.output[:100]}...")
-                except Exception as exc:
-                    await bus.push_log("error", str(exc))
-                finally:
-                    await bus.push_done()
+            task: asyncio.Task | None = None
+            try:
+                async def execute():
+                    try:
+                        result = await runner.run(task_input)
+                        if result.status == "waiting" and result.pending_interrupt:
+                            await bus.push_interrupt([a.model_dump() for a in result.pending_interrupt])
+                        else:
+                            await bus.push_log("info", f"Agent completed: {result.output[:100]}...")
+                    except asyncio.CancelledError:
+                        pass
+                    except Exception as exc:
+                        await bus.push_log("error", str(exc))
+                    finally:
+                        await bus.push_done()
 
-            asyncio.create_task(execute())
-            async for event in bus.events():
-                yield json.dumps(event) + "\n"
+                task = asyncio.create_task(execute())
+                async for event in bus.events():
+                    yield json.dumps(event) + "\n"
+            finally:
+                if task is not None and not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except (asyncio.CancelledError, RuntimeError):
+                        pass
+                while bus._queues:
+                    q = bus._queues.pop()
+                    while not q.empty():
+                        q.get_nowait()
 
         return StreamingResponse(
             event_stream(),

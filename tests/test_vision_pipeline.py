@@ -233,6 +233,7 @@ def _make_bus():
     bus = MagicMock()
     bus.push_log = AsyncMock()
     bus.push_done = AsyncMock()
+    bus.push_state = AsyncMock()
     return bus
 
 

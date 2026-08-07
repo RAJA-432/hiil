@@ -83,7 +83,7 @@ export default function Sidebar() {
         </div>
 
         {sidebarView === 'search' && searchOpen ? (
-          <div id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations">
+          <div id="panel-conversations" className="sidebar-panel" role="tabpanel" aria-labelledby="tab-conversations">
             <SearchPanel
               conversations={conversations}
               onSelectConversation={(conv) => { handleSelectConversation(conv); handleSearchClose() }}
@@ -91,7 +91,7 @@ export default function Sidebar() {
             />
           </div>
         ) : sidebarView === 'skills' ? (
-          <div id="panel-skills" role="tabpanel" aria-labelledby="tab-skills">
+          <div id="panel-skills" className="sidebar-panel" role="tabpanel" aria-labelledby="tab-skills">
             <Suspense fallback={<div className="sidebar-loading" style={{padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)'}}>Loading skills…</div>}>
               <SkillsPanel
                 skills={skills}
@@ -102,7 +102,7 @@ export default function Sidebar() {
             </Suspense>
           </div>
         ) : sidebarView === 'agents' ? (
-          <div id="panel-agents" role="tabpanel" aria-labelledby="tab-agents">
+          <div id="panel-agents" className="sidebar-panel" role="tabpanel" aria-labelledby="tab-agents">
             <Suspense fallback={<div className="sidebar-loading" style={{padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)'}}>Loading agents…</div>}>
               <AgentPanel
                 agents={agents}
@@ -114,7 +114,7 @@ export default function Sidebar() {
             </Suspense>
           </div>
         ) : (
-          <div id="panel-conversations" role="tabpanel" aria-labelledby="tab-conversations">
+          <div id="panel-conversations" className="sidebar-panel" role="tabpanel" aria-labelledby="tab-conversations">
             <ConversationList
               conversations={conversations}
               activeConversation={activeConversation}

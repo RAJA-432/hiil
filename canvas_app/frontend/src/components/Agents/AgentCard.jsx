@@ -15,15 +15,22 @@ const STATUS_COLORS = {
 export default function AgentCard({ agent, onRun, onStop }) {
   const statusColor = STATUS_COLORS[agent.status] || 'var(--text-muted)'
   const statusLabel = STATUS_LABELS[agent.status] || agent.status
+  const phase = agent.state?.phase
+  const phaseClass = phase && phase !== 'IDLE' ? `agent-phase-${phase.toLowerCase()}` : null
 
   return (
     <div className="agent-card">
       <div className="agent-card-header">
         <span className="agent-card-name">{agent.name}</span>
-        <span className="agent-card-status" style={{ color: statusColor }}>
-          <span className="agent-status-dot" style={{ backgroundColor: statusColor }} />
-          {statusLabel}
-        </span>
+        <div className="agent-card-status-group">
+          <span className="agent-card-status" style={{ color: statusColor }}>
+            <span className="agent-status-dot" style={{ backgroundColor: statusColor }} />
+            {statusLabel}
+          </span>
+          {phaseClass && (
+            <span className={`agent-phase ${phaseClass}`}>{phase}</span>
+          )}
+        </div>
       </div>
       <div className="agent-card-role">{agent.role}</div>
       {agent.capabilities?.length > 0 && (

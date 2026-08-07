@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import uuid
 from typing import Any
@@ -32,8 +33,10 @@ from vajra_gate.models import (
     ThreadRunResponse,
     ThreadSearchRequest,
 )
+from vajra_gate.routers.sessions import _session_exists
 from vajra_gate.store import get_store
 
+logger = logging.getLogger("vajra_gate.langgraph")
 router = APIRouter()
 
 _START_TIME = time.time()
@@ -109,9 +112,9 @@ async def create_thread(request: Request, body: ThreadCreateRequest | None = Non
 @router.get("/threads/{thread_id}", response_model=ThreadItem)
 async def get_thread(request: Request, thread_id: str, user: str = Depends(get_current_user)):
     chat = await _require_chat(request)
-    msgs = await chat.history.async_load_session(thread_id)
-    if msgs is None:
+    if not await _session_exists(chat, thread_id):
         raise HTTPException(status_code=404, detail=f"Thread '{thread_id}' not found")
+    msgs = await chat.history.async_load_session(thread_id)
     from vajra_gate.routers.sessions import _parse_session_ts
     created = _parse_session_ts(thread_id)
     created_at = created.isoformat() if created else thread_id
@@ -126,9 +129,10 @@ async def get_thread(request: Request, thread_id: str, user: str = Depends(get_c
 @router.post("/threads/{thread_id}/runs", response_model=ThreadRunResponse)
 async def run_thread(request: Request, thread_id: str, body: ThreadRunRequest, user: str = Depends(get_current_user)):
     chat = await _require_chat(request)
-    msgs = await chat.history.async_load_session(thread_id)
-    if msgs is None:
+    if not await _session_exists(chat, thread_id):
         raise HTTPException(status_code=404, detail=f"Thread '{thread_id}' not found")
+    chat = await _require_chat(request, session_id=thread_id)
+    msgs = await chat.history.async_load_session(thread_id)
 
     chat.session_id = thread_id
     chat.messages = msgs
@@ -158,9 +162,10 @@ async def run_thread_stream(
     user: str = Depends(get_current_user),
 ):
     chat = await _require_chat(request)
-    msgs = await chat.history.async_load_session(thread_id)
-    if msgs is None:
+    if not await _session_exists(chat, thread_id):
         raise HTTPException(status_code=404, detail=f"Thread '{thread_id}' not found")
+    chat = await _require_chat(request, session_id=thread_id)
+    msgs = await chat.history.async_load_session(thread_id)
 
     chat.session_id = thread_id
     chat.messages = msgs
@@ -172,6 +177,7 @@ async def run_thread_stream(
 
     async def _stream():
         bus: Any = None
+        task: asyncio.Task | None = None
         try:
             from mcp_cli.services.notification_bus import NotificationBus
             bus = NotificationBus()
@@ -184,7 +190,17 @@ async def run_thread_stream(
                 chunks.append(chunk)
 
             async def _run():
-                await chat.send(user_input, notification_bus=bus, on_chunk=on_chunk)
+                try:
+                    await chat.send(user_input, notification_bus=bus, on_chunk=on_chunk)
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    logger.exception("Chat send failed")
+                finally:
+                    try:
+                        await bus.push_done()
+                    except (GeneratorExit, asyncio.CancelledError, RuntimeError):
+                        pass
 
             task = asyncio.create_task(_run())
 
@@ -201,6 +217,12 @@ async def run_thread_stream(
         except Exception as exc:
             yield json.dumps({"event": "error", "data": {"error": str(exc)}}) + "\n"
         finally:
+            if task is not None and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, RuntimeError):
+                    pass
             if bus:
                 while bus._queues:
                     q = bus._queues.pop()
@@ -225,9 +247,10 @@ async def run_thread_wait(
     user: str = Depends(get_current_user),
 ):
     chat = await _require_chat(request)
-    msgs = await chat.history.async_load_session(thread_id)
-    if msgs is None:
+    if not await _session_exists(chat, thread_id):
         raise HTTPException(status_code=404, detail=f"Thread '{thread_id}' not found")
+    chat = await _require_chat(request, session_id=thread_id)
+    msgs = await chat.history.async_load_session(thread_id)
 
     chat.session_id = thread_id
     chat.messages = msgs
@@ -260,25 +283,18 @@ async def run_thread_wait(
 
 @router.post("/runs", response_model=StatelessRunResponse)
 async def stateless_run(request: Request, body: StatelessRunRequest, user: str = Depends(get_current_user)):
-    chat = await _require_chat(request)
+    temp_id = f"run_{uuid.uuid4().hex[:12]}"
+    chat = await _require_chat(request, session_id=temp_id)
     user_input = body.input.get("messages", "")
     if not user_input:
         raise HTTPException(status_code=400, detail="input.messages required")
 
-    current_sid = chat.session_id
-    current_msgs = list(chat.messages)
-
-    try:
-        chat.new_session()
-        result = await chat.send(user_input)
-        run_id = f"run_{uuid.uuid4().hex[:12]}"
-        return StatelessRunResponse(
-            run_id=run_id,
-            output={"reply": result},
-        )
-    finally:
-        chat.session_id = current_sid
-        chat.messages = current_msgs
+    result = await chat.send(user_input)
+    run_id = f"run_{uuid.uuid4().hex[:12]}"
+    return StatelessRunResponse(
+        run_id=run_id,
+        output={"reply": result},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -289,9 +305,9 @@ async def stateless_run(request: Request, body: StatelessRunRequest, user: str =
 @router.post("/threads/{thread_id}/search")
 async def search_thread(request: Request, thread_id: str, body: ThreadSearchRequest, user: str = Depends(get_current_user)):
     chat = await _require_chat(request)
-    msgs = await chat.history.async_load_session(thread_id)
-    if msgs is None:
+    if not await _session_exists(chat, thread_id):
         raise HTTPException(status_code=404, detail=f"Thread '{thread_id}' not found")
+    msgs = await chat.history.async_load_session(thread_id)
 
     try:
         results = await chat.semantic_search(body.query, namespace=thread_id, limit=body.top_k)
@@ -317,7 +333,10 @@ async def search_thread(request: Request, thread_id: str, body: ThreadSearchRequ
 async def store_upsert(body: StoreUpsertRequest, user: str = Depends(get_current_user)):
     store = get_store()
     items = [item.model_dump() for item in body.items]
-    store.upsert(body.namespace, items)
+    try:
+        store.upsert(body.namespace, items)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid namespace")
     return {"status": "ok", "namespace": body.namespace, "count": len(items)}
 
 
@@ -327,7 +346,10 @@ async def store_get(namespace: str = "default", keys: str = "", user: str = Depe
     key_list = [k.strip() for k in keys.split(",") if k.strip()]
     if not key_list:
         raise HTTPException(status_code=400, detail="keys query parameter required (comma-separated)")
-    items = store.get_many(namespace, key_list)
+    try:
+        items = store.get_many(namespace, key_list)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid namespace")
     return StoreGetResponse(items=[
         StoreItem(**item) for item in items
     ])
@@ -336,7 +358,10 @@ async def store_get(namespace: str = "default", keys: str = "", user: str = Depe
 @router.post("/store/items/query", response_model=StoreGetResponse)
 async def store_get_post(body: StoreGetRequest, user: str = Depends(get_current_user)):
     store = get_store()
-    items = store.get_many(body.namespace, body.keys)
+    try:
+        items = store.get_many(body.namespace, body.keys)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid namespace")
     return StoreGetResponse(items=[
         StoreItem(**item) for item in items
     ])
@@ -345,14 +370,23 @@ async def store_get_post(body: StoreGetRequest, user: str = Depends(get_current_
 @router.delete("/store/items")
 async def store_delete(body: StoreDeleteRequest, user: str = Depends(get_current_user)):
     store = get_store()
-    deleted = store.delete(body.namespace, body.keys)
+    try:
+        deleted = store.delete(body.namespace, body.keys)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid namespace")
     return {"status": "ok", "deleted": deleted, "namespace": body.namespace}
 
 
 @router.post("/store/items/search", response_model=StoreSearchResponse)
 async def store_search(body: StoreSearchRequest, user: str = Depends(get_current_user)):
     store = get_store()
-    items = store.search(body.namespace, body.filter or {}, limit=body.limit)
+    if body.limit < 0:
+        raise HTTPException(status_code=422, detail="limit must be non-negative")
+    limit = min(body.limit, 100)
+    try:
+        items = store.search(body.namespace, body.filter or {}, limit=limit)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="Invalid namespace")
     return StoreSearchResponse(
         items=[StoreItem(**item) for item in items],
         count=len(items),

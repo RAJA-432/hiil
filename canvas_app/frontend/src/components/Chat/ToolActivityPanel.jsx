@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Fragment } from 'react'
 
 const LEVEL_ICON = {
   info: 'ℹ️',
@@ -7,7 +7,20 @@ const LEVEL_ICON = {
   tool: '🔧',
 }
 
-export default function ToolActivityPanel({ logs, ragChunks }) {
+function groupPhases(phases) {
+  const order = []
+  const map = new Map()
+  for (const p of (phases || [])) {
+    if (!map.has(p.agent_id)) {
+      map.set(p.agent_id, [])
+      order.push(p.agent_id)
+    }
+    map.get(p.agent_id).push(p)
+  }
+  return order.map(agentId => ({ agent_id: agentId, phases: map.get(agentId) }))
+}
+
+export default function ToolActivityPanel({ logs, ragChunks, phases }) {
   const [filter, setFilter] = useState('all')
   const [collapsed, setCollapsed] = useState(false)
   const listRef = useRef(null)
@@ -33,10 +46,27 @@ export default function ToolActivityPanel({ logs, ragChunks }) {
     ? allEntries
     : allEntries.filter(e => e.level === filter || e.source === filter)
 
-  if (allEntries.length === 0) return null
+  const phaseGroups = groupPhases(phases)
+
+  if (allEntries.length === 0 && phaseGroups.length === 0) return null
 
   return (
     <div className="activity-panel">
+      {phaseGroups.length > 0 && (
+        <div className="activity-phase-track">
+          {phaseGroups.map(group => (
+            <div className="activity-phase-row" key={group.agent_id}>
+              <span className="activity-phase-agent" title={group.agent_id}>{group.agent_id}</span>
+              {group.phases.map((p, i) => (
+                <Fragment key={`${group.agent_id}-${i}`}>
+                  {i > 0 && <span className="activity-phase-arrow" aria-hidden="true">→</span>}
+                  <span className={`activity-phase-chip ${(p.phase || '').toLowerCase()}`}>{p.phase}</span>
+                </Fragment>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
       <div className="activity-panel-header" onClick={() => setCollapsed(!collapsed)} role="button" tabIndex={0} aria-expanded={!collapsed} aria-label="Activity log" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(!collapsed) } }}>
         <span className="activity-panel-icon" aria-hidden="true">📋</span>
         <span>Activity Log</span>

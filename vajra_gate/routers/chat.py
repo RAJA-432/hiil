@@ -1,4 +1,5 @@
 import asyncio
+import re
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -22,11 +23,19 @@ from vajra_gate.models import (
 
 _GLOBAL_CHAT_TIMEOUT = 300.0
 
+_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
+
+
+def _validate_session_id(session_id: str) -> None:
+    if not _SESSION_ID_RE.fullmatch(session_id):
+        raise HTTPException(status_code=422, detail="Invalid session_id")
+
 router = APIRouter()
 
 
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat_api(request: Request, body: ChatRequest, user: str = Depends(get_current_user)):
+    _validate_session_id(body.session_id)
     chat = await _require_chat(request, session_id=body.session_id)
     if not body.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
@@ -77,9 +86,22 @@ async def status(request: Request, user: str = Depends(get_current_user)):
 @router.post("/api/model", response_model=ModelSetResponse)
 async def set_model(request: Request, body: ModelSetRequest, user: str = Depends(get_current_user)):
     chat = await _require_chat(request)
-    if not body.model.strip():
+    model = body.model.strip()
+    if not model:
         raise HTTPException(status_code=400, detail="model must be a non-empty string")
-    chat.claude.model = body.model
+    if len(model) > 128:
+        raise HTTPException(status_code=422, detail="model name too long")
+    try:
+        models_data = await chat.claude.list_models()
+        ids = {m.get("id") for m in models_data if m.get("id")}
+        if ids and model not in ids:
+            raise HTTPException(status_code=422, detail=f"Unknown model '{model}'")
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # model catalog unavailable — keep endpoint working for arbitrary providers
+    async with chat.lock:
+        chat.claude.model = body.model
     return ModelSetResponse(model=body.model)
 
 
@@ -90,7 +112,7 @@ async def get_usage(request: Request, session_id: str | None = None, user: str =
         session = await chat.usage.async_session_summary_for(session_id)
     else:
         session = chat.usage.session_summary()
-    total = chat.usage.total_summary()
+    total = await chat.usage.async_total_summary()
     return UsageResponse(
         session=TokenUsage(**session) if session else TokenUsage(),
         total=TokenUsage(**total) if total else TokenUsage(),

@@ -15,6 +15,10 @@ class _PooledChat:
         async with self._lock:
             return await self._chat.send(*args, **kwargs)
 
+    @property
+    def lock(self) -> asyncio.Lock:
+        return self._lock
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self._chat, name)
 
@@ -44,7 +48,11 @@ class ChatPool:
                 return
             from mcp_cli.services.factory import create_chat_factory
             stack = AsyncExitStack()
-            self._builder = await create_chat_factory(stack, logging_callback=logging_callback)
+            try:
+                self._builder = await create_chat_factory(stack, logging_callback=logging_callback)
+            except BaseException:
+                await stack.aclose()
+                raise
             self._stack = stack
 
     async def get(self, session_id: str) -> _PooledChat:
@@ -71,8 +79,8 @@ class ChatPool:
 
     async def new_session(self) -> str:
         await self.init()
-        from datetime import datetime
-        sid = datetime.now().strftime("session_%Y%m%d_%H%M%S")
+        from mcp_cli.services.chat import new_session_id
+        sid = new_session_id()
         chat = await self._builder.create(sid)
         async with self._lock:
             self._entries[sid] = _PooledChat(chat, asyncio.Lock())
@@ -89,6 +97,7 @@ class ChatPool:
             entry = self._entries.pop(session_id, None)
         if entry is not None:
             await self._close_entry(entry)
+        self._clear_stale_active(session_id)
 
     async def aclose(self) -> None:
         async with self._lock:
@@ -106,8 +115,20 @@ class ChatPool:
             async with self._lock:
                 if len(self._entries) <= self._maxsize:
                     return
-                _, entry = self._entries.popitem(last=False)
+                evicted_sid, entry = self._entries.popitem(last=False)
             await self._close_entry(entry)
+            self._clear_stale_active(evicted_sid)
+
+    def _clear_stale_active(self, session_id: str) -> None:
+        """Drop the global active chat reference when its session is evicted.
+
+        ``_state._chat`` may still point at a closed pooled chat, so a later
+        send would touch closed sqlite stores.
+        """
+        if session_id == self._active:
+            self._active = "default"
+            import vajra_gate.state as _state
+            _state._chat = None
 
     async def _close_entry(self, entry: _PooledChat) -> None:
         async with entry._lock:

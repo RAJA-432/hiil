@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from mcp_cli.services.agents.middleware import AgentMiddleware
+from mcp_cli.services.agents.middleware.base import AgentMiddleware
 from mcp_cli.services.agents.models import register_middleware
 
 _STEP_TOOL_DEFINITION = {

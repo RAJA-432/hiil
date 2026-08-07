@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
@@ -17,11 +18,34 @@ from vajra_gate.storage import HspStorage
 router = APIRouter()
 storage = HspStorage()
 
+_UPLOAD_CHUNK = 1024 * 1024
+_MAX_UPLOAD_BYTES = int(os.getenv("HIIL_MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))  # 10 MB default
+
+
+async def _read_upload(file: UploadFile) -> bytes:
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(_UPLOAD_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > _MAX_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File exceeds maximum size of {_MAX_UPLOAD_BYTES} bytes",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
 
 @router.post("/api/upload", response_model=UploadResponse)
 async def upload_file(request: Request, file: UploadFile = File(...), user: str = Depends(get_current_user)):
+    content_length = int(request.headers.get("Content-Length", 0))
+    if content_length > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail=f"File exceeds maximum size of {_MAX_UPLOAD_BYTES} bytes")
+    file_data = await _read_upload(file)
     try:
-        file_data = await file.read()
         filename = file.filename or "unknown"
         doc_id = await storage.store_file(file_data, filename, user_id=user)
 

@@ -4,7 +4,7 @@ import json
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from mcp_cli.services.agents.middleware import AgentMiddleware
+from mcp_cli.services.agents.middleware.base import AgentMiddleware
 from mcp_cli.services.agents.models import register_middleware
 
 _TOOL_DEFINITION = {

@@ -45,8 +45,17 @@
 
 .conversation-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 4px 8px;
+}
+
+.sidebar-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 /* ─── File Tree ─── */

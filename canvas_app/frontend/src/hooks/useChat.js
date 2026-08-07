@@ -7,11 +7,15 @@ export function useChat(conversationId, onUndoPush) {
   const [streamingText, setStreamingText] = useState('')
   const [ragChunks, setRagChunks] = useState([])
   const [activityLogs, setActivityLogs] = useState([])
+  const [phases, setPhases] = useState([])
   const [error, setError] = useState(null)
   const cancelRef = useRef(null)
   const mountedRef = useRef(false)
   const streamRef = useRef(null)
   const messagesRef = useRef(messages)
+  const tokenBufferRef = useRef('')
+  const tokenFlushScheduledRef = useRef(false)
+  const tokenFlushRafRef = useRef(0)
 
   useEffect(() => {
     mountedRef.current = true
@@ -25,6 +29,7 @@ export function useChat(conversationId, onUndoPush) {
   useEffect(() => {
     setRagChunks([])
     setActivityLogs([])
+    setPhases([])
     setError(null)
   }, [conversationId])
 
@@ -35,13 +40,39 @@ export function useChat(conversationId, onUndoPush) {
     if (mountedRef.current) setMessages(msgs)
   }, [conversationId])
 
+  const flushPendingTokens = useCallback(() => {
+    tokenFlushScheduledRef.current = false
+    tokenFlushRafRef.current = 0
+    const chunk = tokenBufferRef.current
+    tokenBufferRef.current = ''
+    if (chunk) setStreamingText(prev => prev + chunk)
+  }, [])
+
+  const scheduleTokenFlush = useCallback(() => {
+    if (tokenFlushScheduledRef.current) return
+    tokenFlushScheduledRef.current = true
+    tokenFlushRafRef.current = requestAnimationFrame(flushPendingTokens)
+  }, [flushPendingTokens])
+
+  const discardPendingTokens = useCallback(() => {
+    tokenBufferRef.current = ''
+    if (tokenFlushScheduledRef.current) {
+      cancelAnimationFrame(tokenFlushRafRef.current)
+      tokenFlushScheduledRef.current = false
+      tokenFlushRafRef.current = 0
+    }
+  }, [])
+
   const runStream = useCallback((text, images, msgId, overrideConvId) => {
     const cid = overrideConvId || conversationId
     const toolCalls = []
     const chunks = []
     const logs = []
+    const phases = []
     const abortController = new AbortController()
 
+    discardPendingTokens()
+    setPhases([])
     setStreaming(true)
     setStreamingText('')
     setError(null)
@@ -51,7 +82,8 @@ export function useChat(conversationId, onUndoPush) {
       (event) => {
         if (!mountedRef.current) return
         if (event.type === 'tokens') {
-          setStreamingText(prev => prev + event.text)
+          tokenBufferRef.current += event.text
+          scheduleTokenFlush()
         } else if (event.type === 'tool_event') {
           const existing = toolCalls.find(t => t.tool === event.tool && t.status === 'running')
           if (existing) {
@@ -84,6 +116,9 @@ export function useChat(conversationId, onUndoPush) {
         } else if (event.type === 'log') {
           logs.push({ ...event, timestamp: Date.now() })
           setActivityLogs([...logs])
+        } else if (event.type === 'state') {
+          phases.push({ agent_id: event.agent_id, phase: event.phase, timestamp: event.timestamp, iteration: event.iteration })
+          setPhases([...phases])
         }
       },
       (err) => {
@@ -98,7 +133,7 @@ export function useChat(conversationId, onUndoPush) {
     cancelRef.current = stream
     streamRef.current = stream
     return stream
-  }, [conversationId])
+  }, [conversationId, scheduleTokenFlush, discardPendingTokens])
 
   const send = useCallback(async (text, images, overrideConvId) => {
     const cid = overrideConvId || conversationId
@@ -107,11 +142,12 @@ export function useChat(conversationId, onUndoPush) {
     const stream = runStream(text, images, msgId, overrideConvId)
     await stream.done.catch(() => {})
     if (mountedRef.current) {
+      flushPendingTokens()
       setStreaming(false)
       setStreamingText('')
       await loadMessages(cid).catch(() => {})
     }
-  }, [conversationId, loadMessages, runStream])
+  }, [conversationId, loadMessages, runStream, flushPendingTokens])
 
   const stop = useCallback(() => {
     if (streamRef.current) {
@@ -119,9 +155,10 @@ export function useChat(conversationId, onUndoPush) {
       streamRef.current = null
     }
     cancelRef.current = null
+    discardPendingTokens()
     setStreaming(false)
     setStreamingText('')
-  }, [])
+  }, [discardPendingTokens])
 
   const editMessage = useCallback(async (msg, newText) => {
     if (!mountedRef.current || !conversationId) return
@@ -133,6 +170,7 @@ export function useChat(conversationId, onUndoPush) {
     setMessages(msgsToKeep)
     setRagChunks([])
     setActivityLogs([])
+    setPhases([])
     if (onUndoPush) {
       onUndoPush({
         type: 'edit-message',
@@ -145,11 +183,12 @@ export function useChat(conversationId, onUndoPush) {
     const stream = runStream(newText, null, msgId)
     await stream.done.catch(() => {})
     if (mountedRef.current) {
+      flushPendingTokens()
       setStreaming(false)
       setStreamingText('')
       await loadMessages().catch(() => {})
     }
-  }, [conversationId, loadMessages, runStream, onUndoPush])
+  }, [conversationId, loadMessages, runStream, onUndoPush, flushPendingTokens])
 
   const deleteMessage = useCallback((id) => {
     setMessages(prev => {
@@ -166,5 +205,5 @@ export function useChat(conversationId, onUndoPush) {
     })
   }, [onUndoPush])
 
-  return { messages, streaming, streamingText, ragChunks, activityLogs, error, send, stop, loadMessages, setMessages, editMessage, deleteMessage }
+  return { messages, streaming, streamingText, ragChunks, activityLogs, phases, error, send, stop, loadMessages, setMessages, editMessage, deleteMessage }
 }

@@ -62,7 +62,7 @@ async def handle_cmd_theme(rest: str, chat, app=None) -> tuple[bool, str | None]
         from mcp_cli.ui.themes import THEMES
         names = ", ".join(THEMES.keys())
         if app:
-            return True, f"Current theme: {app._theme.name}  Available: {names}"
+            return True, f"Current theme: {app.theme.name}  Available: {names}"
         return True, None
     if app:
         reply = app._set_theme(rest.strip())

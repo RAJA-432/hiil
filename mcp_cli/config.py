@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import yaml
 from dotenv import load_dotenv
@@ -121,9 +121,12 @@ def load_settings(config_path: str = "config.yaml") -> tuple[Settings, list[Serv
     moderation_yaml = settings_yaml.get("moderation_deny_list") or []
     moderation_deny_list = [str(item) for item in moderation_yaml]
     vector_backend = str(settings_yaml.get("vector_backend", "sqlite"))
-    discovery_guard = str(
-        os.getenv("DISCOVERY_GUARD", settings_yaml.get("discovery_guard", "off"))
-    ).lower()
+    discovery_guard = cast(
+        Literal["off", "warn", "block"],
+        str(
+            os.getenv("DISCOVERY_GUARD", settings_yaml.get("discovery_guard", "off"))
+        ).lower(),
+    )
     intent_routing = _as_bool(
         os.getenv("INTENT_ROUTING", settings_yaml.get("intent_routing", False))
     )

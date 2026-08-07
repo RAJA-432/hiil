@@ -21,6 +21,9 @@ class FakeUsage:
     def total_summary(self):
         return {"input_tokens": 5, "output_tokens": 6, "total_tokens": 11, "cost": 0.0005}
 
+    async def async_total_summary(self):
+        return {"input_tokens": 5, "output_tokens": 6, "total_tokens": 11, "cost": 0.0005}
+
 
 class FakeChat:
     def __init__(self):

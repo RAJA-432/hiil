@@ -35,6 +35,23 @@ def _parse_session_ts(sid: str) -> datetime | None:
     return None
 
 
+async def _session_exists(chat, session_id: str) -> bool:
+    """Return True when a session id exists in history or is a live pool entry.
+
+    ``async_load_session`` returns ``[]`` for unknown sessions, so it cannot be
+    used to distinguish "empty session" from "missing session".  The current
+    chat's ``session_id`` counts as existing (a freshly created thread has no
+    persisted messages yet).
+    """
+    if chat.session_id == session_id:
+        return True
+    sids = await chat.history.async_list_sessions()
+    if session_id in sids:
+        return True
+    pool = _state._get_pool()
+    return session_id in pool._entries
+
+
 @router.get("/api/sessions", response_model=SessionListResponse)
 async def list_sessions(request: Request, user: str = Depends(get_current_user)):
     chat = await _require_chat(request)
@@ -49,6 +66,9 @@ async def list_conversations(
     offset: int = 0,
     user: str = Depends(get_current_user),
 ):
+    if limit < 0 or offset < 0:
+        raise HTTPException(status_code=422, detail="limit and offset must be non-negative")
+    limit = min(limit, 100)
     chat = await _require_chat(request)
     total = await chat.history.async_count_sessions()
     summaries = await chat.history.async_session_summaries(limit=limit, offset=offset)
@@ -87,10 +107,14 @@ async def switch_session(request: Request, body: SessionSwitchRequest, user: str
     sid = body.session_id
     if not sid:
         raise HTTPException(status_code=400, detail="session_id required")
+    chat = await _require_chat(request)
+    if not await _session_exists(chat, sid):
+        raise HTTPException(status_code=404, detail=f"Session '{sid}' not found")
     chat = await _require_chat(request, session_id=sid)
     msgs = await chat.history.async_load_session(sid)
-    chat.session_id = sid
-    chat.messages = msgs
+    async with chat.lock:
+        chat.session_id = sid
+        chat.messages = msgs
     pool = _state._get_pool()
     await pool.set_active(sid)
     _state._chat = chat
@@ -116,6 +140,8 @@ async def delete_session(request: Request, body: SessionDeleteRequest, user: str
     sid = body.session_id
     if not sid:
         raise HTTPException(status_code=400, detail="session_id required")
+    if not await _session_exists(chat, sid):
+        raise HTTPException(status_code=404, detail=f"Session '{sid}' not found")
     await chat.history.async_delete_session(sid)
     await _state._get_pool().evict(sid)
     return SessionDeleteResponse(deleted=sid)

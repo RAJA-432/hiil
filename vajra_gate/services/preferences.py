@@ -37,6 +37,12 @@ class UserPreferencesStore:
         prefs[key] = value
         self._store.upsert(_NAMESPACE, [{"key": user_id, "value": prefs}])
 
+    def set_preferences(self, user_id: str, prefs: dict[str, Any]) -> None:
+        """Merge all *prefs* into the user's stored preferences in a single write."""
+        merged = self.get_preferences(user_id)
+        merged.update(prefs)
+        self._store.upsert(_NAMESPACE, [{"key": user_id, "value": merged}])
+
     def delete_preference(self, user_id: str, key: str) -> bool:
         prefs = self.get_preferences(user_id)
         if key not in prefs:

@@ -62,7 +62,7 @@
 
 .arch-node-fastapi {
   border-color: var(--primary, #0ea5e9);
-  background: var(--primary-dim, #0f2b48);
+  background: #15304d;
 }
 
 .arch-node-fastapi strong {
@@ -104,7 +104,7 @@
   border-color: var(--success, #10b981);
 }
 
-.arch-tile h3 {
+.arch-tile h2 {
   font-size: 0.9rem;
   margin: 0 0 0.5rem;
   color: var(--primary, #38bdf8);

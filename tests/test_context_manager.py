@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from unittest.mock import patch
 
 import mcp_cli.services.context_manager as cm_module
@@ -193,3 +195,50 @@ def test_token_cache_bounded_and_correct():
             cm._token_count(f"cache-cap-content-{i}")
         assert len(cm._token_cache) <= cm._max_cache_entries
         assert cm._token_count("cache-cap-content-0") == counting("cache-cap-content-0")
+
+
+def test_token_cache_key_deterministic_content_hash():
+    cm = ContextManager(FakeClaude(), None, max_context_tokens=10_000_000)
+    content = "deterministic cache probe " * 40
+    key = cm._content_key(content)
+    assert key == hashlib.sha256(content.encode("utf-8")).hexdigest()
+    assert cm._content_key(content) == key
+    assert key != hash(content)
+
+    structured = {"role": "user", "content": "payload", "extra": [1, 2, 3]}
+    payload = json.dumps(structured, sort_keys=True, default=str)
+    assert cm._content_key(structured) == hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def test_token_cache_hits_on_repeat_without_recount():
+    cm = ContextManager(FakeClaude(), None, max_context_tokens=10_000_000)
+    calls = {"n": 0}
+    real = cm_module.count_tokens
+
+    def counting(text, model="gpt-4o"):
+        calls["n"] += 1
+        return real(text, model)
+
+    with patch("mcp_cli.services.context_manager.count_tokens", new=counting):
+        first = cm._token_count("probe " * 20)
+        second = cm._token_count("probe " * 20)
+
+    assert calls["n"] == 1
+    assert first == second
+
+
+def test_token_cache_key_order_independent_for_structures():
+    cm = ContextManager(FakeClaude(), None, max_context_tokens=10_000_000)
+    calls = {"n": 0}
+    real = cm_module.count_tokens
+
+    def counting(text, model="gpt-4o"):
+        calls["n"] += 1
+        return real(text, model)
+
+    with patch("mcp_cli.services.context_manager.count_tokens", new=counting):
+        a = cm._token_count({"role": "user", "content": "x" * 50})
+        b = cm._token_count({"content": "x" * 50, "role": "user"})
+
+    assert calls["n"] == 1
+    assert a == b

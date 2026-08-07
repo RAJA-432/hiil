@@ -1,4 +1,5 @@
 import { getMockScenario } from '../config'
+import { getMockMessages } from '../data/chats'
 import { SCENARIO_CONFIG, ERROR_TYPES } from './scenarios'
 
 function _randomDelay(cfg) {
@@ -12,6 +13,7 @@ function _randomChunkSize(cfg, remaining) {
 export function simulateStreamResponse(convId, text, onEvent) {
   const cfg = SCENARIO_CONFIG[getMockScenario()]
   let i = 0
+  let emitted = ''
   const toolCalls = []
   const mockChunks = [
     { text: 'Binary search trees support O(log n) insertion, deletion, and search operations on average.', score: 0.92, metadata: { filename: 'dsa_notes.md' } },
@@ -23,10 +25,20 @@ export function simulateStreamResponse(convId, text, onEvent) {
   let cancelled = false
   let retryTimer = null
 
+  function commitAssistantText() {
+    const msgs = getMockMessages(convId)
+    const last = msgs[msgs.length - 1]
+    if (last && last.role === 'assistant') {
+      last.content = emitted
+    }
+  }
+
   function emit() {
     if (cancelled) return
 
     if (i >= text.length) {
+      commitAssistantText()
+      if (onEvent) onEvent({ type: 'done', content: emitted })
       if (resolveDone) resolveDone()
       return
     }
@@ -47,6 +59,7 @@ export function simulateStreamResponse(convId, text, onEvent) {
           }
         }, cfg.retryDelay)
       } else {
+        commitAssistantText()
         if (resolveDone) resolveDone()
       }
       return
@@ -55,6 +68,7 @@ export function simulateStreamResponse(convId, text, onEvent) {
     const chunkSize = _randomChunkSize(cfg, text.length - i)
     const chunk = text.slice(i, i + chunkSize)
     i += chunkSize
+    emitted += chunk
     onEvent({ type: 'tokens', text: chunk })
 
     if (i > 30 && toolCalls.length === 0 && Math.random() < cfg.ragRate) {

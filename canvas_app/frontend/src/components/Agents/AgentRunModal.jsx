@@ -118,6 +118,9 @@ export default function AgentRunModal({ open, onClose, agent, events, running, o
   const lastEvent = events[events.length - 1]
   const isComplete = lastEvent?.type === 'done'
   const hasInterrupt = events.some(e => e.type === 'interrupt')
+  const stateEvents = events.filter(e => e.type === 'state')
+  const currentPhase = stateEvents[stateEvents.length - 1]?.phase
+  const phaseHistory = [...new Set(stateEvents.map(e => e.phase))]
 
   return (
     <Modal open={open} onClose={onClose} title={`Run: ${agent?.name || ''}`} width="640px">
@@ -144,6 +147,16 @@ export default function AgentRunModal({ open, onClose, agent, events, running, o
 
         {events.length > 0 && (
           <div className="agent-run-log">
+            {phaseHistory.length > 0 && (
+              <div className="agent-run-phase-history">
+                {phaseHistory.map((phase, i) => (
+                  <span className="agent-phase-history-step" key={phase}>
+                    <span className={`agent-phase agent-phase-${(phase || '').toLowerCase()}`}>{phase}</span>
+                    {i < phaseHistory.length - 1 && <span className="agent-phase-arrow">→</span>}
+                  </span>
+                ))}
+              </div>
+            )}
             {events.map((event, i) => {
               if (event.type === 'log') {
                 return <div key={i} className="agent-log-entry agent-log-info"><span className="agent-log-level">{event.level}</span> {event.text}</div>
@@ -163,6 +176,9 @@ export default function AgentRunModal({ open, onClose, agent, events, running, o
               if (event.type === 'done') {
                 return <div key={i} className="agent-log-entry agent-log-done"><span className="agent-log-level">done</span> Agent completed</div>
               }
+              if (event.type === 'state') {
+                return <div key={i} className={`agent-log-entry agent-log-phase agent-phase-${(event.phase || '').toLowerCase()}`}><span className="agent-log-level">phase</span> {event.phase}{event.iteration != null ? ` #${event.iteration}` : ''}</div>
+              }
               return null
             })}
             <div ref={logEndRef} />
@@ -177,7 +193,15 @@ export default function AgentRunModal({ open, onClose, agent, events, running, o
         )}
 
         {running && (
-          <div className="agent-run-spinner">Running...</div>
+          <div className="agent-run-spinner">
+            {currentPhase ? (
+              <span className="agent-run-phase-badge">
+                Running — <span className={`agent-phase agent-phase-${(currentPhase || '').toLowerCase()}`}>{currentPhase}</span>
+              </span>
+            ) : (
+              'Running...'
+            )}
+          </div>
         )}
 
         {isComplete && (

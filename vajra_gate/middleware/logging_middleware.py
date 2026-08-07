@@ -93,7 +93,6 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         request_id = str(uuid.uuid4())[:8]
         t0 = time.monotonic()
-        error_detail = None
 
         try:
             response = await call_next(request)
@@ -101,11 +100,22 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
             dt_ms = (time.monotonic() - t0) * 1000
             status = 500
             error_detail = str(exc)
+            self._record(request, request_id, dt_ms, status, error_detail)
             raise
         else:
             dt_ms = (time.monotonic() - t0) * 1000
             status = response.status_code
+            self._record(request, request_id, dt_ms, status, None)
+            return response
 
+    def _record(
+        self,
+        request: Request,
+        request_id: str,
+        dt_ms: float,
+        status: int,
+        error_detail: str | None,
+    ) -> None:
         client = request.client.host if request.client else "-"
         user = getattr(request.state, "user", None) or "-"
         path = request.url.path
@@ -136,5 +146,3 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
                 f"audit {method} {path} {status} user={user}",
                 extra=extra,
             )
-
-        return response

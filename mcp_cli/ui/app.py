@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from typing import Any
 
@@ -11,6 +12,7 @@ from prompt_toolkit.history import FileHistory
 
 from mcp_cli.commands.router import route_command
 from mcp_cli.locales import get as get_locale
+from mcp_cli.services.notification_bus import NotificationBus
 from mcp_cli.ui.codeblock import CodeBlockAccumulator
 from mcp_cli.ui.completers import HiilCompleter
 from mcp_cli.ui.messaging import MessageManager, SpinnerManager
@@ -53,7 +55,8 @@ HELP_SECTIONS: list[tuple[str, list[tuple]]] = [
         (lambda _: _('key'), "manage encrypted API keys"),
         (lambda _: _('timestamp'), "toggle timestamps in history display"),
         (lambda _: _('lang'), "switch language"),
-        (lambda _: _('agent'), "manage background agents"),
+        (lambda _: _('agent'), "manage agents (subagents: agents/list, run)"),
+        (lambda _: _('skill'), "manage skills (create, list, show, delete)"),
     ]),
     ("Server", [
         (lambda _: _('load') + " <script>", "dynamically load a new MCP server"),
@@ -190,32 +193,85 @@ class CliApp:
                         # Since we are streaming, we feed it to the accumulator.
                         self._codeblocks.feed(c, on_text=streaming.push, on_block=streaming.emit_raw)
 
-                    usage_before = self.chat.usage.session_summary()
-                    reply = await self.chat.send(user_input, on_chunk=on_chunk)
-                    self._spinner.stop()
+                    bus = NotificationBus()
+                    phases: list[dict[str, Any]] = []
 
-                    # Finalize any unclosed code blocks
-                    self._codeblocks.flush(on_text=streaming.push, on_block=streaming.emit_raw)
-                    streaming.flush_now()
+                    async def _consume_phases() -> None:
+                        try:
+                            async for event in bus.events():
+                                if event.get("type") == "log":
+                                    # Update spinner status with log message
+                                    message = event.get("text", "")
+                                    self._spinner.status = message
+                                elif event.get("type") == "state":
+                                    phase = event.get("phase", "UNKNOWN")
+                                    agent_id = event.get("agent_id", "?")
+                                    # Update spinner status and record for final report
+                                    self._spinner.status = f"[{agent_id}] {phase}"
+                                    phases.append(event)
+                                elif event.get("type") == "done":
+                                    break
+                        except asyncio.CancelledError:
+                            pass
 
-                    printed = "".join(buf)
-                    final = reply or printed
-                    if final:
-                        print()
-                        print(f"{self._msg.assistant_separator()}")
-                        usage_after = self.chat.usage.session_summary()
-                        in_turn = usage_after['input_tokens'] - usage_before['input_tokens']
-                        out_turn = usage_after['output_tokens'] - usage_before['output_tokens']
-                        cost_turn = usage_after['cost'] - usage_before['cost']
-                        print(
-                            f"{t.ansi('muted')}  {in_turn + out_turn:,} tokens "
-                            f"({in_turn} in / {out_turn} out) ${cost_turn:.4f}{RS}"
+                    consumer = asyncio.create_task(_consume_phases())
+
+                    try:
+                        usage_before = self.chat.usage.session_summary()
+                        reply = await self.chat.send(
+                            user_input,
+                            on_chunk=on_chunk,
+                            on_approval=self._request_tool_approval,
+                            notification_bus=bus,
                         )
-                        print()
+                        self._spinner.stop()
+
+                        # Finalize any unclosed code blocks
+                        self._codeblocks.flush(on_text=streaming.push, on_block=streaming.emit_raw)
+                        streaming.flush_now()
+
+                        printed = "".join(buf)
+                        final = reply or printed
+                        if final:
+                            print()
+                            print(f"{self._msg.assistant_separator()}")
+                            usage_after = self.chat.usage.session_summary()
+                            in_turn = usage_after['input_tokens'] - usage_before['input_tokens']
+                            out_turn = usage_after['output_tokens'] - usage_before['output_tokens']
+                            cost_turn = usage_after['cost'] - usage_before['cost']
+                            print(
+                                f"{t.ansi('muted')}  {in_turn + out_turn:,} tokens "
+                                f"({in_turn} in / {out_turn} out) ${cost_turn:.4f}{RS}"
+                            )
+                            print()
+                    finally:
+                        await bus.push_done()
+                        try:
+                            await asyncio.wait_for(consumer, timeout=2.0)
+                        except asyncio.TimeoutError:
+                            consumer.cancel()
+                            try:
+                                await consumer
+                            except (asyncio.CancelledError, RuntimeError):
+                                pass
+                        while bus._queues:
+                            q = bus._queues.pop()
+                            while not q.empty():
+                                q.get_nowait()
 
                 except Exception as exc:
                     self._spinner.stop()
                     print(f"{t.ansi('error')}[error]{RS} {exc}")
+
+    def _render_phases(self, phases: list[dict[str, Any]]) -> list[str]:
+        """Convert lifecycle state events into colored display lines."""
+        t = self.theme
+        lines: list[str] = []
+        for event in phases:
+            agent_id = event.get("agent_id", "?")
+            phase = event.get("phase", "UNKNOWN")
+            lines.append(f"{t.ansi('muted')}> {RS}{t.ansi('primary')}[{agent_id}]{RS} {phase}")
+        return lines
 
     def _print_usage(self) -> None:
         t = self.theme
@@ -231,6 +287,30 @@ class CliApp:
         print(f"  Output tokens: {total['output_tokens']:,}")
         print(f"  Total tokens:  {total['total_tokens']:,}")
         print(f"  Cost:          ${total['cost']:.6f}")
+
+    async def _request_tool_approval(self, name: str, args: dict[str, Any]) -> bool:
+        t = self.theme
+        self._spinner.stop()
+        print(
+            f"{t.ansi('warning')}[sensitive]{RS} Tool '{t.ansi('primary')}{name}{RS}' "
+            f"requests approval (args: {t.ansi('muted')}{json.dumps(args)}{RS})."
+        )
+        if self._session is None:
+            return False
+        while True:
+            try:
+                answer = await self._session.prompt_async(
+                    ANSI(f"{t.ansi('warning')}Approve? (y/n) {RS}")
+                )
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return False
+            choice = answer.strip().lower()
+            if choice in ("y", "yes"):
+                return True
+            if choice in ("n", "no"):
+                return False
+            print(f"{t.ansi('muted')}Please answer y or n.{RS}")
 
     def _format_timestamp(self, ts: str) -> str:
         if not self._timestamps_enabled or not ts:

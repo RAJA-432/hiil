@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,8 @@ class VirtualBackend:
         "copy_file",
         "get_file_info",
         "create_directory",
+        "delete_file",
+        "delete_directory",
         "search_files",
     }
 
@@ -174,6 +177,35 @@ class VirtualBackend:
             real.mkdir(parents=True, exist_ok=True)
             return f"Directory created: {real}"
         return f"[virtual-backend] Directory creation not supported for virtual path {path} (add a route)"
+
+    def _handle_delete_file(self, args: dict[str, Any]) -> str:
+        path = args.get("path", "")
+        prefix, real = self._resolve_route(path)
+        if real and real.exists():
+            if real.is_dir():
+                return f"[virtual-backend] {path} is a directory; use delete_directory"
+            real.unlink()
+            return f"Deleted {real}"
+        if path in self._files:
+            del self._files[path]
+            return f"Deleted virtual path {path}"
+        return f"[virtual-backend] File not found: {path}"
+
+    def _handle_delete_directory(self, args: dict[str, Any]) -> str:
+        path = args.get("path", "")
+        prefix, real = self._resolve_route(path)
+        if real and real.exists():
+            if not real.is_dir():
+                return f"[virtual-backend] {path} is a file; use delete_file"
+            shutil.rmtree(real)
+            return f"Deleted directory {real}"
+        norm_path = path.rstrip("/") + "/"
+        removed = [p for p in self._files if p.startswith(norm_path) or p == path]
+        if not removed and path not in self._files:
+            return f"[virtual-backend] Directory not found: {path}"
+        for p in removed:
+            del self._files[p]
+        return f"Deleted virtual directory {path} ({len(removed)} files)"
 
     def _handle_move_file(self, args: dict[str, Any]) -> str:
         source = args.get("source", "")

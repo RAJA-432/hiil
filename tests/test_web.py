@@ -24,9 +24,11 @@ def no_real_dns(monkeypatch):
 
 
 class FakeStream:
-    def __init__(self, chunks, error=None):
+    def __init__(self, chunks, error=None, redirect=False, location=""):
         self.chunks = chunks
         self.error = error
+        self.is_redirect = redirect
+        self.headers = {"location": location} if redirect else {}
 
     def raise_for_status(self):
         if self.error:
@@ -49,19 +51,22 @@ class _StreamCM:
 
 
 class _Client:
-    def __init__(self, response, **kwargs):
-        self.response = response
+    def __init__(self, responses, **kwargs):
+        self.responses = [responses] if not isinstance(responses, list) else responses
+        self._i = 0
 
     def stream(self, *args, **kwargs):
-        return _StreamCM(self.response)
+        resp = self.responses[min(self._i, len(self.responses) - 1)]
+        self._i += 1
+        return _StreamCM(resp)
 
 
 class _AsyncClient:
-    def __init__(self, response, **kwargs):
-        self.response = response
+    def __init__(self, responses, **kwargs):
+        self.responses = responses
 
     async def __aenter__(self):
-        return _Client(self.response)
+        return _Client(self.responses)
 
     async def __aexit__(self, *exc):
         return False
@@ -69,10 +74,15 @@ class _AsyncClient:
 
 @pytest.fixture
 def fake_httpx(monkeypatch):
-    def _install(chunks, error=None):
-        monkeypatch.setattr(
-            web_module.httpx, "AsyncClient", lambda **kw: _AsyncClient(FakeStream(chunks, error))
-        )
+    def _install(chunks=None, error=None, responses=None):
+        if responses is not None:
+            monkeypatch.setattr(
+                web_module.httpx, "AsyncClient", lambda **kw: _AsyncClient(list(responses))
+            )
+        else:
+            monkeypatch.setattr(
+                web_module.httpx, "AsyncClient", lambda **kw: _AsyncClient(FakeStream(chunks, error))
+            )
 
     return _install
 
@@ -101,6 +111,16 @@ def test_validate_url_string_level_rejections(url):
 def test_validate_url_rejects_literal_private_ip():
     with pytest.raises(ValueError, match="private/reserved"):
         _validate_url("http://10.0.0.5/x")
+
+
+@pytest.mark.parametrize("url", [
+    "http://[::ffff:7f00:1]/",
+    "http://[::ffff:a9fe:a9fe]/",
+    "http://[::ffff:0a00:0005]/",
+])
+def test_validate_url_rejects_ipv4_mapped_ipv6(url):
+    with pytest.raises(ValueError, match="private/reserved"):
+        _validate_url(url)
 
 
 def test_validate_url_unresolvable_host(monkeypatch):
@@ -132,3 +152,49 @@ async def test_web_fetch_max_chars_truncation(fake_httpx, no_real_dns):
     fake_httpx([b"<p>" + b"x" * 2000 + b"</p>"])
     out = await web_fetch("http://example.com/", max_chars=500)
     assert out == "x" * 500 + "..."
+
+
+async def test_web_fetch_follows_public_redirect(fake_httpx, no_real_dns):
+    fake_httpx(responses=[
+        FakeStream([], redirect=True, location="http://example.com/page2"),
+        FakeStream([b"<html><body><p>Redirected content</p></body></html>"]),
+    ])
+    out = await web_fetch("http://example.com/", max_chars=8000)
+    assert out == "Redirected content"
+
+
+async def test_web_fetch_rejects_redirect_to_private(fake_httpx, no_real_dns):
+    fake_httpx(responses=[
+        FakeStream([], redirect=True, location="http://10.0.0.5/x"),
+        FakeStream([b"<html><body>should not be read</body></html>"]),
+    ])
+    with pytest.raises(ValueError, match="private/reserved"):
+        await web_fetch("http://example.com/", max_chars=8000)
+
+
+async def test_web_fetch_rejects_redirect_to_localhost(fake_httpx, no_real_dns):
+    fake_httpx(responses=[
+        FakeStream([], redirect=True, location="http://localhost/x"),
+        FakeStream([b"<html><body>should not be read</body></html>"]),
+    ])
+    with pytest.raises(ValueError, match="blocked for security"):
+        await web_fetch("http://example.com/", max_chars=8000)
+
+
+async def test_web_fetch_rejects_redirect_to_bad_scheme(fake_httpx, no_real_dns):
+    fake_httpx(responses=[
+        FakeStream([], redirect=True, location="ftp://example.com/x"),
+        FakeStream([b"<html><body>should not be read</body></html>"]),
+    ])
+    with pytest.raises(ValueError, match="scheme"):
+        await web_fetch("http://example.com/", max_chars=8000)
+
+
+async def test_web_fetch_too_many_redirects(fake_httpx, no_real_dns):
+    redirects = [
+        FakeStream([], redirect=True, location=f"http://example.com/r{i}")
+        for i in range(6)
+    ]
+    fake_httpx(responses=redirects)
+    with pytest.raises(ValueError, match="Too many redirects"):
+        await web_fetch("http://example.com/", max_chars=8000)

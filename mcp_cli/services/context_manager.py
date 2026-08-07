@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import TYPE_CHECKING, Any
 
@@ -18,18 +19,22 @@ class ContextManager:
         self.vector_store: Any = vector_store
         self.max_context_tokens = max_context_tokens
         self.compact_count = 0
-        self._token_cache: dict[int, int] = {}
+        self._token_cache: dict[str, int] = {}
         self._max_cache_entries = 4096
 
-    def _token_count(self, content: Any) -> int:
-        key: int | None = None
+    def _content_key(self, content: Any) -> str | None:
         if isinstance(content, str):
-            key = hash(content)
-        elif isinstance(content, (dict, list)):
+            return hashlib.sha256(content.encode("utf-8")).hexdigest()
+        if isinstance(content, (dict, list)):
             try:
-                key = hash(json.dumps(content, sort_keys=True, default=str))
+                payload = json.dumps(content, sort_keys=True, default=str)
             except (TypeError, ValueError):
-                key = None
+                return None
+            return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        return None
+
+    def _token_count(self, content: Any) -> int:
+        key = self._content_key(content)
         if key is None:
             return count_tokens(content, self.claude.model)
         cached = self._token_cache.get(key)

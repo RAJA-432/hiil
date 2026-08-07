@@ -171,10 +171,30 @@ class SpinnerManager:
         self._renderer = renderer or get_renderer()
         self._task: asyncio.Task | None = None
         self._active = False
+        self._status = "thinking"
+
+    @property
+    def status(self) -> str:
+        return self._status
+
+    @status.setter
+    def status(self, value: str) -> None:
+        self._status = value
+        if self._active:
+            self._redraw()
+
+    def _redraw(self) -> None:
+        """Redraw the spinner line with the current status label."""
+        label = _STATUS_LABELS.get(self._status, self._status)
+        pd = self._renderer.palette_dict
+        frame = _SPINNER_FRAMES[0]
+        sys.stdout.write(f"\r  {pd['fg_muted']}{frame} {label}{RS}\033[K")
+        sys.stdout.flush()
 
     async def spin(self, status: str = "thinking") -> None:
         """Run the spinner in the background (call via ``asyncio.create_task``)."""
         self._active = True
+        self._status = status
         label = _STATUS_LABELS.get(status, status)
         pd = self._renderer.palette_dict
         try:

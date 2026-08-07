@@ -30,9 +30,10 @@ async def _require_chat(request, session_id: str | None = None):
             return await pool.get(session_id)
         await _init_chat()
         return _state._chat
-    except Exception as exc:
+    except Exception:
         from fastapi import HTTPException
-        raise HTTPException(status_code=500, detail=f"Chat init failed: {exc}")
+        logger.exception("Chat init failed")
+        raise HTTPException(status_code=500, detail="Chat initialization failed")
 
 
 async def _stream_chat(chat, message: str, session_id: str = "default", images: list[str] | None = None):

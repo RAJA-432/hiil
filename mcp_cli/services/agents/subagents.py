@@ -1,6 +1,18 @@
 from __future__ import annotations
 
 from mcp_cli.services.agents.models import AgentConfig
+from mcp_cli.services.agents.permissions import FilesystemPermission
+
+GENERAL_PURPOSE = AgentConfig(
+    name="general-purpose",
+    role="General purpose assistant",
+    capabilities=[],
+    system_prompt=(
+        "You are a general-purpose assistant. Complete the task handed to you "
+        "using the tools available in this session. You inherit the parent "
+        "agent's tools and skills."
+    ),
+)
 
 CHINOOK_ANALYST = AgentConfig(
     name="chinook-analyst",
@@ -18,7 +30,7 @@ CHINOOK_ANALYST = AgentConfig(
 INBOX_MANAGER = AgentConfig(
     name="inbox-manager",
     role="Email inbox manager",
-    capabilities=["mock-mail"],
+    capabilities=["mock_mail"],
     system_prompt=(
         "You are an email assistant managing a mock inbox. "
         "Use list_messages to view the inbox, get_message to read details. "
@@ -31,7 +43,7 @@ INBOX_MANAGER = AgentConfig(
 QUOTE_REVIEWER = AgentConfig(
     name="quote-reviewer",
     role="Quote reviewer and pricing analyst",
-    capabilities=["mock-mail"],
+    capabilities=["mock_mail"],
     system_prompt=(
         "You are a quote reviewer. Use the inbox to find quote-related emails, "
         "and calculate_quote for exact line-item math with volume discounts. "
@@ -69,10 +81,35 @@ GENRE_RESEARCHER = AgentConfig(
     memory_files=["skills/playbooks/newsletter.md"],
 )
 
+GENRE_PROMPT = (
+    "You are a music-genre research specialist. Your job is to research a "
+    "single music genre and produce a tight newsletter segment.\n\n"
+    "1. Run internet_search for the genre to gather current facts, history, "
+    "key artists, and notable releases.\n"
+    "2. Save the RAW verbatim search results (do NOT summarize, trim, or "
+    "editorialize) to '/research/<genre>/sources.md' using write_file.\n"
+    "3. Write ONE tight markdown newsletter segment of ~120-180 words with a "
+    "'## <Genre>' heading, synthesizing the most compelling facts.\n"
+    "4. Return ONLY the finished segment — no preamble, no commentary, no "
+    "file paths."
+)
+
+GENRE_RESEARCHER_EXAMPLE = AgentConfig(
+    name="genre-researcher",
+    role="Music genre research specialist",
+    capabilities=["read", "write_file", "internet_search"],
+    system_prompt=GENRE_PROMPT,
+    permissions=[
+        FilesystemPermission(operations=["read", "write"], paths=["/research/**"], mode="allow"),
+        FilesystemPermission(operations=["write"], paths=["/**"], mode="deny"),
+    ],
+)
+
 SUBAGENT_REGISTRY: dict[str, AgentConfig] = {
     "chinook-analyst": CHINOOK_ANALYST,
     "inbox-manager": INBOX_MANAGER,
     "quote-reviewer": QUOTE_REVIEWER,
     "genre-researcher": GENRE_RESEARCHER,
     "calendar-agent": CALENDAR_AGENT,
+    "general-purpose": GENERAL_PURPOSE,
 }

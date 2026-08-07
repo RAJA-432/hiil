@@ -15,8 +15,9 @@ class FakeCloser:
 
 
 class FakeHistoryStore:
-    def __init__(self, messages: list[dict] | None = None) -> None:
+    def __init__(self, messages: list[dict] | None = None, sessions: list[str] | None = None) -> None:
         self.messages = messages or []
+        self.sessions = sessions or []
         self.closed = False
 
     async def async_load_session(self, session_id: str) -> list[dict]:
@@ -24,6 +25,9 @@ class FakeHistoryStore:
 
     async def async_delete_session(self, session_id: str) -> None:
         return None
+
+    async def async_list_sessions(self) -> list[str]:
+        return list(self.sessions)
 
     def close(self) -> None:
         self.closed = True

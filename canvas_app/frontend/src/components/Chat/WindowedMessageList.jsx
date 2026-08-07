@@ -16,6 +16,7 @@ export default function WindowedMessageList({
   const [startIndex, setStartIndex] = useState(() => Math.max(0, messages.length - WINDOW_SIZE))
   const isNearBottomRef = useRef(true)
   const pendingScrollRestoreRef = useRef(null)
+  const restoreScrollRafRef = useRef(null)
   const loadingOlderRef = useRef(false)
   const conversationId = activeConversation?.id
   const messagesLengthRef = useRef(messages.length)
@@ -56,12 +57,26 @@ export default function WindowedMessageList({
     const pending = pendingScrollRestoreRef.current
     if (!pending) return
     pendingScrollRestoreRef.current = null
-    const container = containerRef.current
-    if (container) {
-      container.scrollTop = pending.prevScrollTop + (container.scrollHeight - pending.prevScrollHeight)
+    if (restoreScrollRafRef.current) {
+      cancelAnimationFrame(restoreScrollRafRef.current)
     }
-    loadingOlderRef.current = false
+    restoreScrollRafRef.current = requestAnimationFrame(() => {
+      restoreScrollRafRef.current = null
+      const container = containerRef.current
+      if (container) {
+        container.scrollTop = pending.prevScrollTop + (container.scrollHeight - pending.prevScrollHeight)
+      }
+      loadingOlderRef.current = false
+    })
   }, [startIndex, containerRef])
+
+  useEffect(() => {
+    return () => {
+      if (restoreScrollRafRef.current) {
+        cancelAnimationFrame(restoreScrollRafRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const container = containerRef.current

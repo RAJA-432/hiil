@@ -12,6 +12,9 @@ def metrics_state(monkeypatch):
     monkeypatch.setattr(metrics_module, "_paths", set())
     monkeypatch.setattr(metrics_module, "_counts", defaultdict(int))
     monkeypatch.setattr(metrics_module, "_MAX_PATHS", 5)
+    monkeypatch.setattr(metrics_module, "_chat_total", 0)
+    monkeypatch.setattr(metrics_module, "_agent_runs", 0)
+    monkeypatch.setattr(metrics_module, "_validation_errors_total", 0)
     yield
 
 

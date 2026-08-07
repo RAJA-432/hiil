@@ -34,6 +34,7 @@ from mcp_cli.commands.session_cmds import (
     handle_cmd_sessions,
     handle_cmd_undo,
 )
+from mcp_cli.commands.skill_cmds import handle_cmd_skill
 from mcp_cli.locales import get as get_locale
 
 _CMD_HANDLERS = {
@@ -68,6 +69,7 @@ _CMD_HANDLERS = {
     "key": handle_cmd_key,
     "ls": handle_cmd_ls,
     "roots": handle_cmd_roots,
+    "skill": handle_cmd_skill,
 }
 
 _SPECIAL_HANDLERS: dict[str, Any] = {

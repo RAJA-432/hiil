@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from mcp_cli.services.agents.memory import AgentMemoryStore
+
+
+def _stable_hash(content: str) -> int:
+    return int.from_bytes(hashlib.sha256(content.encode("utf-8")).digest(), "big")
 
 
 def _counting_read(monkeypatch):
@@ -46,6 +51,16 @@ def test_snapshot_hashes_missing_file_returns_zero(tmp_path):
     assert store.snapshot_hashes("agent_1", ["missing.txt"]) == {"missing.txt": 0}
 
 
+def test_snapshot_hashes_stable_and_deterministic(tmp_path):
+    store = AgentMemoryStore(tmp_path)
+    store.write("agent_1", "notes.txt", "hello world")
+
+    first = store.snapshot_hashes("agent_1", ["notes.txt"])
+    second = AgentMemoryStore(tmp_path).snapshot_hashes("agent_1", ["notes.txt"])
+    assert first == second
+    assert first["notes.txt"] == _stable_hash("hello world")
+
+
 def test_delete_invalidates_cache(tmp_path, monkeypatch):
     store = AgentMemoryStore(tmp_path)
     store.write("agent_1", "notes.txt", "hello")
@@ -68,4 +83,4 @@ def test_snapshot_hashes_reuses_after_delete_and_recreate(tmp_path, monkeypatch)
     store.write("agent_1", "notes.txt", "recreated")
     result = store.snapshot_hashes("agent_1", ["notes.txt"])
     assert calls[0] == 2
-    assert result["notes.txt"] == hash("recreated")
+    assert result["notes.txt"] == _stable_hash("recreated")

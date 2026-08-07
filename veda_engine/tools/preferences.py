@@ -46,8 +46,7 @@ async def remember(
     c = _c(ctx)
     uid = _user_id(user_id)
     store = _store()
-    for key, value in preferences.items():
-        store.set_preference(uid, key, value)
+    store.set_preferences(uid, preferences)
     await c.info(f"Remembered {len(preferences)} preference(s) for user '{uid}'")
     return f"Remembered {len(preferences)} preference(s) for user '{uid}': {list(preferences)}"
 

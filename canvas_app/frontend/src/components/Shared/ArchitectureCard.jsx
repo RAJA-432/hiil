@@ -24,7 +24,7 @@ export default function ArchitectureCard() {
 
       <div className="arch-grid">
         <div className="arch-tile">
-          <h3>Multi-Agent Runtime</h3>
+          <h2>Multi-Agent Runtime</h2>
           <ul>
             <li>Agent Registry</li>
             <li>Thread Manager</li>
@@ -32,7 +32,7 @@ export default function ArchitectureCard() {
           </ul>
         </div>
         <div className="arch-tile arch-tile-highlight">
-          <h3>Knowledge Base (RAG)</h3>
+          <h2>Knowledge Base (RAG)</h2>
           <ul>
             <li>Document Ingestion (PDF/DOCX)</li>
             <li>SQLite Vector Store</li>
@@ -40,7 +40,7 @@ export default function ArchitectureCard() {
           </ul>
         </div>
         <div className="arch-tile">
-          <h3>Tooling (MCP Native)</h3>
+          <h2>Tooling (MCP Native)</h2>
           <ul>
             <li>Built-in <code>veda_engine</code></li>
             <li>stdio servers (files, memory)</li>

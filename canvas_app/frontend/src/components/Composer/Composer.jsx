@@ -1,17 +1,50 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 
+const MAX_HEIGHT = 200
+
 export default function Composer({ streaming, onSend, onStop, onInsertTemplate, templatePicker }) {
   const [value, setValue] = useState('')
   const [images, setImages] = useState([])
   const [dragging, setDragging] = useState(false)
   const textareaRef = useRef(null)
   const fileInputRef = useRef(null)
+  const lastResizedValueRef = useRef('')
+  const resizeRafRef = useRef(null)
 
   useEffect(() => {
     if (!streaming && textareaRef.current) {
       textareaRef.current.focus()
     }
   }, [streaming])
+
+  const resizeTextarea = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    if (resizeRafRef.current) {
+      cancelAnimationFrame(resizeRafRef.current)
+    }
+    textarea.style.height = 'auto'
+    resizeRafRef.current = requestAnimationFrame(() => {
+      const el = textareaRef.current
+      if (!el) return
+      el.style.height = Math.min(el.scrollHeight, MAX_HEIGHT) + 'px'
+      resizeRafRef.current = null
+    })
+  }, [])
+
+  useEffect(() => {
+    if (value === lastResizedValueRef.current) return
+    lastResizedValueRef.current = value
+    resizeTextarea()
+  }, [value, resizeTextarea])
+
+  useEffect(() => {
+    return () => {
+      if (resizeRafRef.current) {
+        cancelAnimationFrame(resizeRafRef.current)
+      }
+    }
+  }, [])
 
   const handleSend = () => {
     const trimmed = value.trim()
@@ -32,9 +65,8 @@ export default function Composer({ streaming, onSend, onStop, onInsertTemplate, 
     setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.focus()
-        textareaRef.current.style.height = 'auto'
-        textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'
       }
+      resizeTextarea()
     }, 0)
   }
 
@@ -50,8 +82,6 @@ export default function Composer({ streaming, onSend, onStop, onInsertTemplate, 
 
   const handleInput = (e) => {
     setValue(e.target.value)
-    e.target.style.height = 'auto'
-    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px'
   }
 
   const addImage = useCallback((file) => {

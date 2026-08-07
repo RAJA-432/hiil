@@ -31,6 +31,7 @@ _GUARDED_PATH_TOOLS = {
     "write_file": "path",
     "edit_file": "path",
     "delete_file": "path",
+    "delete_directory": "path",
     "move_file": "path",
     "copy_file": "path",
     "create_directory": "path",

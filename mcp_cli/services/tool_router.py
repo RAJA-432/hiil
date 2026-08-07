@@ -49,8 +49,10 @@ class ToolRouter:
     ):
         self._tools_by_name = tools_by_name
         self._clients = clients
-        self._capabilities = [c.lower() for c in capabilities]
-        self._explicit_map = tool_capability_map or {}
+        self._capabilities = [c.lower().replace("-", "_") for c in capabilities]
+        self._explicit_map = {
+            k: v.lower().replace("-", "_") for k, v in (tool_capability_map or {}).items()
+        }
         self._server_caps = self._build_server_cap_index()
         self.discovery = discovery
 
@@ -92,10 +94,10 @@ class ToolRouter:
         """Map each server ID → set of inferred capability tags."""
         index: dict[str, set[str]] = {}
         for server_id, client in self._clients.items():
-            tags = {server_id.lower()}
+            tags = {server_id.lower().replace("-", "_")}
             script = getattr(client, "script", "") or ""
             parts = re.split(r"[/\\_-]", script.lower().replace(".py", "").replace(".js", ""))
-            tags.update(p for p in parts if p and len(p) > 1)
+            tags.update(p.replace("-", "_") for p in parts if p and len(p) > 1)
             index[server_id] = tags
         if "doc_client" not in self._clients:
             index["doc_client"] = {"doc", "docs", "document"}
@@ -104,9 +106,9 @@ class ToolRouter:
     def _tool_is_allowed(self, tool_name: str, server_id: str | None) -> bool:
         explicit = self._explicit_map.get(tool_name)
         if explicit:
-            return explicit.lower() in self._capabilities
+            return explicit in self._capabilities
 
-        tool_lower = tool_name.lower()
+        tool_lower = tool_name.lower().replace("-", "_")
 
         for cap in self._capabilities:
             if tool_lower.startswith(cap.rstrip("s") + "_"):

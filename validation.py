@@ -1,10 +1,12 @@
 import asyncio
+import os
 import sys
 
 import httpx
 
 # Configuration - matches my_streamlit_app.py
-API_BASE = "http://127.0.0.1:8000"
+# Override via the HIIL_API_BASE env var, e.g. HIIL_API_BASE=http://localhost:9000.
+API_BASE = os.environ.get("HIIL_API_BASE", "http://127.0.0.1:8000")
 ENDPOINTS_TO_TEST = [
     "/api/status",
     "/api/models",
@@ -35,8 +37,10 @@ class AppValidator:
                     self.results["connectivity"] = True
                     return self.log_result("Backend Reachability", True, "API is online")
                 else:
+                    self.results["connectivity"] = False
                     return self.log_result("Backend Reachability", False, f"Status code: {resp.status_code}")
         except Exception as e:
+            self.results["connectivity"] = False
             return self.log_result("Backend Reachability", False, str(e))
 
     async def check_content_length_issue(self):
@@ -51,16 +55,22 @@ class AppValidator:
 
                     if content_length:
                         cl_val = int(content_length)
+                        self.results["response_headers"].append({ep: content_length})
                         if cl_val != actual_length:
                             self.log_result(f"Header Match {ep}", False,
                                            f"Expected {cl_val} bytes, got {actual_length}")
+                            self.results["errors"].append(
+                                f"{ep}: Content-Length {cl_val} != actual {actual_length} bytes"
+                            )
                             success_all = False
                         else:
                             self.log_result(f"Header Match {ep}", True)
                     else:
+                        self.results["response_headers"].append({ep: None})
                         self.log_result(f"Header Match {ep}", True, "No manual Content-Length header (Good)")
                 except Exception as e:
                     self.log_result(f"Request {ep}", False, str(e))
+                    self.results["errors"].append(f"{ep}: {e}")
                     success_all = False
         return success_all
 
@@ -71,16 +81,20 @@ class AppValidator:
         connected = await self.check_connectivity()
         if not connected:
             print("\n🚨 CRITICAL: Backend is unreachable. Please start the API server first.")
-            return
+            return self.results
 
         header_ok = await self.check_content_length_issue()
 
         print("\n--- 🏁 Final Report ---")
         print(f"Connectivity: {'🟢 OK' if connected else '🔴 FAIL'}")
         print(f"Response Integrity: {'🟢 OK' if header_ok else '🔴 FAIL (Content-Length mismatch found)'}")
+        if self.results["errors"]:
+            print(f"Errors: {self.results['errors']}")
 
         if not header_ok:
             print("\n💡 Recommendation: Remove manual Content-Length headers in the FastAPI responses.")
+
+        return self.results
 
 async def main():
     validator = AppValidator()

@@ -8,16 +8,29 @@ _FILE_PATH_RE = re.compile(
     r"(?:\b|/)((?:/[\w.-]+)+\.\w{2,5})"
 )
 
-_SENSITIVE_TOOL_PREFIXES = (
+_SENSITIVE_TOOL_PREFIXES = frozenset({
     "write", "edit", "delete", "remove", "move", "copy", "create",
-    "upload", "update", "patch", "put", "add", "rename",
-)
+    "upload", "update", "patch", "rename", "overwrite",
+})
+
+_SENSITIVE_TOOL_WORDS = frozenset({
+    "shell", "bash", "sh", "zsh", "powershell", "cmd",
+    "exec", "execute", "system", "sudo",
+    "rm", "rmdir", "del", "unlink", "kill",
+    "shutdown", "reboot", "wipe", "format", "truncate", "mkfs", "dd",
+    "chmod", "chown",
+})
+
+_TOOL_NAME_SEPARATOR_RE = re.compile(r"[\s_\-./]+")
 
 
 def is_sensitive_tool(name: str) -> bool:
-    """Return True if the tool name matches known write/delete/edit prefixes."""
-    parts = name.lower().split("_")
-    return any(p.startswith(prefix) for p in parts for prefix in _SENSITIVE_TOOL_PREFIXES)
+    """Return True if the tool name is a shell/exec or destructive write operation."""
+    segments = _TOOL_NAME_SEPARATOR_RE.split(name.lower())
+    return any(
+        seg in _SENSITIVE_TOOL_WORDS or seg in _SENSITIVE_TOOL_PREFIXES
+        for seg in segments
+    )
 
 
 def make_file_paths_clickable(text: str) -> str:

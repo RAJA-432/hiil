@@ -200,6 +200,9 @@ class FakeStore:
             results = [r for r in results if all(r.get("value", {}).get(k) == v for k, v in filter_.items())]
         return results[:limit]
 
+    def all_items(self, namespace: str) -> list[dict[str, Any]]:
+        return list(self._data.get(namespace, {}).values())
+
 
 class FakeJob:
     def __init__(self, schedule_seconds: int, task_input: str) -> None:

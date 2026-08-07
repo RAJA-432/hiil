@@ -5,9 +5,19 @@ import datetime
 import json
 import os
 
+from mcp_cli.services.agents import SUBAGENT_REGISTRY
+from mcp_cli.services.notification_bus import NotificationBus
+
 
 async def handle_agent_cmd(chat, subcmd: str, rest: str, prompt_async) -> str:
-    """Handle /agent subcommands (create, list, search, pause, approve, reject)."""
+    """Handle /agent subcommands.
+
+    Registered subagents (SUBAGENT_REGISTRY): ``agents`` (list), ``run <name> <task>``.
+    Legacy file-based agents: ``create, list, search, pause, approve, reject``.
+    """
+    if subcmd in ("agents", "run"):
+        return await _handle_registered(chat, subcmd, rest)
+
     safe_base = os.path.abspath(".claude")
     for val in [subcmd, rest]:
         candidate = os.path.abspath(os.path.join(safe_base, val))
@@ -130,3 +140,71 @@ async def handle_agent_cmd(chat, subcmd: str, rest: str, prompt_async) -> str:
 
     else:
         return f"Unknown agent sub-command: {subcmd}."
+
+
+async def _handle_registered(chat, subcmd: str, rest: str) -> str:
+    if subcmd == "agents":
+        if not SUBAGENT_REGISTRY:
+            return "No registered subagents."
+        lines = ["Registered subagents:"]
+        for name, cfg in SUBAGENT_REGISTRY.items():
+            caps = ", ".join(cfg.capabilities) or "-"
+            mem = ", ".join(cfg.memory_files) or "-"
+            lines.append(f"  {name}  [{cfg.role}]")
+            lines.append(f"      capabilities: {caps}")
+            lines.append(f"      memory: {mem}")
+        return "\n".join(lines)
+
+    if subcmd == "run":
+        if not rest:
+            return "Usage: /agent run <name> <task>"
+        parts = rest.strip().split(maxsplit=1)
+        if len(parts) != 2:
+            return "Usage: /agent run <name> <task>"
+        name, task = parts[0].strip(), parts[1].strip()
+        cfg = SUBAGENT_REGISTRY.get(name)
+        if cfg is None:
+            available = ", ".join(sorted(SUBAGENT_REGISTRY))
+            return f"Unknown subagent '{name}'. Available: {available}"
+        bus = NotificationBus()
+        runner = chat.spawn_agent(cfg, bus=bus)
+        log_lines = [f"Running subagent '{name}' ({runner.agent_id})..."]
+
+        async def _consume() -> None:
+            async for event in bus.events():
+                etype = event.get("type")
+                if etype == "log":
+                    log_lines.append(f"  {event.get('text', '')}")
+                elif etype == "state":
+                    log_lines.append(
+                        f"  [{event.get('agent_id', '?')}] {event.get('phase', 'UNKNOWN')}"
+                    )
+                elif etype == "done":
+                    break
+
+        consumer = asyncio.create_task(_consume())
+        try:
+            result = await runner.run(task)
+        finally:
+            await bus.push_done()
+            try:
+                await asyncio.wait_for(consumer, timeout=2.0)
+            except asyncio.TimeoutError:
+                consumer.cancel()
+                try:
+                    await consumer
+                except (asyncio.CancelledError, RuntimeError):
+                    pass
+            while bus._queues:
+                q = bus._queues.pop()
+                while not q.empty():
+                    q.get_nowait()
+
+        status = getattr(result, "status", "completed")
+        output = getattr(result, "output", "") or ""
+        log_lines.append(f"status={status}")
+        log_lines.append("")
+        log_lines.append(output)
+        return "\n".join(log_lines)
+
+    return f"Unknown agent sub-command: {subcmd}."
