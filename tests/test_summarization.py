@@ -3,9 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+from mcp_cli.services.agents.middleware.summarization import SummarizationMiddleware
 from mcp_cli.services.agents.models import AgentConfig
 from mcp_cli.services.agents.runner import AgentRunner
-from mcp_cli.services.agents.middleware.summarization import SummarizationMiddleware
 
 
 def _tool_message() -> SimpleNamespace:

@@ -33,23 +33,23 @@ class MemoryScope:
         return (self.PREFIX, *self._segments)
 
     @classmethod
-    def assistant(cls, assistant_id: str) -> "MemoryScope":
+    def assistant(cls, assistant_id: str) -> MemoryScope:
         return cls(assistant_id)
 
     @classmethod
-    def user(cls, user_id: str) -> "MemoryScope":
+    def user(cls, user_id: str) -> MemoryScope:
         return cls(user_id)
 
     @classmethod
-    def workspace(cls, workspace_id: str) -> "MemoryScope":
+    def workspace(cls, workspace_id: str) -> MemoryScope:
         return cls(workspace_id)
 
     @classmethod
-    def user_in_workspace(cls, workspace_id: str, user_id: str) -> "MemoryScope":
+    def user_in_workspace(cls, workspace_id: str, user_id: str) -> MemoryScope:
         return cls(workspace_id, user_id)
 
     @classmethod
-    def assistant_user(cls, assistant_id: str, user_id: str) -> "MemoryScope":
+    def assistant_user(cls, assistant_id: str, user_id: str) -> MemoryScope:
         return cls(assistant_id, user_id)
 
     def __str__(self) -> str:

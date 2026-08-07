@@ -248,7 +248,7 @@ class CliApp:
                         await bus.push_done()
                         try:
                             await asyncio.wait_for(consumer, timeout=2.0)
-                        except asyncio.TimeoutError:
+                        except TimeoutError:
                             consumer.cancel()
                             try:
                                 await consumer

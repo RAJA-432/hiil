@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from typing import List, Dict, Set
+
 
 @dataclass
 class ToolCategory:
     name: str
-    tools: List[str]
+    tools: list[str]
     priority: str  # "CORE" or "EXPERT"
 
 class ToolRegistry:
@@ -17,7 +17,7 @@ class ToolRegistry:
             "kg": ToolCategory("kg", ["kg_query", "kg_insert"], "EXPERT"),
             "sys": ToolCategory("sys", ["list_tools", "get_status"], "EXPERT"),
         }
-        
+
         # Keyword mapping for quick routing
         self.keyword_map = {
             "search": "web", "web": "web", "fetch": "web", "url": "web", "site": "web",
@@ -26,7 +26,7 @@ class ToolRegistry:
             "tool": "sys", "status": "sys", "config": "sys",
         }
 
-    def resolve_tools(self, query: str) -> Set[str]:
+    def resolve_tools(self, query: str) -> set[str]:
         """
         Determines which tool schemas should be sent to the LLM based on the query.
         """
@@ -35,11 +35,11 @@ class ToolRegistry:
         for cat in self.categories.values():
             if cat.priority == "CORE":
                 selected.update(cat.tools)
-        
+
         # 2. Route to Expert Pools based on keywords
         query_lower = query.lower()
         for kw, cat_name in self.keyword_map.items():
             if kw in query_lower:
                 selected.update(self.categories[cat_name].tools)
-                
+
         return selected

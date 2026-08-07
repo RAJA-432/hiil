@@ -10,10 +10,10 @@ from mcp_cli.services.agents.models import register_middleware
 @register_middleware
 class SummarizationMiddleware(AgentMiddleware):
     """Manages both short-term and long-term memory for agent conversations.
-    
+
     Short-term memory: current message history, automatically compressed via summarization
     when exceeding thresholds. Maintains recent context intact.
-    
+
     Long-term memory: persistent facts/preferences stored in files, injected into
     system prompts for cross-thread memory continuity.
     """
@@ -62,7 +62,7 @@ class SummarizationMiddleware(AgentMiddleware):
                 content = await asyncio.to_thread(memory_store.read, "default", path)
                 if content:
                     loaded[path] = content
-            except Exception as exc:
+            except Exception:
                 # Log but don't fail - memory loading is non-critical
                 pass
         self._loaded_long_term = loaded
@@ -72,14 +72,14 @@ class SummarizationMiddleware(AgentMiddleware):
         """Build the <agent_memory> block for system prompt injection."""
         if not self._loaded_long_term:
             return ""
-        
+
         blocks = []
         for path, content in self._loaded_long_term.items():
             blocks.append(f"# Memory: {path}\n{content}")
-        
+
         if not blocks:
             return ""
-        
+
         combined = "\n\n---\n".join(blocks)
         return f"\n\n<agent_memory>\n{combined}\n</agent_memory>"
 
@@ -88,7 +88,7 @@ class SummarizationMiddleware(AgentMiddleware):
         memory_block = self.build_long_term_memory_block()
         if not memory_block:
             return messages
-        
+
         # Find system message to inject into
         for msg in messages:
             if msg.get("role") == "system":
@@ -96,7 +96,7 @@ class SummarizationMiddleware(AgentMiddleware):
                 if "<agent_memory>" not in existing:
                     msg["content"] = existing + memory_block
                 return messages
-        
+
         # No system message - add one with just memory
         return [{"role": "system", "content": memory_block}] + messages
 

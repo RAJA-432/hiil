@@ -4,8 +4,6 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from mcp_cli.services.agents.memory import AgentMemoryStore, MemoryScope
 from mcp_cli.services.agents.middleware.memory import MemoryMiddleware
 

@@ -189,7 +189,7 @@ async def _handle_registered(chat, subcmd: str, rest: str) -> str:
             await bus.push_done()
             try:
                 await asyncio.wait_for(consumer, timeout=2.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 consumer.cancel()
                 try:
                     await consumer

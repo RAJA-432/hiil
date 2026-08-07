@@ -10,18 +10,17 @@ from mcp_cli.services.agents import (
     AgentRunner,
     classify,
 )
-from mcp_cli.services.builtin_tools import BuiltinTools, _DELEGATE_TOOLS
+from mcp_cli.services.builtin_tools import _DELEGATE_TOOLS, BuiltinTools
 from mcp_cli.services.claude import _known_text_only_model, _known_vision_model
 from mcp_cli.services.context_manager import ContextManager
 from mcp_cli.services.discovery import DiscoveryTracker
 from mcp_cli.services.document_injector import DocumentInjector
 from mcp_cli.services.history import ChatHistoryManager
-from mcp_cli.services.registry import ToolRegistry
 from mcp_cli.services.logging import get_logger
-
 from mcp_cli.services.moderation import ModerationFilter
 from mcp_cli.services.notification_bus import NotificationBus
 from mcp_cli.services.rag import RagPipeline
+from mcp_cli.services.registry import ToolRegistry
 from mcp_cli.services.roots import RootsManager
 from mcp_cli.services.server_manager import load_mcp_server
 from mcp_cli.services.streamer import Streamer
@@ -637,7 +636,7 @@ class CliChat:
             self.messages.append({"role": "user", "content": augmented})
             save_content = augmented
         await self.history.async_save_message(self.session_id, "user", save_content)
-        
+
         iterations = 0
         tool_used = False
         prev_tool_used = False  # Track if previous iteration used tools

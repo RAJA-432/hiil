@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from mcp_cli.services.agents.models import AgentConfig
 from mcp_cli.services.agents.subagents import GENERAL_PURPOSE, SUBAGENT_REGISTRY
