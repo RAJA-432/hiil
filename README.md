@@ -21,6 +21,8 @@ CLI / React SPA ──▶ FastAPI gateway ──▶ mcp_cli (chat · RAG · agen
 - [Vision & Image Input](#vision--image-input)
 - [API](#api)
 - [Built-in MCP Tools](#built-in-mcp-tools-veda_engine)
+- [Security](#security)
+- [Documentation](#documentation)
 - [Project Layout](#project-layout)
 - [Frontend](#frontend)
 - [Testing & Quality](#testing--quality)
@@ -47,7 +49,7 @@ Add a screenshot or demo GIF of the running React SPA (served at `/canvas`) and 
 
 - **Multimodal chat** — paste/drag-drop images; vision models (e.g. `gemma4:31b-cloud`) get them directly, text-only models get an OCR fallback. Vision capability is detected at runtime from Ollama's `/api/tags`, not guessed from the model name.
 - **RAG knowledge base** — upload PDF/DOCX/text, chunked + embedded into a local vector store, auto-retrieved as context.
-- **Agent runtime** — create agents with roles/capabilities, route queries, run/resume/stop them; LangGraph-compatible `/threads` + `/runs` API; A2A agent registry and message inbox.
+- **Agent runtime** — create agents with roles/capabilities, route queries, run/resume/stop them; `delegate_task`/`delegate_parallel` fan-out with depth caps; middleware pipeline (code interpretation, quote math, summarization, todo); LangGraph-compatible `/threads` + `/runs` API; A2A agent registry and message inbox.
 - **Skills (personas)** — 6 bundled personas with prompt templates and per-skill MCP tool presets.
 - **MCP native** — load any stdio MCP server (filesystem, memory, everything, custom) plus built-in `veda_engine` tools; browser-based connectors panel.
 - **Full chat UX** — SSE streaming, inline edit/retry/undo, conversation search, tags, pinning, session history, token-usage bar, export to Markdown/JSON, inline SVG charts.
@@ -169,10 +171,32 @@ Interactive docs at <http://localhost:8000/docs>.
 
 - Workspace fileops — `read_text_resource`, `read_dir`, `search_resources`, `glob`, `grep` (path-traversal guarded)
 - Documents — `read_document`, `edit_document` (stored-document CRUD)
-- Web — `web_search`, `web_fetch` (DuckDuckGo + SSRF protection)
-- `summarize` (delegates to LLM), `list_roots` (approved root dirs)
+- Web — `web_search`, `web_fetch` (DuckDuckGo + SSRF redirect re-validation)
+- Shell — `run_command` (deny-by-verb sandbox with workspace-confined cwd)
+- `summarize` (delegates to LLM), `list_roots` (approved root dirs), preference `remember`/`recall`/`forget`
+
+**Builtin (no server) tools** — `delegate_task` and `delegate_parallel` route work to
+sub-agents with capability-filtered tools, depth-capped (3) and result-clipped. A
+keyword-driven `ToolRegistry` selects which tool schemas are sent to the LLM per query
+(CORE always, EXPERT pools for web/fs/kg/sys), cutting prompt tokens.
 
 Default servers (from `config.yaml`): `veda_engine`, `@modelcontextprotocol/server-filesystem`, `-memory`, `-everything`, `setu_bridge.mock_mail`, `vajra_gate.tools.refiner`.
+
+## Security
+
+- **Path traversal** — 3-layer guard with symlink resolution and `resolve()`+containment re-check at point of use; `user_id`/store filenames sanitized.
+- **SSRF** — DNS-resolve blocklist (private networks, cloud metadata, localhost), redirects re-validated per hop (5-hop bound), 2 MB payload cap.
+- **Shell sandbox** — deny-by-verb tool with workspace-confined `cwd`, 1–60 s timeout, process-tree kill, 64 KB output cap.
+- **Web UI** — `SecurityHeadersMiddleware` (CSP, HSTS, COOP, X-Frame-Options) on every response incl. SSE; rate limiting (token bucket), trusted-host + CORS allow-lists, optional web-UI auth via `HIIL_WEBUI_USERNAME/PASSWORD`.
+- **Tool approval** — sensitive tools require interactive y/n approval in the CLI; agent HITL interrupts for sub-agents.
+- **Prompt-injection guards** — input sanitization blocklist, output moderation, and verifier/critique pass (both opt-in).
+- **API keys** — encrypted store (DPAPI/Fernet), never plaintext; `MODEL_API_KEY` override.
+
+## Documentation
+
+- [Deep research & code review](docs/DEEP_RESEARCH.md) — architecture deep-dives and verified findings.
+- [Known issues register](docs/ISSUES.md) — open C/H/M-level findings, security review, remediation order.
+- [Complexity analysis](docs/COMPLEXITY.md) — space/time complexity hotspots and suggested next work.
 
 ## Project Layout
 
@@ -190,7 +214,7 @@ hiil/
 ├── config.yaml          # Provider, model, servers, roots
 ├── setup.ps1            # One-command setup
 ├── Dockerfile / docker-compose.yml
-└── tests/               # 509 backend tests (pytest)
+└── tests/               # 658 backend tests (pytest)
 ```
 
 ## Frontend
@@ -212,7 +236,7 @@ npm run lint        # eslint (0 warnings policy)
 Backend gates are enforced by CI on Python 3.13 and 3.14.
 
 ```bash
-make test          # pytest tests/ -x -q         (324 tests)
+make test          # pytest tests/ -x -q         (658 tests)
 make test-v        # verbose
 make test-coverage # coverage report
 make lint          # ruff check
