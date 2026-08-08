@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from mcp_cli.services.agents.agent_tools import AgentTools
 from mcp_cli.services.agents.backend import VirtualBackend
 from mcp_cli.services.agents.interrupts import (
     ActionRequest,
@@ -16,6 +16,7 @@ from mcp_cli.services.agents.interrupts import (
     ResumeDecision,
 )
 from mcp_cli.services.agents.memory import AgentMemoryStore
+from mcp_cli.services.agents.memory_provider import MemoryProvider
 from mcp_cli.services.agents.middleware.base import MiddlewarePipeline
 from mcp_cli.services.agents.middleware.memory import MemoryMiddleware
 from mcp_cli.services.agents.models import (
@@ -26,6 +27,7 @@ from mcp_cli.services.agents.models import (
     _normalize_interrupt,
 )
 from mcp_cli.services.agents.permissions import PermissionEnforcer
+from mcp_cli.services.agents.tool_gate import GateKeeper
 from mcp_cli.services.logging import get_logger
 from mcp_cli.services.tool_router import ToolRouter
 
@@ -98,8 +100,10 @@ class AgentRunner:
         # Middleware pipeline
         self._middleware = MiddlewarePipeline(config.middleware) if config.middleware else None
 
+        self._memory_provider = MemoryProvider(middleware=self._middleware)
+
         # Ensure long-term memory middleware is active when memory files are configured
-        self._memory_middleware = self._find_memory_middleware()
+        self._memory_middleware = self._memory_provider._find_memory_middleware()
         if self._memory_middleware is None and config.memory_files:
             self._memory_middleware = MemoryMiddleware(
                 memory_files=config.memory_files,
@@ -109,6 +113,16 @@ class AgentRunner:
                 self._middleware = MiddlewarePipeline([self._memory_middleware])
             else:
                 self._middleware._middleware.insert(0, self._memory_middleware)
+            self._memory_provider._middleware = self._middleware
+
+        self._gatekeeper = GateKeeper(
+            agent_id=self.agent_id,
+            perm_enforcer=self._perm_enforcer,
+        )
+        self._agent_tools = AgentTools(
+            tool_router=self.tool_router,
+            middleware=self._middleware,
+        )
 
         # HITL resume synchronisation
         self._resume_event = asyncio.Event()
@@ -263,7 +277,7 @@ class AgentRunner:
         if task_input is not None:
             await self._bootstrap(task_input)
 
-        tools = self._agent_tools()
+        tools = self._agent_tools._agent_tools()
 
         for iteration in range(1, self.config.max_iterations + 1):
             if self.bus:
@@ -299,13 +313,6 @@ class AgentRunner:
             self._messages.insert(0, {"role": "system", "content": system_prompt})
         self._messages.append({"role": "user", "content": task_input})
 
-    def _agent_tools(self) -> list[dict[str, Any]] | None:
-        """Merge MCP tools with middleware extra tools."""
-        tools = list(self.tool_router.openai_tools or [])
-        if self._middleware:
-            tools.extend(self._middleware.get_extra_tools())
-        return tools or None
-
     async def _chat_once(self, tools: list[dict[str, Any]] | None) -> Any:
         """Run one LLM exchange, accounting tokens and appending the message."""
         message, input_tokens, output_tokens = await self.parent_chat.streamer.chat(
@@ -319,7 +326,7 @@ class AgentRunner:
                 f"({self._state.total_tokens} > {self.config.token_budget})"
             )
 
-        msg_dict = self._normalize_message(message)
+        msg_dict = self._agent_tools._normalize_message(message)
         if msg_dict.get("content") is None:
             msg_dict["content"] = ""
         self._messages.append(msg_dict)
@@ -387,7 +394,7 @@ class AgentRunner:
         if self.bus:
             await self.bus.push_log("info", f"Agent executing {len(tool_calls)} tool(s)...")
         await self._set_phase(
-            "DELEGATING" if self._has_delegate_tool(tool_calls) else "EXECUTING",
+            "DELEGATING" if self._agent_tools._has_delegate_tool(tool_calls) else "EXECUTING",
             iteration=iteration,
         )
         tool_results = await self._execute_tool_calls(tool_calls)
@@ -405,52 +412,24 @@ class AgentRunner:
         for call in tool_calls:
             name = call.function.name
 
-            args, args_error = self._parse_args(call, name)
+            args, args_error = self._gatekeeper._parse_args(call, name)
             if args is None:
-                results.append(self._tool_result(call, name, args_error or ""))
+                results.append(self._agent_tools._tool_result(call, name, args_error or ""))
                 continue
 
-            perm_err = self._perm_gate(name, args)
+            perm_err = self._gatekeeper._perm_gate(name, args)
             if perm_err:
-                results.append(self._tool_result(call, name, perm_err, raw=True))
+                results.append(self._agent_tools._tool_result(call, name, perm_err, raw=True))
                 continue
 
             hitl_result = await self._hitl_gate(name, args, results)
             if hitl_result is not None:
-                results.append(self._tool_result(call, name, hitl_result))
+                results.append(self._agent_tools._tool_result(call, name, hitl_result))
                 continue
 
             result_text = await self._dispatch_tool(name, args)
-            results.append(self._tool_result(call, name, result_text))
+            results.append(self._agent_tools._tool_result(call, name, result_text))
         return results
-
-    def _parse_args(self, call: Any, name: str) -> tuple[dict[str, Any] | None, str | None]:
-        """Parse tool arguments, recovering from common malformed-JSON wrapping."""
-        try:
-            return json.loads(call.function.arguments or "{}"), None
-        except json.JSONDecodeError:
-            # If the AI produces malformed JSON, try to recover by stripping
-            # potential markdown formatting or trailing characters.
-            raw_args = call.function.arguments or "{}"
-            try:
-                # Common issue: AI wraps JSON in ```json ... ```
-                if "```" in raw_args:
-                    raw_args = re.sub(r"```(?:json)?\s*([\s\S]*?)\s*```", r"\1", raw_args).strip()
-                return json.loads(raw_args), None
-            except Exception as exc:
-                logger.warning("Agent %s: Malformed tool arguments for %s. %s. Raw: %s",
-                               self.agent_id, name, exc, raw_args)
-                return None, (
-                    f"[invalid-args] Failed to parse arguments for '{name}': {exc}\n"
-                    f"Raw input received: {raw_args[:500]}\n"
-                    f"Please provide valid JSON arguments for this tool and retry."
-                )
-
-    def _perm_gate(self, name: str, args: dict[str, Any]) -> str | None:
-        """Check filesystem permissions before executing."""
-        if not self._perm_enforcer:
-            return None
-        return self._perm_enforcer.inspect_tool_args(name, args)
 
     async def _hitl_gate(
         self, name: str, args: dict[str, Any], results: list[dict[str, Any]],
@@ -585,7 +564,7 @@ class AgentRunner:
         if not self.config.memory_files:
             return
         for mp in self.config.memory_files:
-            updated = self._memory_block_from_messages(mp)
+            updated = self._memory_provider._memory_block_from_messages(self._messages, mp)
             if updated is None:
                 continue
             existing = await asyncio.to_thread(self._memory.read, self.agent_id, mp)
@@ -593,33 +572,6 @@ class AgentRunner:
                 continue
             await asyncio.to_thread(self._memory.write, self.agent_id, mp, updated)
             logger.info("Persisted memory file %s for agent %s", mp, self.agent_id)
-
-    def _find_memory_middleware(self) -> MemoryMiddleware | None:
-        if self._middleware is None:
-            return None
-        for mw in self._middleware._middleware:
-            if isinstance(mw, MemoryMiddleware):
-                return mw
-        return None
-
-    def _memory_block_from_messages(self, mp: str) -> str | None:
-        """Extract the current content of a memory file from the conversation.
-
-        The injected memory block sits after the ``## Persistent Memory`` marker;
-        the latest message carrying a copy of the block wins (e.g. the agent's
-        final answer may carry an updated version of the file).
-        """
-        header = f"# Memory: {mp}"
-        for msg in reversed(self._messages):
-            content = msg.get("content", "")
-            if not isinstance(content, str) or "## Persistent Memory" not in content:
-                continue
-            body = content.split("## Persistent Memory", 1)[1]
-            for section in body.split("\n\n---\n"):
-                lines = section.strip().splitlines()
-                if lines and lines[0].strip() == header:
-                    return "\n".join(lines[1:]).strip()
-        return None
 
     # ------------------------------------------------------------------
     # Task lifecycle phases
@@ -638,38 +590,3 @@ class AgentRunner:
         if self.bus:
             await self.bus.push_state(phase, self.agent_id, iteration=iteration)
             await self.bus.push_log("info", f"[{self.agent_id}] {phase}")
-
-    @staticmethod
-    def _has_delegate_tool(tool_calls: list[Any]) -> bool:
-        for call in tool_calls:
-            fn = getattr(call, "function", None)
-            name = getattr(fn, "name", None)
-            if name in ("delegate_task", "delegate_parallel"):
-                return True
-        return False
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _tool_result(call: Any, name: str, content: str, raw: bool = False) -> dict[str, Any]:
-        if raw:
-            return {"role": "tool", "tool_call_id": call.id, "content": content}
-        return {
-            "role": "tool",
-            "tool_call_id": call.id,
-            "content": f"<tool_result name=\"{name}\">\n{content}\n</tool_result>",
-        }
-
-    @staticmethod
-    def _normalize_message(message: Any) -> dict[str, Any]:
-        if hasattr(message, "model_dump"):
-            return message.model_dump(exclude_unset=True)
-        msg: dict[str, Any] = {
-            "role": "assistant",
-            "content": getattr(message, "content", "") or "",
-        }
-        if hasattr(message, "tool_calls") and message.tool_calls:
-            msg["tool_calls"] = message.tool_calls
-        return msg

@@ -19,7 +19,22 @@ roots:
 # Default MCP Servers to load
 servers:
   - id: "doc_server"
-    script: "veda_engine"
+    script: "doc_server"
+    args: []
+    env: {}
+
+  - id: "workspace_server"
+    script: "workspace_server"
+    args: []
+    env: {}
+
+  - id: "web_server"
+    script: "web_server"
+    args: []
+    env: {}
+
+  - id: "memory_server"
+    script: "memory_server"
     args: []
     env: {}
 
@@ -50,6 +65,16 @@ servers:
 
   - id: "refiner"
     script: "vajra_gate.tools.refiner"
+    args: []
+    env: {}
+
+  - id: "drishti"
+    script: "drishti_engine"
+    args: []
+    env: {}
+
+  - id: "media_server"
+    script: "media_server"
     args: []
     env: {}
 

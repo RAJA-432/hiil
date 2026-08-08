@@ -96,8 +96,8 @@ class TestIndexSingleFlight:
         rag = RagPipeline(claude, store)
         content = b"word " * 600
         r1, r2 = await asyncio.gather(
-            rag.index_document(content, "doc.txt", chunk_size=256, chunk_overlap=64),
-            rag.index_document(content, "doc.txt", chunk_size=256, chunk_overlap=64),
+            rag.index_document(content, "doc.txt", chunk_size=256, chunk_overlap=50),
+            rag.index_document(content, "doc.txt", chunk_size=256, chunk_overlap=50),
         )
         assert r1 == r2
         assert r1["indexed"] == 3

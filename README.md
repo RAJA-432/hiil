@@ -167,7 +167,9 @@ Interactive docs at <http://localhost:8000/docs>.
 | LangGraph | `GET /ok`, `GET /info`, `/threads` CRUD, `POST /threads/{id}/runs[/stream|/wait]`, `/runs`, `/store`, `/store/items/query|search` |
 | Runtime | `GET /health`, `GET /api/workspace`, `GET /metrics`, `/ws`, `/crons` CRUD, `/mcp/tools`, A2A `/a2a/agents` + `/a2a/messages` |
 
-## Built-in MCP Tools (`veda_engine`)
+## Built-in MCP Tools
+
+### `veda_engine`
 
 - Workspace fileops — `read_text_resource`, `read_dir`, `search_resources`, `glob`, `grep` (path-traversal guarded)
 - Documents — `read_document`, `edit_document` (stored-document CRUD)
@@ -175,12 +177,21 @@ Interactive docs at <http://localhost:8000/docs>.
 - Shell — `run_command` (deny-by-verb sandbox with workspace-confined cwd)
 - `summarize` (delegates to LLM), `list_roots` (approved root dirs), preference `remember`/`recall`/`forget`
 
+### `drishti_engine` (consumer search + media)
+
+- Media — `graphic_art` (Pollinations image gen with SVG fallback), `search_template_images` / `search_template_videos` (Pexels → Openverse → bundled catalog fallback)
+- Travel — `search_flights`, `search_airports` (deterministic offline schedule across 28 airports)
+- Health — `search_healthcare` (curated local index, informational only)
+- Browser history — `browser_search`, `browser_add` (per-user JSON store)
+
+All `drishti_engine` tools are keyless-first (real public APIs when reachable, offline mock data otherwise) and require no API keys.
+
 **Builtin (no server) tools** — `delegate_task` and `delegate_parallel` route work to
 sub-agents with capability-filtered tools, depth-capped (3) and result-clipped. A
 keyword-driven `ToolRegistry` selects which tool schemas are sent to the LLM per query
 (CORE always, EXPERT pools for web/fs/kg/sys), cutting prompt tokens.
 
-Default servers (from `config.yaml`): `veda_engine`, `@modelcontextprotocol/server-filesystem`, `-memory`, `-everything`, `setu_bridge.mock_mail`, `vajra_gate.tools.refiner`.
+Default servers (from `config.yaml`): `veda_engine`, `@modelcontextprotocol/server-filesystem`, `-memory`, `-everything`, `setu_bridge.mock_mail`, `vajra_gate.tools.refiner`, `drishti`.
 
 ## Security
 
@@ -208,13 +219,14 @@ hiil/
 ├── mcp_cli/             # Core engine — CliChat, LLMClient, Streamer, ToolRunner, RAG,
 │   └── services/        # vector store, context manager, history, usage, OCR, agents, ...
 ├── veda_engine/         # Built-in MCP server — workspace, documents, web, roots, summarize
+├── drishti_engine/      # Built-in MCP server — media, flights, healthcare, browser history
 ├── setu_bridge/         # MCP client wrapper + mock_mail demo server
 ├── canvas_app/frontend/ # React SPA — chat, skills, preview, sidebar, toolbar, PWA
 │   └── src/api/         # HTTP client + SSE + mocks/ (mock layer for backend-free dev)
 ├── config.yaml          # Provider, model, servers, roots
 ├── setup.ps1            # One-command setup
 ├── Dockerfile / docker-compose.yml
-└── tests/               # 658 backend tests (pytest)
+└── tests/               # 688 backend tests (pytest)
 ```
 
 ## Frontend
@@ -236,7 +248,7 @@ npm run lint        # eslint (0 warnings policy)
 Backend gates are enforced by CI on Python 3.13 and 3.14.
 
 ```bash
-make test          # pytest tests/ -x -q         (658 tests)
+make test          # pytest tests/ -x -q         (688 tests)
 make test-v        # verbose
 make test-coverage # coverage report
 make lint          # ruff check

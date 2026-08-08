@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
@@ -9,6 +10,8 @@ from mcp_cli.services.logging import get_logger
 from mcp_cli.services.sqlite_store import SqliteStore, asyncify
 
 logger = get_logger(__name__)
+
+INR_PER_USD: float = float(os.getenv("HIIL_INR_PER_USD", "86"))
 
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     "gpt-4": (30.0, 60.0),
@@ -91,6 +94,11 @@ def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
     input_cost = (input_tokens / 1_000_000) * input_price
     output_cost = (output_tokens / 1_000_000) * output_price
     return input_cost + output_cost
+
+
+def format_cost(cost_usd: float, digits: int = 4) -> str:
+    """Format a USD cost as an INR amount using the configured conversion rate."""
+    return f"₹{cost_usd * INR_PER_USD:,.{digits}f}"
 
 @dataclass
 class UsageRecord:

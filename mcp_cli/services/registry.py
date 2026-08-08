@@ -16,6 +16,14 @@ class ToolRegistry:
             "fs": ToolCategory("fs", ["read_file", "write_file", "glob"], "EXPERT"),
             "kg": ToolCategory("kg", ["kg_query", "kg_insert"], "EXPERT"),
             "sys": ToolCategory("sys", ["list_tools", "get_status"], "EXPERT"),
+            "media": ToolCategory(
+                "media",
+                ["graphic_art", "search_template_images", "search_template_videos"],
+                "EXPERT",
+            ),
+            "travel": ToolCategory("travel", ["search_airports", "search_flights"], "EXPERT"),
+            "health": ToolCategory("health", ["search_healthcare"], "EXPERT"),
+            "history": ToolCategory("history", ["browser_search", "browser_add"], "EXPERT"),
         }
 
         # Keyword mapping for quick routing
@@ -24,6 +32,14 @@ class ToolRegistry:
             "file": "fs", "read": "fs", "write": "fs", "glob": "fs", "folder": "fs", "dir": "fs", "path": "fs",
             "graph": "kg", "knowledge": "kg", "kg": "kg", "entity": "kg", "relation": "kg",
             "tool": "sys", "status": "sys", "config": "sys",
+            "flight": "travel", "flights": "travel", "airport": "travel", "airline": "travel",
+            "travel": "travel", "ticket": "travel", "route": "travel", "destination": "travel",
+            "health": "health", "healthcare": "health", "symptom": "health", "medical": "health",
+            "medicine": "health", "disease": "health", "diagnosis": "health",
+            "history": "history", "browser": "history", "visited": "history", "browsing": "history",
+            "image": "media", "images": "media", "picture": "media", "photo": "media",
+            "video": "media", "videos": "media", "template": "media", "graphic": "media",
+            "art": "media", "logo": "media", "banner": "media", "illustration": "media",
         }
 
     def resolve_tools(self, query: str) -> set[str]:

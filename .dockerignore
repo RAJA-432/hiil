@@ -1,0 +1,44 @@
+# Local virtualenvs
+.venv
+venv
+env
+
+# Python bytecode / caches
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.egg-info
+
+# Test / lint / type-check caches
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+coverage.xml
+.hypothesis
+
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Node
+node_modules
+canvas_app/frontend/node_modules
+canvas_app/frontend/dist
+
+# Local runtime state
+storage_files
+data
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Editors / OS
+.idea
+.vscode
+.DS_Store
+Thumbs.db

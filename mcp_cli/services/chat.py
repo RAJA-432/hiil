@@ -10,7 +10,7 @@ from mcp_cli.services.agents import (
     AgentRunner,
     classify,
 )
-from mcp_cli.services.builtin_tools import _DELEGATE_TOOLS, BuiltinTools
+from mcp_cli.services.builtin_tools import BuiltinTools
 from mcp_cli.services.claude import _known_text_only_model, _known_vision_model
 from mcp_cli.services.context_manager import ContextManager
 from mcp_cli.services.discovery import DiscoveryTracker
@@ -19,13 +19,16 @@ from mcp_cli.services.history import ChatHistoryManager
 from mcp_cli.services.logging import get_logger
 from mcp_cli.services.moderation import ModerationFilter
 from mcp_cli.services.notification_bus import NotificationBus
+from mcp_cli.services.prompt_budget import PromptBudget
 from mcp_cli.services.rag import RagPipeline
 from mcp_cli.services.registry import ToolRegistry
 from mcp_cli.services.roots import RootsManager
 from mcp_cli.services.server_manager import load_mcp_server
+from mcp_cli.services.session import RecoveryHandler, SessionManager, TurnPipeline
 from mcp_cli.services.streamer import Streamer
+from mcp_cli.services.token_monitor import TokenMonitor
 from mcp_cli.services.tool_runner import ToolRunner, _mcp_tool_to_openai
-from mcp_cli.services.usage import UsageTracker, count_tokens
+from mcp_cli.services.usage import UsageTracker
 from mcp_cli.services.vector_store import VectorStore
 from mcp_cli.services.verifier import Verifier
 
@@ -113,6 +116,9 @@ class CliChat:
         self.enable_moderation = enable_moderation
         self.moderation_deny_list = moderation_deny_list
 
+        self.token_monitor = TokenMonitor()
+        self.prompt_budget = PromptBudget(max_tokens=4096)
+
         self.verifier: Verifier | None = None
         if self.enable_verification and self.claude is not None:
             self.verifier = Verifier(self.claude, model=self.verifier_model)
@@ -123,6 +129,7 @@ class CliChat:
         # Agent spawning
         self.agents: dict[str, AgentRunner] = {}
         self._recovery_attempted = False
+        self._session_manager = SessionManager(self)
 
     async def close(self):
         if self._auto_index_task is not None and not self._auto_index_task.done():
@@ -311,10 +318,7 @@ class CliChat:
         return None
 
     def new_session(self) -> str:
-        sid = new_session_id()
-        self.session_id = sid
-        self.messages = []
-        return sid
+        return self._session_manager.new_session()
 
     def get_status(self) -> dict[str, Any]:
         info = self.claude.status_info() if hasattr(self.claude, "status_info") else {}
@@ -328,12 +332,25 @@ class CliChat:
         }
 
     def export_transcript(self) -> str:
-        lines = []
-        for m in self.messages:
-            role = m.get("role", "?")
-            content = m.get("content", "")
-            lines.append(f"[{role}]\n{content}\n")
-        return "\n".join(lines)
+        return self._session_manager.export_transcript()
+
+    async def switch_session(self, session_id: str) -> None:
+        await self._session_manager.switch(session_id)
+
+    async def rename_session(self, name: str) -> bool:
+        return await self._session_manager.rename(name)
+
+    async def fork_session(self, session_id: str) -> tuple[int, str]:
+        return await self._session_manager.fork(session_id)
+
+    async def undo_session(self, count: int = 2) -> int:
+        return await self._session_manager.undo(count)
+
+    async def load_session(self, session_id: str) -> list[dict[str, Any]]:
+        return await self._session_manager.load_session(session_id)
+
+    async def list_sessions(self) -> list[str]:
+        return await self._session_manager.list_sessions()
 
     async def semantic_search(self, query: str, namespace: str = "messages", limit: int = 5) -> list[dict[str, Any]]:
         return await self.context.semantic_search(query, namespace=namespace, limit=limit)
@@ -434,116 +451,6 @@ class CliChat:
             return "vision" in caps
         return self._is_vision_model(self.claude.model)
 
-    async def _moderate_output(self, text: str, bus: NotificationBus | None) -> str:
-        moderation = self.moderation
-        if moderation is None:
-            return text
-        try:
-            ok, reason = moderation.check_output(text)
-        except Exception:
-            return text
-        if ok:
-            return text
-        if bus:
-            await bus.push_log("warn", f"Output blocked by moderation ({reason}).")
-        return f"[blocked] Your message was flagged by moderation ({reason})."
-
-    async def _record_verifier_usage(self, answer: str, user_input: str, rag_context: str, tool_summary: str) -> None:
-        try:
-            prompt = f"User question:\n{user_input}"
-            if rag_context:
-                prompt += f"\n\nReference context:\n{rag_context}"
-            if tool_summary:
-                prompt += f"\n\nTool results:\n{tool_summary}"
-            prompt += f"\n\nAssistant answer:\n{answer}"
-            input_tokens = count_tokens(prompt, self.claude.model)
-            output_tokens = count_tokens(answer, self.claude.model)
-            await self.usage.async_record(self.claude.model, input_tokens, output_tokens, self.session_id)
-        except Exception as exc:
-            logger.debug("verifier usage recording failed: %s", exc)
-
-    async def _correction_retry(
-        self,
-        answer: str,
-        user_input: str,
-        issues: list[str],
-        bus: NotificationBus | None,
-    ) -> str:
-        if self._correction_attempts >= self.MAX_CORRECTION_ATTEMPTS:
-            return ""
-        self._correction_attempts += 1
-        issue_text = "\n".join(f"- {issue}" for issue in issues)
-        correction = (
-            "Your previous response was flagged by a verification pass. "
-            f"Address the following issues:\n{issue_text}"
-        )
-        retry_messages = [*self.messages, {"role": "user", "content": correction}]
-        try:
-            message, input_tokens, output_tokens = await self.streamer.chat(
-                retry_messages,
-                tools=self._openai_tools if self._openai_tools else None,
-            )
-            await self.usage.async_record(self.claude.model, input_tokens, output_tokens, self.session_id)
-            return message.content or ""
-        except Exception as exc:
-            logger.warning("verifier correction retry failed, returning original answer: %s", exc)
-            return ""
-
-    async def _verify_answer(
-        self,
-        answer: str,
-        user_input: str,
-        rag_context: str,
-        tool_used: bool,
-        tool_summary: str,
-        bus: NotificationBus | None,
-    ) -> str:
-        verifier = self.verifier
-        if verifier is None or not (tool_used or rag_context):
-            return answer
-        try:
-            verdict = await verifier.verify(
-                answer,
-                user_input,
-                rag_context=rag_context,
-                tool_summary=tool_summary,
-            )
-            await self._record_verifier_usage(answer, user_input, rag_context, tool_summary)
-            if verdict.valid:
-                if bus:
-                    await bus.push_log("info", "Verified by critique pass.")
-                return answer
-            if verdict.revised:
-                if bus:
-                    await bus.push_log("info", "Verified by critique pass.")
-                    await bus.push_log("warn", "Answer revised by verifier.")
-                    await bus.push_log("info", f"Original answer: {answer}")
-                return verdict.revised
-            if verdict.issues:
-                retried = await self._correction_retry(answer, user_input, verdict.issues, bus)
-                if retried:
-                    if bus:
-                        await bus.push_log("info", "Verified by critique pass.")
-                    return retried
-            if bus:
-                await bus.push_log("info", "Verified by critique pass.")
-            return answer
-        except Exception as exc:
-            logger.warning("verification failed, returning original answer: %s", exc)
-            return answer
-
-    async def _finalize_output(
-        self,
-        answer: str,
-        user_input: str,
-        rag_context: str,
-        tool_used: bool,
-        tool_summary: str,
-        bus: NotificationBus | None,
-    ) -> str:
-        final = await self._verify_answer(answer, user_input, rag_context, tool_used, tool_summary, bus)
-        return await self._moderate_output(final, bus)
-
     async def send(
         self,
         user_input: str,
@@ -584,245 +491,51 @@ class CliChat:
                     await bus.push_done()
                 return result.output or f"Agent '{agent_config.name}' returned no output."
 
-        augmented = await self.doc_injector.resolve(user_input)
-
-        rag_context = ""
-        try:
-            rag_results = await self.rag.retrieve(user_input, top_k=3, min_score=0.25)
-            if rag_results:
-                rag_context = self.rag.format_context(rag_results)
-                augmented = (
-                    f"Relevant knowledge base context:\n{rag_context}\n\n"
-                    f"User question: {augmented}"
-                )
-                if bus:
-                    bus.push_rag(rag_results)
-        except Exception:
-            logger.warning("RAG retrieval failed, continuing without knowledge base context")
-
-        self._auto_index_task = asyncio.create_task(
-            self._auto_index_wrapper(user_input), name="auto_index"
+        recovery = RecoveryHandler(
+            self.streamer,
+            self.usage,
+            self.claude.model,
+            self.session_id,
+            bus=bus,
+            max_correction_attempts=self.MAX_CORRECTION_ATTEMPTS,
         )
-
-        # OCR fallback for non-vision models
-        if images and not await self._can_process_images():
-            from mcp_cli.services.ocr import extract_text_from_data_url, is_available
-            if is_available():
-                ocr_texts = []
-                for img_url in images:
-                    text = extract_text_from_data_url(img_url)
-                    if text:
-                        ocr_texts.append(text)
-                if ocr_texts:
-                    ocr_context = "\n\n[OCR text extracted from image(s)]:\n" + "\n---\n".join(ocr_texts)
-                    augmented = augmented + ocr_context
-                    if bus:
-                        await bus.push_log("info", f"OCR extracted text from {len(ocr_texts)} image(s)")
-                elif bus:
-                    await bus.push_log("warn", "OCR available but no text could be extracted from image(s)")
-            else:
-                if bus:
-                    await bus.push_log("warn", "OCR libraries not installed (pip install Pillow pytesseract). Cannot process images with this model.")
-                    await bus.push_log("drop", "Images ignored: model has no vision and OCR is unavailable.")
-            images = None  # Don't send images to non-vision model
-
-        if images:
-            content: list[dict] = [{"type": "text", "text": augmented}]
-            for img_url in images:
-                content.append({"type": "image_url", "image_url": {"url": img_url}})
-            self.messages.append({"role": "user", "content": content})
-            save_content = augmented
-        else:
-            self.messages.append({"role": "user", "content": augmented})
-            save_content = augmented
-        await self.history.async_save_message(self.session_id, "user", save_content)
-
-        iterations = 0
-        tool_used = False
-        prev_tool_used = False  # Track if previous iteration used tools
-        tool_events: list[str] = []
-        await self._push_state("THINKING", iteration=1)
-        while True:
-            iterations += 1
-
-            # Track if previous iteration used tools for silent failure detection
-            prev_tool_used = tool_used
-            tool_used = False  # Reset for this iteration
-            active_tool_names = self.registry.resolve_tools(user_input)
-            active_tools = [self.tools_by_name[name]['openai']
-                            for name in active_tool_names if name in self.tools_by_name]
-            tools_tokens = count_tokens(json.dumps(active_tools), self.claude.model) if active_tools else 0
-            self.messages = self.context.trim(self.messages, tools_tokens)
-
-            # Log routing metrics
-            if bus:
-                await bus.push_log("debug", f"Tool routing: selected {len(active_tool_names)} tools ({tools_tokens} tokens)")
-                if hasattr(bus, 'push_metric'):
-                    await bus.push_metric("tool_schema_tokens", tools_tokens)
-                    await bus.push_metric("tool_count", len(active_tool_names))
-
-            if iterations > self._max_tool_iterations:
-                await self._push_state("DONE")
-                if bus:
-                    await bus.push_log("warn", f"Stopped after {self._max_tool_iterations} tool iterations.")
-                return await self._moderate_output(
-                    f"[stopped] Maximum tool calls ({self._max_tool_iterations}) reached.", bus,
-                )
-
-            if bus:
-                await bus.push_log("info", f"Calling LLM (iteration {iterations})...")
-
-            fmt = response_format or self.response_format
-            message, input_tokens, output_tokens = await self.streamer.chat(
-                self.messages, tools=active_tools, on_chunk=on_chunk, response_format=fmt,
-            )
-            await self.usage.async_record(self.claude.model, input_tokens, output_tokens, self.session_id)
-
-            if bus:
-                await bus.push_log("debug", f"Tokens: {input_tokens} in / {output_tokens} out")
-
-            if hasattr(message, "model_dump"):
-                msg_dict = message.model_dump(exclude_unset=True)
-            else:
-                msg_dict = {
-                    "role": "assistant",
-                    "content": getattr(message, "content", "") or "",
-                }
-                if hasattr(message, "tool_calls") and message.tool_calls:
-                    msg_dict["tool_calls"] = message.tool_calls
-            if msg_dict.get("content") is None:
-                msg_dict["content"] = ""
-            self.messages.append(msg_dict)
-            await self.history.async_save_message(self.session_id, "assistant", msg_dict["content"])
-
-            tool_calls = getattr(message, "tool_calls", None)
-
-            # --- RECOVERY LOGIC: Silent Failure Detection ---
-            # If we just executed tools in the previous iteration AND now we get empty content with no tool calls,
-            # this is a "silent failure" - the model didn't respond after seeing tool results.
-            content = message.content or ""
-            if prev_tool_used and not tool_calls and not content.strip():
-                if not self._recovery_attempted:
-                    if bus:
-                        await bus.push_log("warn", "Silent failure detected: model returned empty response after tool execution. Initiating recovery...")
-                    # Recovery: strip all tools and force a summary
-                    recovery_messages = self.messages + [{
-                        "role": "system",
-                        "content": "You have received tool results above but provided no response. Summarize the tool results immediately and provide your final answer."
-                    }]
-                    self._recovery_attempted = True
-                    fmt = response_format or self.response_format
-                    recovery_message, rec_in, rec_out = await self.streamer.chat(
-                        recovery_messages, tools=[], on_chunk=on_chunk, response_format=fmt,
-                    )
-                    await self.usage.async_record(self.claude.model, rec_in, rec_out, self.session_id)
-
-                    if hasattr(recovery_message, "model_dump"):
-                        rec_dict = recovery_message.model_dump(exclude_unset=True)
-                    else:
-                        rec_dict = {
-                            "role": "assistant",
-                            "content": getattr(recovery_message, "content", "") or "",
-                        }
-                        if hasattr(recovery_message, "tool_calls") and recovery_message.tool_calls:
-                            rec_dict["tool_calls"] = recovery_message.tool_calls
-
-                    if rec_dict.get("content"):
-                        if bus:
-                            await bus.push_log("info", "Recovery successful.")
-                        self.messages.append(rec_dict)
-                        await self.history.async_save_message(self.session_id, "assistant", rec_dict["content"])
-                        await self._push_state("REPORTING")
-                        final_answer = await self._finalize_output(
-                            rec_dict["content"],
-                            user_input,
-                            rag_context,
-                            tool_used,
-                            "\n".join(tool_events),
-                            bus,
-                        )
-                        if bus:
-                            await bus.push_log("info", "Response complete (recovery).")
-                            await bus.push_done()
-                        await self._push_state("DONE")
-                        return final_answer
-
-                    if bus:
-                        await bus.push_log("warn", "Recovery attempt also returned empty content. Continuing with normal flow...")
-
-            # Reset recovery flag for next iteration
-            if prev_tool_used and not tool_calls:
-                self._recovery_attempted = False
-
-            if not tool_calls:
-                await self._push_state("REPORTING")
-                is_valid, err = self._validate_output(message.content or "")
-                if is_valid:
-                    final_answer = await self._finalize_output(
-                        message.content or "",
-                        user_input,
-                        rag_context,
-                        tool_used,
-                        "\n".join(tool_events),
-                        bus,
-                    )
-                    if bus:
-                        await bus.push_log("info", "Response complete.")
-                        await bus.push_done()
-                    await self._push_state("DONE")
-                    return final_answer
-
-                logger.warning("output validation failed: %s", err)
-                _inc_validation_error()
-                logger.info(
-                    "refinement_audit skill=%s valid=%s error=%s",
-                    (self.response_format or {}).get("json_schema", {}).get("name", "unknown"),
-                    is_valid,
-                    err,
-                )
-
-                if self._correction_attempts < self.MAX_CORRECTION_ATTEMPTS:
-                    self._correction_attempts += 1
-                    self.messages.append({
-                        "role": "user",
-                        "content": f"Your previous response did not match the required format. Error: {err}\n\nPlease reformat your response to strictly follow the output schema requirements. Return ONLY valid content matching the expected format.",
-                    })
-                    continue
-
-                final_answer = await self._finalize_output(
-                    message.content or "",
-                    user_input,
-                    rag_context,
-                    tool_used,
-                    "\n".join(tool_events),
-                    bus,
-                )
-                if bus:
-                    await bus.push_log("warn", "Max correction attempts reached, returning raw output.")
-                    await bus.push_done()
-                await self._push_state("DONE")
-                return final_answer
-
-            if bus:
-                await bus.push_log("info", f"Executing {len(tool_calls)} tool(s)...")
-
-            tool_used = True
-            tool_names: list[str] = []
-            for tc in tool_calls:
-                fn = getattr(tc, "function", None)
-                name = getattr(fn, "name", None) or getattr(tc, "name", "") or "tool"
-                args = getattr(fn, "arguments", None) or ""
-                tool_names.append(name)
-                tool_events.append(f"{name}({args})" if args else name)
-
-            await self._push_state(
-                "DELEGATING" if any(n in _DELEGATE_TOOLS for n in tool_names) else "EXECUTING",
-                iteration=iterations,
-            )
-            tool_results = await self.tool_runner.execute_tool_calls(
-                tool_calls,
+        pipeline = TurnPipeline(
+            claude=self.claude,
+            streamer=self.streamer,
+            context=self.context,
+            rag=self.rag,
+            doc_injector=self.doc_injector,
+            tool_runner=self.tool_runner,
+            registry=self.registry,
+            usage=self.usage,
+            history=self.history,
+            moderation=self.moderation,
+            verifier=self.verifier,
+            bus=bus,
+            max_tool_iterations=self._max_tool_iterations,
+            messages=self.messages,
+            session_id=self.session_id,
+            tools_by_name=self.tools_by_name,
+            openai_tools=self._openai_tools,
+            default_response_format=self.response_format,
+            recovery=recovery,
+            push_state=self._push_state,
+            validate_output=self._validate_output,
+            auto_index_wrapper=self._auto_index_wrapper,
+            can_process_images=self._can_process_images,
+            token_monitor=getattr(self, "token_monitor", None),
+            prompt_budget=getattr(self, "prompt_budget", None),
+        )
+        try:
+            return await pipeline.run(
+                user_input,
+                images=images,
                 on_tool_event=on_tool_event,
+                on_chunk=on_chunk,
                 on_approval=on_approval,
+                response_format=response_format,
+                bus=bus,
             )
-            self.messages.extend(tool_results)
-            self.messages = self.context.trim(self.messages, tools_tokens)
+        finally:
+            self.messages = pipeline.messages
+            self._auto_index_task = pipeline.auto_index_task

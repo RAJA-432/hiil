@@ -4,7 +4,7 @@ import asyncio
 import time
 from typing import TYPE_CHECKING, Any
 
-from mcp_cli.services.chunker import chunk_by_tokens, extract_text
+from mcp_cli.services.chunker import chunk_by_content, chunk_by_tokens, extract_text
 from mcp_cli.services.logging import get_logger
 
 if TYPE_CHECKING:
@@ -16,6 +16,18 @@ logger = get_logger(__name__)
 
 _DEFAULT_NAMESPACE = "documents"
 _EMPTY_CACHE_TTL = 30.0
+MAX_CONTEXT_TOKENS = 3500
+
+
+def estimated_tokens(text: str) -> int:
+    """Return a dependency-light token estimate for ``text`` (word count)."""
+    return len(text.split())
+
+
+def _metadata_matches(metadata: dict[str, Any] | None, filters: dict[str, Any]) -> bool:
+    """Return True if ``metadata`` matches every key/value pair in ``filters``."""
+    meta = metadata or {}
+    return all(meta.get(key) == value for key, value in filters.items())
 
 
 class RagPipeline:
@@ -43,15 +55,16 @@ class RagPipeline:
         content: bytes,
         filename: str,
         namespace: str = _DEFAULT_NAMESPACE,
-        chunk_size: int = 512,
-        chunk_overlap: int = 64,
+        chunk_size: int | None = None,
+        chunk_overlap: int = 50,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         key = (namespace, filename)
         async with self._index_lock:
             task = self._index_inflight.get(key)
             if task is None:
                 task = asyncio.create_task(
-                    self._index_document(content, filename, namespace, chunk_size, chunk_overlap)
+                    self._index_document(content, filename, namespace, chunk_size, chunk_overlap, metadata)
                 )
                 self._index_inflight[key] = task
         try:
@@ -65,15 +78,19 @@ class RagPipeline:
         content: bytes,
         filename: str,
         namespace: str = _DEFAULT_NAMESPACE,
-        chunk_size: int = 512,
-        chunk_overlap: int = 64,
+        chunk_size: int | None = None,
+        chunk_overlap: int = 50,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         text = extract_text(content, filename)
         if not text.strip():
             logger.warning("No extractable text in %s", filename)
             return {"filename": filename, "chunks": 0, "error": "no extractable text"}
 
-        chunks = chunk_by_tokens(text, chunk_size=chunk_size, overlap=chunk_overlap)
+        if chunk_size is None:
+            chunks = chunk_by_content(text, default_size=512, overlap=chunk_overlap)
+        else:
+            chunks = chunk_by_tokens(text, chunk_size=chunk_size, overlap=chunk_overlap)
         indexed = 0
         errors: list[str] = []
 
@@ -83,12 +100,21 @@ class RagPipeline:
             if not emb:
                 errors.append(key)
                 return False
+            chunk_metadata: dict[str, Any] = {
+                "filename": filename,
+                "chunk_index": i,
+                "source": filename,
+            }
+            if chunk.get("content_type"):
+                chunk_metadata["content_type"] = chunk["content_type"]
+            if metadata:
+                chunk_metadata.update(metadata)
             await self.vector_store.async_index(
                 namespace=namespace,
                 key=key,
                 text=chunk["text"],
                 embedding=emb,
-                metadata={"filename": filename, "chunk_index": i, "source": filename},
+                metadata=chunk_metadata,
             )
             return True
 
@@ -118,6 +144,7 @@ class RagPipeline:
         namespace: str = _DEFAULT_NAMESPACE,
         top_k: int = 5,
         min_score: float = 0.0,
+        filter_metadata: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         if await self._is_namespace_empty(namespace):
             return []
@@ -127,7 +154,88 @@ class RagPipeline:
         results = await self.vector_store.async_search(emb, namespace=namespace, limit=top_k)
         if min_score > 0:
             results = [r for r in results if r["score"] >= min_score]
+        if filter_metadata:
+            results = [r for r in results if _metadata_matches(r.get("metadata"), filter_metadata)]
         return results
+
+    async def retrieve_scoped(
+        self,
+        query: str,
+        filters: dict[str, Any],
+        namespace: str = _DEFAULT_NAMESPACE,
+        top_k: int = 5,
+        min_score: float = 0.0,
+    ) -> list[dict[str, Any]]:
+        """Retrieve results restricted to chunks matching every ``filters`` pair."""
+        return await self.retrieve(
+            query,
+            namespace=namespace,
+            top_k=top_k,
+            min_score=min_score,
+            filter_metadata=filters,
+        )
+
+    async def retrieve_compressed(
+        self,
+        query: str,
+        namespace: str = _DEFAULT_NAMESPACE,
+        top_k: int = 5,
+        max_tokens: int = MAX_CONTEXT_TOKENS,
+        min_score: float = 0.0,
+    ) -> list[dict[str, Any]]:
+        """Retrieve results while capping total context to ``max_tokens`` tokens.
+
+        Chunks are accumulated in score order until the budget is consumed.
+        If the single top hit alone exceeds the budget it is condensed via the
+        LLM, falling back to plain truncation if summarization is unavailable.
+        """
+        results = await self.retrieve(query, namespace=namespace, top_k=top_k, min_score=min_score)
+        if not results:
+            return []
+        selected: list[dict[str, Any]] = []
+        total = 0
+        for result in results:
+            original_tokens = estimated_tokens(result["text"])
+            if original_tokens > max_tokens:
+                selected.append(await self._condense_result(result, max_tokens))
+                break
+            if total + original_tokens > max_tokens:
+                break
+            item = dict(result)
+            item["compressed"] = False
+            item["original_tokens"] = original_tokens
+            item["estimated_tokens"] = original_tokens
+            selected.append(item)
+            total += original_tokens
+        return selected
+
+    async def _condense_result(
+        self, result: dict[str, Any], max_tokens: int
+    ) -> dict[str, Any]:
+        """Summarize or truncate a single oversized result to fit the budget."""
+        original_tokens = estimated_tokens(result["text"])
+        condensed: str | None = None
+        chat = getattr(self.claude, "chat", None)
+        if chat is not None:
+            try:
+                response = await chat([{
+                    "role": "user",
+                    "content": f"Condense this into the most relevant 300 words: {result['text']}",
+                }])
+                if isinstance(response, str):
+                    condensed = response
+                else:
+                    condensed = getattr(response, "content", None)
+            except Exception as exc:
+                logger.warning("summarization failed, truncating instead: %s", exc)
+        if not condensed:
+            condensed = " ".join(result["text"].split()[:max_tokens])
+        item = dict(result)
+        item["text"] = condensed
+        item["compressed"] = True
+        item["original_tokens"] = original_tokens
+        item["estimated_tokens"] = estimated_tokens(condensed)
+        return item
 
     def format_context(self, results: list[dict[str, Any]]) -> str:
         if not results:

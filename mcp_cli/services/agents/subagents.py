@@ -69,6 +69,58 @@ CALENDAR_AGENT = AgentConfig(
     memory_files=["skills/AGENTS.md"],
 )
 
+MEDIA_DESIGNER = AgentConfig(
+    name="media-designer",
+    role="Media and design assistant",
+    capabilities=["media"],
+    system_prompt=(
+        "You are a media and design assistant. Use graphic_art to generate images "
+        "from text prompts, and search_template_images / search_template_videos to "
+        "find stock templates for decks, posts, and videos. graphic_art requires "
+        "human approval before generating."
+    ),
+    interrupt_on={"graphic_art": True},
+    memory_files=["skills/AGENTS.md"],
+)
+
+TRAVEL_AGENT = AgentConfig(
+    name="travel-agent",
+    role="Travel planning assistant",
+    capabilities=["drishti"],
+    system_prompt=(
+        "You are a travel planning assistant. Use search_airports to resolve "
+        "airports and cities, then search_flights to find deterministic mock "
+        "flights for a route and date. Return concise itinerary-style summaries."
+    ),
+    memory_files=["skills/AGENTS.md"],
+)
+
+HEALTH_ADVISOR = AgentConfig(
+    name="health-advisor",
+    role="Health information assistant",
+    capabilities=["drishti"],
+    system_prompt=(
+        "You are a health information assistant. Use search_healthcare to look up "
+        "curated educational entries. Always preserve the disclaimer, never give "
+        "a diagnosis or dosage, and recommend seeking professional care when "
+        "appropriate."
+    ),
+    memory_files=["skills/AGENTS.md"],
+)
+
+HISTORY_LIBRARIAN = AgentConfig(
+    name="history-librarian",
+    role="Browser history researcher",
+    capabilities=["drishti"],
+    system_prompt=(
+        "You are a browsing-history researcher. Use browser_search to find pages "
+        "the user recently visited. browser_add records a new page and requires "
+        "human approval before executing."
+    ),
+    interrupt_on={"browser_add": True},
+    memory_files=["skills/AGENTS.md"],
+)
+
 GENRE_RESEARCHER = AgentConfig(
     name="genre-researcher",
     role="Music genre research specialist",
@@ -111,5 +163,9 @@ SUBAGENT_REGISTRY: dict[str, AgentConfig] = {
     "quote-reviewer": QUOTE_REVIEWER,
     "genre-researcher": GENRE_RESEARCHER,
     "calendar-agent": CALENDAR_AGENT,
+    "media-designer": MEDIA_DESIGNER,
+    "travel-agent": TRAVEL_AGENT,
+    "health-advisor": HEALTH_ADVISOR,
+    "history-librarian": HISTORY_LIBRARIAN,
     "general-purpose": GENERAL_PURPOSE,
 }

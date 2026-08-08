@@ -50,7 +50,7 @@ function AppInner() {
 
   return (
     <div className={layoutClass} style={style}>
-      <a href="#main-content" className="skip-link" style={{position:'absolute',top:-100,left:8,zIndex:9999,padding:'8px 16px',background:'var(--surface)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:'0 0 var(--radius-sm) var(--radius-sm)',textDecoration:'none',fontSize:13}}>Skip to content</a>
+      <a href="#main-content" className="skip-link">Skip to content</a>
       <Toolbar />
       <ResizablePanel side="left" defaultWidth={settings.sidebarWidth} minWidth={180} maxWidth={500} onWidthChange={(w) => updateSettings({ sidebarWidth: w })} gridArea="sidebar">
         <Sidebar />

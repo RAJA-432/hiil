@@ -29,10 +29,10 @@ jobs:
           uv pip install -e ".[dev]" --system
 
       - name: lint
-        run: ruff check mcp_cli setu_bridge veda_engine vajra_gate tests/
+        run: ruff check mcp_cli setu_bridge veda_engine vajra_gate drishti_engine tests/
 
       - name: typecheck
-        run: mypy mcp_cli setu_bridge veda_engine vajra_gate --ignore-missing-imports
+        run: mypy mcp_cli setu_bridge veda_engine vajra_gate drishti_engine --ignore-missing-imports
 
       - name: test
         run: pytest tests/ -q

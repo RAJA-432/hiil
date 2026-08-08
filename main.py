@@ -5,6 +5,12 @@ import sys
 
 from mcp_cli.main import main
 
+try:
+    from mcp_cli.services.error_reporting import init_sentry
+    init_sentry()
+except Exception:
+    pass
+
 if __name__ == "__main__":
     if sys.platform == "win32":
         if sys.version_info < (3, 14):

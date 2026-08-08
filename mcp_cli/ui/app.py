@@ -12,69 +12,23 @@ from prompt_toolkit.history import FileHistory
 
 from mcp_cli.commands.router import route_command
 from mcp_cli.locales import get as get_locale
-from mcp_cli.services.notification_bus import NotificationBus
+from mcp_cli.services.usage import format_cost
 from mcp_cli.ui.codeblock import CodeBlockAccumulator
+from mcp_cli.ui.commands.help import print_help
+from mcp_cli.ui.commands.history_cmds import (
+    handle_history,
+    handle_list_sessions,
+    handle_switch_session,
+)
+from mcp_cli.ui.commands.status import print_status
 from mcp_cli.ui.completers import HiilCompleter
 from mcp_cli.ui.messaging import MessageManager, SpinnerManager
 from mcp_cli.ui.renderer import get_renderer
 from mcp_cli.ui.streaming import StreamingRenderer
 from mcp_cli.ui.theme_manager import ThemeManager
-from mcp_cli.ui.themes import RS, THEMES
+from mcp_cli.ui.themes import RS
 from mcp_cli.ui.tool_events import ToolEventHandler
-
-HELP_SECTIONS: list[tuple[str, list[tuple]]] = [
-    ("Session", [
-        (lambda _: _('new'), "start a new session"),
-        (lambda _: _('rename') + " <n>", "rename current session"),
-        (lambda _: _('fork') + " <id>", "fork messages from another session"),
-        (lambda _: _('compact'), "compact session (collapse old messages)"),
-        (lambda _: _('session') + " <id>", "switch to a different session"),
-        (lambda _: _('sessions'), "list saved chat sessions"),
-        (lambda _: _('history') + " [id]", "show recent messages from a session"),
-        (lambda _: _('undo') + " [n]", "undo last n exchanges"),
-        (lambda _: _('export'), "export session transcript to file"),
-    ]),
-    ("Model", [
-        (lambda _: _('model') + " [name]", "show or switch the model"),
-        (lambda _: _('models'), "list available models from provider"),
-        (lambda _: _('provider') + " [name]", "show or switch the provider"),
-        (lambda _: _('plan'), "interactive model picker for planning"),
-        (lambda _: _('timer'), "session timer (start/stop/status)"),
-    ]),
-    ("System", [
-        (lambda _: _('ls') + " [path]", "list directory contents"),
-        (lambda _: _('roots'), "list approved root directories"),
-        (lambda _: _('tools'), "list available MCP tools"),
-        (lambda _: _('servers'), "list active MCP servers"),
-        (lambda _: _('status'), "show system status"),
-        (lambda _: _('theme') + " [name]", f"switch theme ({', '.join(THEMES.keys())})"),
-        (lambda _: _('usage'), "show token usage and cost"),
-        (lambda _: _('search') + " <q>", "search session messages"),
-        (lambda _: _('semsearch') + " <q>", "semantic vector search over messages"),
-        (lambda _: _('copy'), "copy last assistant message to clipboard"),
-        (lambda _: _('key'), "manage encrypted API keys"),
-        (lambda _: _('timestamp'), "toggle timestamps in history display"),
-        (lambda _: _('lang'), "switch language"),
-        (lambda _: _('agent'), "manage agents (subagents: agents/list, run)"),
-        (lambda _: _('skill'), "manage skills (create, list, show, delete)"),
-    ]),
-    ("Server", [
-        (lambda _: _('load') + " <script>", "dynamically load a new MCP server"),
-        (lambda _: _('unload') + " <id>", "unload an MCP server"),
-        (lambda _: _('reload') + " <id>", "restart an MCP server"),
-    ]),
-    ("Other", [
-        (lambda _: "<tool> [args]", "call an MCP tool directly"),
-        (lambda _: _('help'), "show this help"),
-        (lambda _: _('exit') + " / " + _('quit'), "leave the chat"),
-        (lambda _: "@docid", "inject a document from the store"),
-        (lambda _: "@all / @*", "inject every document from the store"),
-    ]),
-    ("Shortcuts", [
-        (lambda _: "Tab / arrows", "auto-complete commands and names"),
-        (lambda _: "Ctrl+C", "cancel or interrupt"),
-    ]),
-]
+from mcp_cli.ui.turn_renderer import TurnRenderer
 
 
 class CliApp:
@@ -89,6 +43,13 @@ class CliApp:
         self._spinner = SpinnerManager()
         self._codeblocks = CodeBlockAccumulator()
         self._tool_events = ToolEventHandler()
+        self._turn_renderer = TurnRenderer(
+            self._msg,
+            self._spinner,
+            self._codeblocks,
+            StreamingRenderer,
+            self.theme,
+        )
 
     @property
     def theme(self):
@@ -164,104 +125,11 @@ class CliApp:
                 if reply:
                     print(reply)
             else:
-                try:
-                    print(self._msg.user_header())
-                    print(f"  {self._msg._renderer.palette_dict['fg']}{user_input}{RS}")
-                    print(f"  {self._msg.user_separator(len(user_input))}")
-                    print()
-
-                    buf: list[str] = []
-                    self._spinner.start("thinking")
-                    header = self._msg.assistant_header()
-                    started = False
-
-                    streaming = StreamingRenderer(
-                        self._msg._renderer.render_inline,
-                        on_output=lambda t: print(t, end="", flush=True),
-                    )
-
-                    def on_chunk(c: str) -> None:
-                        nonlocal started
-                        if not started:
-                            started = True
-                            self._spinner.clear()
-                            print(f"{header}\n  ", end="", flush=True)
-                        buf.append(c)
-
-                        # Use the CodeBlockAccumulator to handle streaming code
-                        # and the throttled StreamingRenderer for inline text.
-                        # Since we are streaming, we feed it to the accumulator.
-                        self._codeblocks.feed(c, on_text=streaming.push, on_block=streaming.emit_raw)
-
-                    bus = NotificationBus()
-                    phases: list[dict[str, Any]] = []
-
-                    async def _consume_phases() -> None:
-                        try:
-                            async for event in bus.events():
-                                if event.get("type") == "log":
-                                    # Update spinner status with log message
-                                    message = event.get("text", "")
-                                    self._spinner.status = message
-                                elif event.get("type") == "state":
-                                    phase = event.get("phase", "UNKNOWN")
-                                    agent_id = event.get("agent_id", "?")
-                                    # Update spinner status and record for final report
-                                    self._spinner.status = f"[{agent_id}] {phase}"
-                                    phases.append(event)
-                                elif event.get("type") == "done":
-                                    break
-                        except asyncio.CancelledError:
-                            pass
-
-                    consumer = asyncio.create_task(_consume_phases())
-
-                    try:
-                        usage_before = self.chat.usage.session_summary()
-                        reply = await self.chat.send(
-                            user_input,
-                            on_chunk=on_chunk,
-                            on_approval=self._request_tool_approval,
-                            notification_bus=bus,
-                        )
-                        self._spinner.stop()
-
-                        # Finalize any unclosed code blocks
-                        self._codeblocks.flush(on_text=streaming.push, on_block=streaming.emit_raw)
-                        streaming.flush_now()
-
-                        printed = "".join(buf)
-                        final = reply or printed
-                        if final:
-                            print()
-                            print(f"{self._msg.assistant_separator()}")
-                            usage_after = self.chat.usage.session_summary()
-                            in_turn = usage_after['input_tokens'] - usage_before['input_tokens']
-                            out_turn = usage_after['output_tokens'] - usage_before['output_tokens']
-                            cost_turn = usage_after['cost'] - usage_before['cost']
-                            print(
-                                f"{t.ansi('muted')}  {in_turn + out_turn:,} tokens "
-                                f"({in_turn} in / {out_turn} out) ${cost_turn:.4f}{RS}"
-                            )
-                            print()
-                    finally:
-                        await bus.push_done()
-                        try:
-                            await asyncio.wait_for(consumer, timeout=2.0)
-                        except TimeoutError:
-                            consumer.cancel()
-                            try:
-                                await consumer
-                            except (asyncio.CancelledError, RuntimeError):
-                                pass
-                        while bus._queues:
-                            q = bus._queues.pop()
-                            while not q.empty():
-                                q.get_nowait()
-
-                except Exception as exc:
-                    self._spinner.stop()
-                    print(f"{t.ansi('error')}[error]{RS} {exc}")
+                reply = await self._turn_renderer.run(
+                    self.chat,
+                    user_input,
+                    self._request_tool_approval,
+                )
 
     def _render_phases(self, phases: list[dict[str, Any]]) -> list[str]:
         """Convert lifecycle state events into colored display lines."""
@@ -281,12 +149,12 @@ class CliApp:
         print(f"  Input tokens:  {session['input_tokens']:,}")
         print(f"  Output tokens: {session['output_tokens']:,}")
         print(f"  Total tokens:  {session['total_tokens']:,}")
-        print(f"  Cost:          ${session['cost']:.6f}")
+        print(f"  Cost:          {format_cost(session['cost'])}")
         print(f"{t.ansi('secondary')}--- All Time ---{RS}")
         print(f"  Input tokens:  {total['input_tokens']:,}")
         print(f"  Output tokens: {total['output_tokens']:,}")
         print(f"  Total tokens:  {total['total_tokens']:,}")
-        print(f"  Cost:          ${total['cost']:.6f}")
+        print(f"  Cost:          {format_cost(total['cost'])}")
 
     async def _request_tool_approval(self, name: str, args: dict[str, Any]) -> bool:
         t = self.theme
@@ -323,80 +191,16 @@ class CliApp:
             return ""
 
     async def _handle_history(self, session_id: str) -> None:
-        t = self.theme
-        sid = session_id.strip() or self.chat.session_id
-        msgs = await self.chat.history.async_load_session(sid)
-        if not msgs:
-            print(f"{t.ansi('muted')}No messages in session '{sid}'.{RS}")
-            return
-        print(f"{t.ansi('secondary')}--- History: {sid} ({len(msgs)} messages) ---{RS}")
-        for m in msgs[-20:]:
-            preview = m["content"][:120].replace("\n", " ")
-            ts = self._format_timestamp(m.get("timestamp", ""))
-            print(f"  {t.ansi('primary') if m['role'] == 'assistant' else t.ansi('muted')}{m['role']}:{RS}{ts} {preview}")
+        await handle_history(self.chat, session_id, self.theme, self._format_timestamp)
 
     async def _handle_list_sessions(self) -> None:
-        t = self.theme
-        sessions = await self.chat.history.async_list_sessions()
-        if not sessions:
-            print(f"{t.ansi('muted')}No saved sessions.{RS}")
-            return
-        print(f"{t.ansi('secondary')}Sessions:{RS}")
-        for s in sessions:
-            marker = " *" if s == self.chat.session_id else ""
-            print(f"  {t.ansi('primary')}{s}{RS}{marker}")
+        await handle_list_sessions(self.chat, self.theme)
 
     async def _handle_switch_session(self, session_id: str) -> None:
-        t = self.theme
-        sid = session_id.strip()
-        if not sid:
-            print(f"{t.ansi('error')}Usage: /session <session_id>{RS}")
-            return
-        self.chat.session_id = sid
-        self.chat.messages = await self.chat.history.async_load_session(sid)
-        print(f"{t.ansi('success')}Switched to session '{sid}' ({len(self.chat.messages)} messages).{RS}")
+        await handle_switch_session(self.chat, session_id, self.theme)
 
     def _print_status(self) -> None:
-        t = self.theme
-        s = self.chat.get_status()
-        print(f"{t.style_box('secondary', 'System Status')}{RS}")
-        print(f"  {t.icon('session')} {t.ansi('primary')}Session:{RS}   {s['session']}{RS}")
-        print(f"  {t.icon('message')} {t.ansi('primary')}Messages:{RS}  {s['messages']}{RS}")
-        print(f"  {t.icon('network')} {t.ansi('primary')}Provider:{RS}  {s['provider']}{RS}")
-        print(f"  {t.icon('model')} {t.ansi('primary')}Model:{RS}     {s['model']}{RS}")
-        print(f"  {t.icon('tool')} {t.ansi('primary')}Tools:{RS}     {s['tools']}{RS}")
-        print(f"  {t.icon('server')} {t.ansi('primary')}Servers:{RS}   {', '.join(s['servers']) if s['servers'] else 'none'}{RS}")
-
-    async def _handle_search(self, query: str) -> None:
-        t = self.theme
-        # Use the HistoryManager via the chat service for a global search
-        results = self.chat.history.search(query)
-
-        if not results:
-            print(f"{t.ansi('muted')}No matches found for '{query}'.{RS}")
-            return
-
-        print(f"{t.ansi('secondary')}--- Search: '{query}' ({len(results)} results) ---{RS}")
-        for r in results:
-            role = r.get("role", "unknown")
-            content = r.get("content", "")
-            preview = content[:120].replace("\n", " ")
-            ts = self._format_timestamp(r.get("timestamp", ""))
-
-            color = t.ansi('primary') if role == 'assistant' else t.ansi('muted')
-            print(f"  {color}{role}:{RS}{ts} {preview}")
+        print_status(self.chat, self.theme)
 
     def _print_help(self) -> None:
-        t = self.theme
-        loc = self._locale
-        def _(eng: str) -> str:
-            return loc.translate_cmd(eng)
-        def cmd(c: str, desc: str) -> str:
-            return f"  {t.ansi('muted')}/{c:<22}{RS} {t.ansi('secondary')}{desc}{RS}"
-        bar = f"{t.ansi('muted')}\u2501{RS}" * 78
-        print(bar)
-        for section_name, entries in HELP_SECTIONS:
-            print(f"  {t.ansi('primary')}{section_name}{RS}")
-            for cmd_fn, desc in entries:
-                print(cmd(cmd_fn(_), desc))
-        print(bar)
+        print_help(self.theme, self._locale)

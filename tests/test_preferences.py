@@ -13,11 +13,11 @@ def store(tmp_path):
 
 @pytest.fixture
 def tool_store(tmp_path, monkeypatch):
-    from vajra_gate.store import KVStore
+    from hiil_common.services.preferences import PreferencesStore
 
-    kvs = KVStore(tmp_path)
-    monkeypatch.setattr("vajra_gate.store.get_store", lambda: kvs)
-    return kvs
+    pstore = PreferencesStore(tmp_path)
+    monkeypatch.setattr("hiil_common.services.preferences.get_store", lambda: pstore)
+    return pstore
 
 
 class TestUserPreferencesStore:
@@ -131,11 +131,11 @@ class TestPreferenceTools:
     async def test_default_user_resolves_from_env(self, tool_store, monkeypatch):
         monkeypatch.setenv("HIIL_USER_ID", "alice")
         await remember(preferences={"food": "pizza"})
-        assert tool_store.get("preferences", "alice") is not None
-        assert tool_store.get("preferences", "default") is None
+        assert tool_store.get("alice") is not None
+        assert tool_store.get("default") is None
 
     async def test_explicit_user_id_overrides_env(self, tool_store, monkeypatch):
         monkeypatch.setenv("HIIL_USER_ID", "alice")
         await remember(user_id="bob", preferences={"food": "pizza"})
-        assert tool_store.get("preferences", "bob") is not None
-        assert tool_store.get("preferences", "alice") is None
+        assert tool_store.get("bob") is not None
+        assert tool_store.get("alice") is None

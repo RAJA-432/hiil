@@ -19,19 +19,19 @@ test-coverage: ## Run tests with coverage report
 	python -m pytest tests/ --cov=mcp_cli --cov=setu_bridge --cov=vajra_gate --cov=veda_engine --cov-report=term-missing
 
 typecheck: ## Run mypy static type checking
-	python -m mypy mcp_cli setu_bridge veda_engine vajra_gate --ignore-missing-imports
+	python -m mypy mcp_cli setu_bridge veda_engine vajra_gate drishti_engine --ignore-missing-imports
 
 lint: ## Run ruff linter
-	python -m ruff check mcp_cli setu_bridge veda_engine vajra_gate tests/
+	python -m ruff check mcp_cli setu_bridge veda_engine vajra_gate drishti_engine tests/
 
 format: ## Check formatting with ruff
-	python -m ruff format --check mcp_cli setu_bridge veda_engine vajra_gate tests/
+	python -m ruff format --check mcp_cli setu_bridge veda_engine vajra_gate drishti_engine tests/
 
 format-fix: ## Auto-format with ruff
-	python -m ruff format mcp_cli setu_bridge veda_engine vajra_gate tests/
+	python -m ruff format mcp_cli setu_bridge veda_engine vajra_gate drishti_engine tests/
 
 lint-fix: ## Auto-fix lint issues with ruff
-	python -m ruff check --fix mcp_cli setu_bridge veda_engine vajra_gate tests/
+	python -m ruff check --fix mcp_cli setu_bridge veda_engine vajra_gate drishti_engine tests/
 
 check: ## Run lint + typecheck + test in sequence
 	$(MAKE) lint

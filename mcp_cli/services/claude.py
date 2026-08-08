@@ -14,10 +14,10 @@ from typing import Any, cast
 import httpx
 from openai import APIError as OpenAIError
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletionMessage
 from tenacity import Future, retry, retry_if_exception, stop_after_attempt, wait_exponential
 
 from mcp_cli.services.logging import get_logger
+from mcp_cli.services.normalizer import ResponseNormalizer
 
 logger = get_logger("claude")
 
@@ -73,6 +73,7 @@ class LLMClient:
         model: str,
         api_key: str,
         base_url: str | None = None,
+        normalizer: ResponseNormalizer | None = None,
     ):
         """Initialize the LLM client with provider, model, and API credentials."""
         self.provider = provider
@@ -84,6 +85,7 @@ class LLMClient:
         self._http_client = httpx.AsyncClient(timeout=30)
         self._caps_cache: dict[tuple[str, str], tuple[float, list[str]]] = {}
         self._embed_cache: OrderedDict[tuple[str, str, str], list[float]] = OrderedDict()
+        self._normalizer = normalizer or ResponseNormalizer()
 
     async def stream_chat(
         self,
@@ -122,22 +124,7 @@ class LLMClient:
 
             if delta.tool_calls:
                 for tc in delta.tool_calls:
-                    idx = tc.index
-                    if idx not in tool_calls:
-                        tool_calls[idx] = {
-                            "id": tc.id or "",
-                            "function": {
-                                "name": tc.function.name or "",
-                                "arguments": tc.function.arguments or "",
-                            },
-                        }
-                    else:
-                        if tc.function and tc.function.arguments:
-                            tool_calls[idx]["function"]["arguments"] += tc.function.arguments
-                        if tc.function and tc.function.name:
-                            tool_calls[idx]["function"]["name"] += tc.function.name
-                        if tc.id:
-                            tool_calls[idx]["id"] += tc.id
+                    self._normalizer.merge_tool_call(tool_calls, tc)
 
         if tool_calls:
             sorted_calls = sorted(tool_calls.items(), key=lambda x: x[0])
@@ -185,40 +172,7 @@ class LLMClient:
 
         response = await self._client.chat.completions.create(**kwargs)
 
-        # --- Normalize non-standard responses -------------------------------
-        # Some OpenCode-style proxies reply with the assistant text directly.
-        if isinstance(response, str):
-            return ChatCompletionMessage(role="assistant", content=response)
-
-        # A raw dict (unparsed) response: pull the message out if present.
-        if isinstance(response, dict):
-            if not response.get("choices"):
-                return ChatCompletionMessage(role="assistant", content="")
-            msg = response["choices"][0].get("message", {})
-            # Normalize tool_calls if present
-            tool_calls = msg.get("tool_calls")
-            if tool_calls and isinstance(tool_calls, list):
-                # Ensure each tool_call has proper structure
-                tool_calls = [
-                    tc if hasattr(tc, "function") else _normalize_tool_call(tc)
-                    for tc in tool_calls
-                ]
-            return ChatCompletionMessage(
-                role="assistant",
-                content=msg.get("content"),
-                tool_calls=tool_calls,
-            )
-
-        # Standard OpenAI response - validate before accessing
-        try:
-            if response.choices and len(response.choices) > 0:
-                return response.choices[0].message
-        except (AttributeError, IndexError) as e:
-            logger.warning("Unexpected response structure: %s", e)
-            return ChatCompletionMessage(role="assistant", content="")
-
-        # Fallback for empty response
-        return ChatCompletionMessage(role="assistant", content="")
+        return self._normalizer.normalize_message(response)
 
     def update_model(self, model: str) -> str:
         """Switch the active model and return a confirmation message."""
@@ -366,18 +320,6 @@ class LLMClient:
 
     async def shutdown(self):
         await self._http_client.aclose()
-
-
-def _normalize_tool_call(tc: Any) -> Any:
-    """Ensure tool_call has proper OpenAI function-call structure."""
-    if isinstance(tc, dict):
-        if "function" not in tc and ("name" in tc or "arguments" in tc):
-            # Wrap legacy format into function structure
-            tc["function"] = {
-                "name": tc.get("name", "unknown"),
-                "arguments": tc.get("arguments", "{}"),
-            }
-    return tc
 
 
 Claude = LLMClient  # backward compat alias

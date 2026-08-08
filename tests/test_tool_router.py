@@ -7,6 +7,16 @@ MAIL_TOOLS = ("list_messages", "get_message", "send_draft", "save_draft", "authe
 CALENDAR_TOOLS = ("list_events", "create_event", "update_event", "delete_event", "free_slots")
 READ_TOOLS = ("read_file", "read_text_resource", "read_document")
 SQLITE_TOOLS = ("query", "list_tables", "describe_table")
+DRISHTI_TOOLS = (
+    "graphic_art",
+    "search_template_images",
+    "search_template_videos",
+    "search_flights",
+    "search_airports",
+    "search_healthcare",
+    "browser_search",
+    "browser_add",
+)
 
 
 class _FakeClient:
@@ -33,11 +43,13 @@ def _make_router(capabilities: list[str], *, mail_script: str = "setu_bridge.moc
     calendar = _FakeClient(script="setu_bridge.calendar")
     filesystem = _FakeClient(script="@modelcontextprotocol/server-filesystem")
     sqlite = _FakeClient(script="mcp_sqlite")
+    drishti = _FakeClient(script="drishti_engine")
     clients = {
         "mock_mail": mail,
         "calendar": calendar,
         "filesystem": filesystem,
         "sqlite": sqlite,
+        "drishti": drishti,
     }
     tools = {}
     for name in MAIL_TOOLS:
@@ -48,6 +60,8 @@ def _make_router(capabilities: list[str], *, mail_script: str = "setu_bridge.moc
         tools[name] = {"client": filesystem, "openai": _openai_schema(name)}
     for name in SQLITE_TOOLS:
         tools[name] = {"client": sqlite, "openai": _openai_schema(name)}
+    for name in DRISHTI_TOOLS:
+        tools[name] = {"client": drishti, "openai": _openai_schema(name)}
     return ToolRouter(tools_by_name=tools, clients=clients, capabilities=capabilities)
 
 
@@ -84,6 +98,21 @@ class TestExistingAgentsNoRegression:
         router = _make_router(["sqlite", "read"])
         assert set(SQLITE_TOOLS) <= set(router.tool_names)
         assert set(READ_TOOLS) <= set(router.tool_names)
+
+
+class TestDrishtiCapability:
+    def test_drishti_capability_allows_all_consumer_tools(self):
+        router = _make_router(["drishti"])
+        assert set(DRISHTI_TOOLS) <= set(router.tool_names)
+
+    def test_media_capability_does_not_leak_drishti_tools(self):
+        router = _make_router(["media"])
+        assert not (set(DRISHTI_TOOLS) & set(router.tool_names))
+
+    def test_drishti_capability_does_not_leak_other_servers(self):
+        router = _make_router(["drishti"])
+        assert not (set(MAIL_TOOLS) & set(router.tool_names))
+        assert not (set(CALENDAR_TOOLS) & set(router.tool_names))
 
 
 class TestManagedConnectionScript:

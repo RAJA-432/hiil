@@ -46,10 +46,12 @@ py-modules = ["main"]
 packages = [
     "mcp_cli", "mcp_cli.ui", "mcp_cli.commands", "mcp_cli.services",
     "setu_bridge",
+    "hiil_common", "hiil_common.utils", "hiil_common.services", "hiil_common.storage",
     "vajra_gate", "vajra_gate.middleware", "vajra_gate.routers", "vajra_gate.schemas",
     "vajra_gate.services", "vajra_gate.tools",
     "veda_engine", "veda_engine.storage", "veda_engine.tools", "veda_engine.resources",
-
+    "drishti_engine", "drishti_engine.storage", "drishti_engine.tools", "drishti_engine.data",
+    "workspace_server", "doc_server", "web_server", "memory_server", "media_server",
 ]
 
 [tool.pytest.ini_options]

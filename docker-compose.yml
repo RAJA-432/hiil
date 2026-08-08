@@ -1,16 +1,50 @@
+# hiil — RAG-backed CLI chat app.
+#
+# Interactive CLI service. Attach to the running container with:
+#     docker compose exec hiil
+# For a one-shot interactive session instead:
+#     docker compose run --rm hiil
+#
+# Persistent state (vector store + usage DB) lives on the `hiil_data` named
+# volume, mounted at /data — the container's HOME, so `~/.hiil/*.db` lands
+# there and survives container rebuilds.
+
 services:
   hiil:
     build: .
-    ports:
-      - "8000:8000"
+    image: hiil
+    stdin_open: true
+    tty: true
+    # restart: unless-stopped   # optional; an interactive CLI usually runs via
+                                # `docker compose run --rm` instead of up -d
     environment:
+      - MODEL_PROVIDER=${MODEL_PROVIDER:-openrouter}
+      - MODEL_NAME=${MODEL_NAME:-}
+      - MODEL_API_KEY=${MODEL_API_KEY:-}
+      - BASE_URL=${BASE_URL:-}
+      - MAX_CONTEXT_TOKENS=${MAX_CONTEXT_TOKENS:-3500}
+      - HIIL_LOG_LEVEL=${HIIL_LOG_LEVEL:-info}
       - HIIL_WEBUI_USERNAME=${HIIL_WEBUI_USERNAME:-}
       - HIIL_WEBUI_PASSWORD=${HIIL_WEBUI_PASSWORD:-}
-      - MODEL_API_KEY=${MODEL_API_KEY:-}
-      - HIIL_LOG_LEVEL=${HIIL_LOG_LEVEL:-info}
     volumes:
-      - ./config.yaml:/app/config.yaml
-      - hiil_data:/root/.hiil
+      - hiil_data:/data
+      # Bind-mount alternative if you prefer files on the host:
+      # - ./data:/data
+      # - ./config.yaml:/app/config.yaml
+
+  # Optional vector DB for larger corpora. Not required by the default sqlite
+  # backend; enable only when you need Chroma for scale:
+  #     docker compose --profile vector-db up -d
+  # then point the app at it via the vector backend settings.
+  chroma:
+    image: chromadb/chroma:latest
+    profiles: ["vector-db"]
+    restart: unless-stopped
+    volumes:
+      - chroma_data:/chroma/chroma
+    ports:
+      - "8001:8000"
 
 volumes:
   hiil_data:
+  chroma_data:

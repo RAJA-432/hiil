@@ -6,7 +6,7 @@ from typing import Any
 
 from mcp.server.fastmcp import Context
 
-from vajra_gate.services.preferences import UserPreferencesStore
+from hiil_common.services.preferences import UserPreferencesStore
 
 
 def _user_id(u: str) -> str:

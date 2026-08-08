@@ -7,11 +7,65 @@ from mcp_cli.services.logging import get_logger
 
 logger = get_logger(__name__)
 
+_CODE_KEYWORDS = {
+    "async", "await", "bool", "break", "class", "const", "continue",
+    "def", "elif", "else", "enum", "except", "False", "fn", "for",
+    "from", "func", "function", "if", "import", "impl", "int", "lambda",
+    "let", "namespace", "None", "null", "package", "print", "public",
+    "pub", "private", "return", "str", "struct", "switch", "True",
+    "try", "type", "var", "void", "while", "with", "yield",
+}
+
+
+def detect_content_type(text: str) -> str:
+    """Return ``code`` or ``text`` based on lightweight heuristics."""
+    lines = text.splitlines()
+    scored = 0
+    code_hits = 0
+    for line in lines[:200]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        scored += 1
+        if stripped.endswith((";", "{", "}")):
+            code_hits += 1
+        elif line[:1] in (" ", "\t") and line[1:2].strip():
+            code_hits += 1
+        elif stripped.split(" ", 1)[0] in _CODE_KEYWORDS:
+            code_hits += 1
+    if scored == 0:
+        return "text"
+    return "code" if code_hits / scored >= 0.15 else "text"
+
+
+def suggest_chunk_size(text: str, default: int = 512) -> int:
+    """Pick a chunk size that fits the content type.
+
+    Code keeps smaller chunks so function/class boundaries stay dense enough
+    for embeddings; prose can use larger windows.
+    """
+    if detect_content_type(text) == "code":
+        return max(64, min(default, 256))
+    return default
+
+
+def chunk_by_content(
+    text: str,
+    default_size: int = 512,
+    overlap: int = 50,
+) -> list[dict[str, Any]]:
+    """Chunk ``text`` using a size adapted to its content type."""
+    chunk_size = suggest_chunk_size(text, default=default_size)
+    chunks = chunk_by_tokens(text, chunk_size=chunk_size, overlap=overlap)
+    for chunk in chunks:
+        chunk["content_type"] = detect_content_type(chunk["text"])
+    return chunks
+
 
 def chunk_by_tokens(
     text: str,
     chunk_size: int = 512,
-    overlap: int = 64,
+    overlap: int = 50,
 ) -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
     words = text.split()

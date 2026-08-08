@@ -1,7 +1,11 @@
+"""Veda Engine configuration (re-exported from the shared ``hiil_common``).
+
+Kept as a module so existing imports (``veda_engine.config.WORKSPACE_ROOT``)
+and tests that monkeypatch ``config_module.WORKSPACE_ROOT`` keep working.
+"""
+
 from __future__ import annotations
 
-import os
-from pathlib import Path
+from hiil_common.config import WORKSPACE_ROOT, user_id, workspace_root
 
-_HIIL_WORKSPACE = os.environ.get("HIIL_WORKSPACE")
-WORKSPACE_ROOT: Path = Path(_HIIL_WORKSPACE).resolve() if _HIIL_WORKSPACE else Path.cwd().resolve()
+__all__ = ["WORKSPACE_ROOT", "workspace_root", "user_id"]

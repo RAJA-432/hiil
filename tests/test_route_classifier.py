@@ -61,6 +61,27 @@ class TestRuleBased:
     def test_genre_request_routes_to_genre_researcher(self):
         assert classify_rule_based("list tracks for the jazz genre") == "genre-researcher"
 
+    def test_flight_request_routes_to_travel_agent(self):
+        assert classify_rule_based("find flights from del to bom tomorrow") == "travel-agent"
+
+    def test_airport_request_routes_to_travel_agent(self):
+        assert classify_rule_based("what airports serve mumbai") == "travel-agent"
+
+    def test_health_request_routes_to_health_advisor(self):
+        assert classify_rule_based("health advice for a headache") == "health-advisor"
+
+    def test_diagnosis_request_routes_to_health_advisor(self):
+        assert classify_rule_based("can you check a diagnosis for me") == "health-advisor"
+
+    def test_media_request_routes_to_media_designer(self):
+        assert classify_rule_based("generate an image for a social post") == "media-designer"
+
+    def test_template_request_routes_to_media_designer(self):
+        assert classify_rule_based("find a video template for a deck") == "media-designer"
+
+    def test_browser_history_request_routes_to_history_librarian(self):
+        assert classify_rule_based("search my browsing history for arxiv") == "history-librarian"
+
 
 class TestModelPath:
     async def test_model_returning_registry_name(self):
